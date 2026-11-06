@@ -74,3 +74,4 @@ data/
 .env
 .env.*
 !.env.example
+test-results/

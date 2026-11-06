@@ -1,0 +1,88 @@
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdtemp, rm, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { chromium } from 'playwright';
+import * as THREE from 'three';
+import { fitCamera } from '../src/room-scene.js';
+
+const dataDir = await mkdtemp(join(tmpdir(),'terratec-browser-'));
+const children = [];
+let browser;
+const logs = [];
+const start = (args, env = {}) => {
+  const child = spawn(process.execPath,args,{env:{...process.env,...env},stdio:['ignore','pipe','pipe']});
+  child.stdout.on('data',chunk => logs.push(String(chunk)));
+  child.stderr.on('data',chunk => logs.push(String(chunk)));
+  children.push(child);
+};
+async function ready(url) {
+  for (let n = 0; n < 100; n++) {
+    if (children.some(child => child.exitCode !== null)) throw Error('Service exited: '+logs.join(''));
+    try { if ((await fetch(url)).ok) return; } catch {}
+    await new Promise(resolve => setTimeout(resolve,100));
+  }
+  throw Error('Service startup timed out: '+logs.join(''));
+}
+try {
+  start(['server/index.mjs'],{TERRATEC_DATA_DIR:dataDir});
+  start(['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5173','--strictPort']);
+  await Promise.all([ready('http://127.0.0.1:3001/api/health'),ready('http://127.0.0.1:5173')]);
+  browser = await chromium.launch({args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+  const page = await browser.newPage({viewport:{width:1440,height:1000}});
+  const errors = []; page.on('pageerror',error => errors.push(error.message));
+  await page.goto('http://127.0.0.1:5173');
+  await page.locator('canvas').waitFor();
+  const canvas = page.locator('canvas');
+  await page.getByRole('button',{name:'Calculate geometry'}).click();
+  await page.getByText('24.00 m²').waitFor();
+  await page.getByLabel('Project name').fill('Browser verified studio');
+  await page.getByRole('button',{name:'Save project'}).click();
+  await page.getByText('Project saved',{exact:true}).waitFor();
+  await page.getByLabel('width',{exact:true}).fill('8');
+  await page.getByRole('button',{name:'Open saved'}).click();
+  await page.getByText('Saved project opened',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('width',{exact:true}).inputValue(),'6');
+  await page.getByRole('button',{name:'Plan',exact:true}).click();
+  await page.getByText('ORTHOGRAPHIC PLAN · NORTH UP',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'South wall',exact:true}).click();
+  await page.getByRole('button',{name:'3D',exact:true}).click();
+  await page.getByText('Hidden in cutaway · switch to Plan').waitFor();
+  await page.getByLabel('height',{exact:true}).fill('3');
+  assert.equal(await page.getByRole('button',{name:'South wall',exact:true}).getAttribute('aria-pressed'),'true');
+  await page.getByRole('button',{name:'Plan',exact:true}).click();
+  await page.getByRole('button',{name:'Fit room',exact:true}).click();
+  // Match the camera projection to click a wall in the canvas rather than the list.
+  const rect = await canvas.boundingBox();
+  const camera = new THREE.OrthographicCamera();
+  fitCamera(camera,{width:6,depth:4,height:3},rect.width/rect.height,'Plan');
+  const point = new THREE.Vector3(0,3,-2.08).project(camera);
+  await canvas.click({position:{x:(point.x+1)/2*rect.width,y:(1-point.y)/2*rect.height}});
+  assert.equal(await page.getByRole('button',{name:'North wall',exact:true}).getAttribute('aria-pressed'),'true');
+  // A pan gesture must not replace the current selection.
+  await page.mouse.move(rect.x+rect.width*.4,rect.y+rect.height*.5);
+  await page.mouse.down(); await page.mouse.move(rect.x+rect.width*.4+50,rect.y+rect.height*.5+30,{steps:5}); await page.mouse.up();
+  assert.equal(await page.getByRole('button',{name:'North wall',exact:true}).getAttribute('aria-pressed'),'true');
+  await page.getByRole('button',{name:'Fit room',exact:true}).click();
+  await canvas.click({position:{x:10,y:rect.height-10}});
+  assert.equal(await page.getByRole('button',{name:'North wall',exact:true}).getAttribute('aria-pressed'),'false');
+  await page.getByRole('button',{name:'Floor',exact:true}).click();
+  await page.getByRole('button',{name:'Floor',exact:true}).press('Escape');
+  assert.equal(await page.getByRole('button',{name:'Floor',exact:true}).getAttribute('aria-pressed'),'false');
+  await mkdir('test-results',{recursive:true});
+  await page.screenshot({path:'test-results/workspace-desktop.png'});
+  await page.setViewportSize({width:390,height:844});
+  await page.getByRole('button',{name:'Plan',exact:true}).scrollIntoViewIfNeeded();
+  await page.screenshot({path:'test-results/workspace-mobile.png',fullPage:true});
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false,'mobile horizontal overflow');
+  assert.deepEqual(errors,[]);
+  console.log('Browser smoke passed: project roundtrip, native metrics, selection across views and edits, wall picking, pan, deselection, keyboard, mobile.');
+} finally {
+  await browser?.close();
+  await Promise.all(children.map(child => new Promise(resolve => {
+    if (child.exitCode !== null) return resolve();
+    child.once('exit',resolve); child.kill('SIGTERM');
+  })));
+  await rm(dataDir,{recursive:true,force:true});
+}

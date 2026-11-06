@@ -24,13 +24,17 @@ npm run dev
 
 Open the local address printed by Vite (normally http://127.0.0.1:5173).
 Edit the room dimensions, calculate geometry, save, change dimensions, and reopen
-the saved project. Drag to orbit; right-drag to pan; scroll to zoom. Plan sets the
-camera above the room, using perspective projection. The room uses a two-wall cutaway.
+the saved project. Drag to orbit; right-drag to pan; scroll to zoom. Plan uses an orthographic camera with north up and all four walls visible. The 3D
+view uses a two-wall cutaway. Click a surface or use the surface list to select it.
+Selection survives view switches and dimension edits; Escape or Clear selection
+clears it. Drag in Plan to pan; Fit room resets the camera.
 
 ```sh
 ctest --test-dir build --output-on-failure
 npm test
 npm run build
+npx playwright install --with-deps chromium
+npm run test:browser
 ```
 
 The native executable may also be built directly when CMake is unavailable:
@@ -70,7 +74,7 @@ build is not a production deployment; public hosting and authentication are futu
 
 ## Current limits
 
-One rectangular room and one saved project only. No arbitrary wall drawing, snapping,
+One rectangular room and one saved project only. Orthographic plan and surface selection are available. No arbitrary wall drawing, snapping,
 undo, BIM exchange, manufacturing, AI design or physics integration yet. Geometry
 quantities come from the native core; Three.js constructs the preview from the same
 validated dimensions. The optional Google font falls back to the system sans-serif.
