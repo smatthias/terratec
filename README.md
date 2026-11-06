@@ -27,7 +27,17 @@ Edit the room dimensions, calculate geometry, save, change dimensions, and reope
 the saved project. Drag to orbit; right-drag to pan; scroll to zoom. Plan uses an orthographic camera with north up and all four walls visible. The 3D
 view uses a two-wall cutaway. Click a surface or use the surface list to select it.
 Selection survives view switches and dimension edits; Escape or Clear selection
-clears it. Drag in Plan to pan; Fit room resets the camera.
+clears it. In Plan, drag a round corner handle to edit the outline; drag empty space
+to pan. Fit room resets the camera. A drag makes one undo entry when released;
+Escape, pointer cancellation, window blur, resizing or switching views cancels it.
+An invalid release restores the original shape. Grid snapping applies to handles
+and numeric coordinates alike.
+
+Undo/Redo buttons and Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y restore geometry
+edits, including dimensions, height and numeric endpoints. Shortcuts leave text-input
+undo alone. History is session-local, holds up to 100 edits, and resets on Open saved;
+saving does not clear it. Selection, camera position and project-name edits are not
+included in geometry history.
 
 ```sh
 ctest --test-dir build --output-on-failure
@@ -87,8 +97,8 @@ build is not a production deployment; public hosting and authentication are futu
 
 ## Current limits
 
-One convex four-corner room and one saved project only. Orthographic plan, surface selection, grid snapping and numeric endpoint editing are available. No arbitrary wall drawing,
-undo, BIM exchange, manufacturing, AI design or physics integration yet. Geometry
+One convex four-corner room and one saved project only. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
+BIM exchange, manufacturing, AI design or physics integration yet. Geometry
 quantities come from the native core; Three.js constructs the preview from the same
 validated outline. The optional Google font falls back to the system sans-serif.
 
