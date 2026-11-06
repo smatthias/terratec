@@ -301,3 +301,17 @@ Project CSV includes batch, material/thickness, cabinet identity, panel identity
 placements and stock settings, including oversize panels. Previews update with
 edits and undo/redo. Computation runs only while this section is open. Nesting
 remains heuristic, with no guaranteed minimum count, cutting sequence or CNC.
+
+### Printable workshop handoff
+
+In Project manufacturing, choose **Export printable workshop handoff**. Open
+the downloaded self-contained HTML in a browser and print/save as PDF using
+A4 landscape. It contains a snapshot timestamp, batch totals, cabinet source
+references, one sheet diagram per section, placed-dimension registers and
+unplaced oversize registers. Diagrams fit the page and are not to scale; all
+register coordinates/dimensions are millimetres. Stock/trim/kerf/rotation settings
+travel with each batch. Long registers paginate into bounded sections.
+
+The export reflects the current in-memory model, including applied unsaved edits.
+It contains escaped text, inline styles/SVG and no executable scripts or remote
+assets. This is a workshop review document, not a cutting sequence or CNC file.

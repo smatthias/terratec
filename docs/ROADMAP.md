@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **32%** of the planned functional scope, estimated by effort and verified
+Overall: **34%** of the planned functional scope, estimated by effort and verified
 capabilities. Percentages are planning estimates, not test coverage. This first
 foundation is not equivalent to a finished CAD application.
 
@@ -11,17 +11,17 @@ foundation is not equivalent to a finished CAD application.
 | Parametric geometry | 12% | Validated opening bounds and overlap checks; segmented wall voids | More constraints and arbitrary outlines |
 | Building design | 27% | A/B hinge and inward/outward swing, consistent in Plan/3D, undo and saves | Swing clearance checks and multiple rooms |
 | Interiors and furniture | 30% | Oak, birch and white board appearance with persistent material selection | More furniture types and material detail |
-| Drawings and exchange | 35% | A4/A3 sheets, orientation, margins, fit feedback and blocked oversized exports | Pagination and more exchange formats |
-| Manufacturing | 40% | Project-wide compatible batches, shared nesting, cabinet provenance and project CSV | Workshop handoff and printable layouts |
+| Drawings and exchange | 40% | A4/A3 sheets, orientation, margins, fit feedback and blocked oversized exports | Pagination and more exchange formats |
+| Manufacturing | 46% | Printable A4 landscape handoff with summaries, sheet diagrams, references and unplaced register | Workshop profiles and cutting constraints |
 | Distributed production | 0% | — | Workshop profiles and handoff |
 | Customer and business tools | 0% | — | Quantity-based quotes |
 | Assisted design | 0% | — | Structured design commands |
 | TerraFlux integration | 0% | — | Model exchange contract |
 | Release readiness | 8% | Recovery snapshots, storage-failure feedback and import validation | Installation and recovery |
 
-Next iteration: printable batch layouts and a workshop handoff summary.
+Next iteration: reusable workshop profiles for stock, trim, kerf and rotation constraints.
 
-Validation: fifty Node test groups and the Vite production build pass locally.
+Validation: fifty-two Node test groups and the Vite production build pass locally.
 The preceding foundation passed CMake/CTest in GitHub Actions. Browser smoke checks
 cover save/load, native quantities, selection across views and edits, ray picking,
 pan versus click, deselection, keyboard interaction, and mobile overflow, snapped/unsnapped endpoint edits, invalid-shape rejection, edited-outline persistence, corner dragging, single-gesture undo, redo, cancellation keyboard history, opening CRUD/undo/persistence and opening-aware wall/height validation. Local

@@ -637,6 +637,25 @@ try {
   assert.ok(projectCsvDownload.suggestedFilename().endsWith('_manufacturing.csv'));
   assert.match(projectCsv,/cabinet_id/);assert.match(projectCsv,/Storage cabinet/);assert.match(projectCsv,/Birch plywood/);
   assert.equal(projectCsv.trim().split('\r\n').length,19);
+  const handoffPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export printable workshop handoff',exact:true}).click();
+  const handoffDownload=await handoffPromise,handoffStream=await handoffDownload.createReadStream();let handoffHtml='';
+  for await(const chunk of handoffStream)handoffHtml+=chunk.toString();
+  assert.ok(handoffDownload.suggestedFilename().endsWith('_workshop.html'));
+  const handoffPage=await browser.newPage({viewport:{width:1120,height:800}});
+  await handoffPage.setContent(handoffHtml);
+  assert.equal(await handoffPage.locator('h1').textContent(),'Workshop handoff');
+  assert.ok(await handoffPage.locator('svg').count()>0);
+  assert.match(await handoffPage.locator('body').textContent(),/Storage cabinet/);
+  await handoffPage.emulateMedia({media:'print'});
+  await handoffPage.setViewportSize({width:1047,height:718});
+  const printHeights=await handoffPage.locator('.page').evaluateAll(pages=>pages.map(p=>p.getBoundingClientRect().height));
+  assert.ok(printHeights.every(h=>h<=718),'handoff sections fit A4 landscape content height');
+  await mkdir('test-results',{recursive:true});
+  await handoffPage.pdf({path:'test-results/workshop-handoff.pdf',preferCSSPageSize:true,printBackground:true});
+  await handoffPage.locator('.page').first().screenshot({path:'test-results/workshop-summary.png'});
+  await handoffPage.close();
+
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});
