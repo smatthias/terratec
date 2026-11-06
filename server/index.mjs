@@ -5,11 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
+import { projectStore } from './project-store.mjs';
 import { validateProject } from './project.mjs';
 
 const run = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
 export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve(root, 'build/terratec-core') } = {}) {
+  const projects=projectStore(dataDir);
   return createServer(async (req, res) => {
     const send = (status, value) => {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -17,14 +19,17 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
     };
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
+      const projectMatch=path.match(/^\/api\/projects\/([^/]+)$/);
+      if(req.method==='GET' && path==='/api/projects') return send(200,await projects.list());
+      if(req.method==='GET' && projectMatch) return send(200,await projects.read(projectMatch[1]));
       if (req.method === 'GET' && path === '/api/health') return send(200, { status: 'ok' });
       if (req.method === 'GET' && path === '/api/project') {
         try { return send(200, validateProject(JSON.parse(await readFile(join(dataDir, 'project.json'), 'utf8')))); }
         catch (error) { if (error.code === 'ENOENT') return send(404, { error: 'No saved project yet' }); throw error; }
       }
       if (req.method !== 'PUT' && req.method !== 'POST') return send(404, { error: 'Route not found' });
-      if (path !== '/api/project' && path !== '/api/geometry') return send(404, { error: 'Route not found' });
-      if ((path === '/api/project' && req.method !== 'PUT') || (path === '/api/geometry' && req.method !== 'POST'))
+      if (path !== '/api/project' && path !== '/api/geometry' && path !== '/api/projects' && !projectMatch) return send(404, { error: 'Route not found' });
+      if ((path === '/api/project' && req.method !== 'PUT') || (path === '/api/geometry' && req.method !== 'POST') || (path==='/api/projects' && req.method!=='POST') || (projectMatch && req.method!=='PUT'))
         return send(405, { error: 'Method not allowed' });
       // The development service accepts same-origin JSON requests only.
       if (!req.headers['content-type']?.toLowerCase().startsWith('application/json'))
@@ -39,6 +44,7 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
       let project;
       try { project = validateProject(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
       catch (error) { return send(400, { error: error.message }); }
+      if(path==='/api/projects' || projectMatch) return send(path==='/api/projects'?201:200,await projects.save(project,projectMatch?.[1]));
       if (path === '/api/geometry') {
         try {
           const { height, outline } = project.room;
@@ -54,8 +60,8 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
       } finally { await rm(temporary, { force: true }); }
       send(200, project);
     } catch (error) {
-      console.error(error);
-      if (!res.headersSent) send(500, { error: 'Project service failed' });
+      if(!error.status) console.error(error);
+      if (!res.headersSent) send(error.status||500, { error: error.status?error.message:'Project service failed' });
       else res.end();
     }
   });

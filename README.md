@@ -131,9 +131,32 @@ build is not a production deployment; public hosting and authentication are futu
 
 ## Current limits
 
-One convex four-corner room and one saved project only. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
+Each project contains one convex four-corner room. Multiple named projects can be saved and selected. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
 BIM exchange, manufacturing, AI design or physics integration yet. Frames, glazing and door leaves are illustrative; there is no collision, hinge animation or door-swing clearance validation. Preview is a footprint marker rather than a full 3D opening. Geometry
 quantities come from the native core; Three.js constructs the preview from the same
 validated outline. The optional Google font falls back to the system sans-serif.
 
 Progress and next steps are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Projects and plan export
+
+Use New for a blank unsaved workspace. Save project creates a UUID-backed file on
+first save and updates that project afterward; editing the name renames it without
+changing its ID. Choose an entry in Saved projects, then Open saved to load it.
+Opening or creating a project replaces the current workspace and resets geometry
+history; save edits first if you want to retain them. The selector defaults to the
+most recently updated entry after a fresh page load.
+
+Projects are stored independently under `data/projects/<id>.json`, with atomic
+replacement and a derived project list. `GET /api/projects` lists metadata,
+`POST /api/projects` creates a project, and `GET/PUT /api/projects/<id>` reads/updates
+one. Invalid IDs are rejected. The earlier `/api/project` endpoints remain available
+for legacy files; Open saved falls back to the legacy file if no entry is selected.
+A legacy project becomes a separate named project on its next save. Concurrent
+updates use last-write-wins semantics; deletion and version history are future work.
+
+Export SVG downloads a standalone measured Plan from the current validated model,
+regardless of camera/view. It includes wall sections, openings, hinge/swing symbols,
+wall dimensions, opening chains and an escaped project title. Coordinates are in
+metres; no physical print scale is assigned. It is a vector drawing, not a BIM or
+manufacturing interchange format. The export does not alter the project or history.
