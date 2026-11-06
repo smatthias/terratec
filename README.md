@@ -158,7 +158,7 @@ updates use last-write-wins semantics; deletion and version history are future w
 Export SVG downloads a standalone measured Plan from the current validated model,
 regardless of camera/view. It includes wall sections, openings, hinge/swing symbols,
 wall dimensions, opening chains and an escaped project title. Coordinates are in
-metres; no physical print scale is assigned. It is a vector drawing, not a BIM or
+metres; default output is unscaled, with physical scale options described below. It is a vector drawing, not a BIM or
 manufacturing interchange format. The export does not alter the project or history.
 
 ## Recovery and portable JSON
@@ -179,3 +179,18 @@ and migrates supported versions before changing the workspace, then opens an uns
 copy with fresh geometry history. Invalid imports leave the current project intact.
 Save project gives imported data a new server ID. JSON transfer is independent of SVG
 and retains editable model data. Camera, selection and undo history are not exported.
+
+## Duplicate and scaled SVG
+
+Duplicate copies the current validated workspace, including openings and named
+presets, adds “(copy)” to its name and starts fresh geometry history. It is an unsaved
+copy; Save project creates a new UUID. Editing or saving it does not update its source.
+Any existing unsaved source changes remain available through local recovery.
+
+Choose SVG print scale before Export SVG: unscaled vector, 1:20, 1:50, 1:100 or 1:200.
+Scaled files declare physical width/height in millimetres while their viewBox remains
+in model metres. At 1:100, a 1 m model length occupies 10 mm on paper. Text and line
+weights use consistent paper sizes. The selected scale appears on the drawing and
+in the filename. Print at 100%/actual size with fit-to-page disabled to retain scale;
+no paper size, pagination or automatic sheet fitting is applied. Scale selection is
+an export setting and does not change the project geometry or stored dimensions.

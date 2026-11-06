@@ -1,17 +1,17 @@
 # TerraTec progress
 
-Overall: **16%** of the planned functional scope, estimated by effort and verified
+Overall: **17%** of the planned functional scope, estimated by effort and verified
 capabilities. Percentages are planning estimates, not test coverage. This first
 foundation is not equivalent to a finished CAD application.
 
 | Milestone | Done | Improved in this iteration | Next step |
 | --- | ---: | --- | --- |
 | Project foundation | 90% | C++ core, Node API, Vue/Three.js application, schema 5 project presets with older-project migration, UUID-backed project collection, atomic save/load, CI configuration | Configuration checks and installation |
-| Design workspace | 75% | Local draft recovery and unsaved-change indicator | Placement alignment and editing polish |
+| Design workspace | 78% | Independent project duplication, fresh history and recovery of source edits | Placement alignment and editing polish |
 | Parametric geometry | 12% | Validated opening bounds and overlap checks; segmented wall voids | More constraints and arbitrary outlines |
 | Building design | 27% | A/B hinge and inward/outward swing, consistent in Plan/3D, undo and saves | Swing clearance checks and multiple rooms |
 | Interiors and furniture | 0% | — | Parametric furniture component |
-| Drawings and exchange | 25% | Validated portable JSON import/export alongside SVG | Print scales and more exchange formats |
+| Drawings and exchange | 30% | Physical SVG scales with consistent paper text/stroke sizes | Sheet sizes, pagination and more exchange formats |
 | Manufacturing | 0% | — | Validated manufacturing job |
 | Distributed production | 0% | — | Workshop profiles and handoff |
 | Customer and business tools | 0% | — | Quantity-based quotes |
@@ -19,9 +19,9 @@ foundation is not equivalent to a finished CAD application.
 | TerraFlux integration | 0% | — | Model exchange contract |
 | Release readiness | 8% | Recovery snapshots, storage-failure feedback and import validation | Installation and recovery |
 
-Next iteration: add project duplication and print-scale controls for plan exports.
+Next iteration: add paper sizes and plan sheet layout with scale-fit feedback.
 
-Validation: thirty-two Node test groups and the Vite production build pass locally.
+Validation: thirty-four Node test groups and the Vite production build pass locally.
 The preceding foundation passed CMake/CTest in GitHub Actions. Browser smoke checks
 cover save/load, native quantities, selection across views and edits, ray picking,
 pan versus click, deselection, keyboard interaction, and mobile overflow, snapped/unsnapped endpoint edits, invalid-shape rejection, edited-outline persistence, corner dragging, single-gesture undo, redo, cancellation keyboard history, opening CRUD/undo/persistence and opening-aware wall/height validation. Local

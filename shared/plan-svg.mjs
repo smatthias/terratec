@@ -2,9 +2,10 @@ import {validateProject} from './project.mjs';
 import {bounds,edgeIds} from './geometry.mjs';
 import {wallPanels,doorPose} from './openings.mjs';
 export const escapeXml=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-export function exportPlanSvg(input) {
+export function exportPlanSvg(input,{scale=null}={}) {
+  if(scale!==null && ![20,50,100,200].includes(scale)) throw Error('SVG print scale must be 1:20, 1:50, 1:100, 1:200 or unscaled');
   const project=validateProject(input),room=project.room,box=bounds(room.outline),extent=Math.max(box.width,box.depth);
-  const font=Math.max(.12,extent/70),stroke=Math.max(.012,extent/1000),offset=Math.max(.4,extent/12),items=[],points=[];
+  const font=scale?2.5*scale/1000:Math.max(.12,extent/70),stroke=scale?0.18*scale/1000:Math.max(.012,extent/1000),offset=scale?8*scale/1000:Math.max(.4,extent/12),items=[],points=[];
   const point=p=>{points.push(p);return p.x.toFixed(6)+','+p.z.toFixed(6);};
   const line=(a,b,color='#263e3c')=>items.push(`<polyline points="${point(a)} ${point(b)}" fill="none" stroke="${color}" stroke-width="${stroke}"/>`);
   const poly=(p,fill)=>items.push(`<polygon points="${p.map(point).join(' ')}" fill="${fill}" stroke="#263e3c" stroke-width="${stroke}"/>`);
@@ -37,6 +38,10 @@ export function exportPlanSvg(input) {
   const minX=Math.min(...points.map(p=>p.x))-font*3,maxX=Math.max(...points.map(p=>p.x))+font*3;
   const minZ=Math.min(...points.map(p=>p.z))-font*6,maxZ=Math.max(...points.map(p=>p.z))+font*3;
   const width=maxX-minX,height=maxZ-minZ;
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minZ} ${width} ${height}" width="1200" height="${Math.round(1200*height/width)}" role="img"><title>${escapeXml(project.name)} · Plan</title><metadata>TerraTec plan; model coordinates in metres; section height ${sliceHeight(room)} m. Drawing is not assigned a print scale.</metadata><rect x="${minX}" y="${minZ}" width="${width}" height="${height}" fill="white"/><text x="${minX+font}" y="${minZ+font*2}" font-family="sans-serif" font-size="${font*1.5}" textLength="${Math.min(project.name.length*font*.9,width-font*2)}" lengthAdjust="spacingAndGlyphs">${escapeXml(project.name)}</text>${items.join('')}</svg>\n`;
+  const svgWidth=scale?(width*1000/scale).toFixed(6)+'mm':'1200';
+  const svgHeight=scale?(height*1000/scale).toFixed(6)+'mm':String(Math.round(1200*height/width));
+  const printLabel=scale?'Scale 1:'+scale+'; print at 100% without fit-to-page.':'Drawing is not assigned a print scale.';
+  const title=project.name+(scale?' · 1:'+scale:'');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minZ} ${width} ${height}" width="${svgWidth}" height="${svgHeight}" data-print-scale="${scale?'1:'+scale:'unscaled'}" role="img"><title>${escapeXml(project.name)} · Plan</title><metadata>TerraTec plan; model coordinates in metres; section height ${sliceHeight(room)} m. ${printLabel}</metadata><rect x="${minX}" y="${minZ}" width="${width}" height="${height}" fill="white"/><text x="${minX+font}" y="${minZ+font*2}" font-family="sans-serif" font-size="${font*1.5}" textLength="${Math.min(title.length*font*.9,width-font*2)}" lengthAdjust="spacingAndGlyphs">${escapeXml(title)}</text>${items.join('')}</svg>\n`;
 }
 function sliceHeight(room) {return Math.min(1.2,room.height/2);}
