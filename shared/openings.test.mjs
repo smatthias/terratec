@@ -7,12 +7,12 @@ import {validateProject} from './project.mjs';
 import {createRoom,updateSurfaces} from '../src/room-scene.js';
 import {createHistory,commitHistory,undoHistory,redoHistory} from './history.mjs';
 const outline=rectangle(6,4);
-const door={id:'door-1',type:'door',wall:'north',offset:1,width:.9,height:2.1,sill:0};
+const door={hinge:'A',swing:'in',id:'door-1',type:'door',wall:'north',offset:1,width:.9,height:2.1,sill:0};
 const window={id:'window-1',type:'window',wall:'north',offset:3,width:1.2,height:1.2,sill:.9};
 const room={width:6,depth:4,height:3,outline,openings:[door,window]};
 test('openings migrate, persist and participate in undo/redo',()=>{
   const old={schemaVersion:2,units:'m',name:'Studio',room:{...room,openings:undefined}};
-  const migrated=validateProject(old); assert.equal(migrated.schemaVersion,3); assert.deepEqual(migrated.room.openings,[]);
+  const migrated=validateProject(old); assert.equal(migrated.schemaVersion,4); assert.deepEqual(migrated.room.openings,[]);
   const project=validateProject({...old,schemaVersion:3,room});
   assert.deepEqual(validateProject(JSON.parse(JSON.stringify(project))),project);
   const history=commitHistory(createHistory(migrated.room),project.room);

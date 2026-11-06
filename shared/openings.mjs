@@ -18,7 +18,9 @@ export function validateOpenings(openings,outline,height) {
       o.offset+o.width>length-.05+1e-9 || o.sill+o.height>height-.05+1e-9 ||
       (o.type==='door' && o.sill!==0) || (o.type==='window' && o.sill<.1))
       throw Error('Opening must fit its wall with 0.05 m end/header clearance; doors start at floor and windows need a sill of at least 0.1 m');
-    return {id:o.id,type:o.type,wall:o.wall,offset:o.offset,width:o.width,height:o.height,sill:o.sill};
+    if(o.type==='door' && (!['A','B'].includes(o.hinge??'A') || !['in','out'].includes(o.swing??'in')))
+      throw Error('Door hinge must be A or B and swing must be in or out');
+    return {...(o.type==='door'?{hinge:o.hinge??'A',swing:o.swing??'in'}:{}),id:o.id,type:o.type,wall:o.wall,offset:o.offset,width:o.width,height:o.height,sill:o.sill};
   });
   for(let i=0;i<result.length;i++) for(let j=i+1;j<result.length;j++) {
     const a=result[i],b=result[j];
@@ -42,18 +44,29 @@ export function wallPanels(length,height,openings) {
 }
 export function openingPreset(room,wall,type,id,offset) {
   const length=wallLength(room.outline,wall),height=room.height;
-  return {id,wall,type,offset,width:Math.min(type==='door'?.9:1.2,length-.2),
+  return {...(type==='door'?{hinge:'A',swing:'in'}:{}),id,wall,type,offset,width:Math.min(type==='door'?.9:1.2,length-.2),
     height:type==='door'?Math.min(2.1,height-.05):Math.min(1.2,height*.4),sill:type==='door'?0:Math.max(.1,height*.3)};
 }
-export function openingAtPoint(room,wall,type,id,point,spacing,snap=true,tolerance=.25) {
+export function previewOpening(room,wall,type,id,point,spacing,snap=true,tolerance=.25) {
   const i=edgeIds.indexOf(wall),length=wallLength(room.outline,wall);
   const a=room.outline[i],b=room.outline[(i+1)%4],tx=(b.x-a.x)/length,tz=(b.z-a.z)/length;
   const along=(point.x-a.x)*tx+(point.z-a.z)*tz;
   const distance=Math.abs((point.x-a.x)*(-tz)+(point.z-a.z)*tx);
-  if(!Number.isFinite(along) || distance>tolerance) throw Error('Click near the selected wall to place an opening');
-  const preset=openingPreset(room,wall,type,id,0);
-  const offset=along-preset.width/2;
-  preset.offset=snap?Number((Math.round(offset/spacing)*spacing).toFixed(8)):offset;
-  validateOpenings([...room.openings,preset],room.outline,room.height);
-  return preset;
+  const opening=openingPreset(room,wall,type,id,0);
+  const offset=along-opening.width/2;
+  opening.offset=snap?Number((Math.round(offset/spacing)*spacing).toFixed(8)):offset;
+  try {
+    if(!Number.isFinite(along) || distance>tolerance) throw Error('Click near the selected wall to place an opening');
+    validateOpenings([...room.openings,opening],room.outline,room.height);
+    return {opening,valid:true,error:''};
+  } catch(error) { return {opening,valid:false,error:error.message}; }
+}
+export function openingAtPoint(...args) {
+  const result=previewOpening(...args);
+  if(!result.valid) throw Error(result.error);
+  return result.opening;
+}
+export function doorPose(opening) {
+  const hingeB=opening.hinge==='B';
+  return {hingeAlong:opening.offset+(hingeB?opening.width:0),hingeSign:hingeB?-1:1,swingSign:opening.swing==='out'?-1:1};
 }

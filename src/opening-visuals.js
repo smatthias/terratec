@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { doorPose } from '../shared/openings.mjs';
 import { edgeIds } from '../shared/geometry.mjs';
 export function addOpeningVisuals(group,room) {
   for(const o of room.openings||[]) {
@@ -22,9 +23,8 @@ export function addOpeningVisuals(group,room) {
       const glass=box(o.offset+o.width/2,(bottom+top)/2,o.width-2*t,o.height-2*t,.012,0x87cbd9,'glazing');
       glass.material.transparent=true;glass.material.opacity=.3;glass.material.depthWrite=false;
     } else {
-      // Fixed inward 90-degree leaf, hinged at endpoint A side.
-      const clear=o.width-2*t;
-      box(o.offset+t,(bottom+top-t)/2,clear,o.height-t,.035,0xbba078,'leaf',clear/2,-Math.atan2(nz,nx));
+      const clear=o.width-2*t,pose=doorPose(o);
+      box(pose.hingeAlong+pose.hingeSign*t,(bottom+top-t)/2,clear,o.height-t,.035,0xbba078,'leaf',pose.swingSign*clear/2,-Math.atan2(nz*pose.swingSign,nx*pose.swingSign));
     }
     const line=(points,kind)=>{
       const color=o.type==='door'?0xe3c58c:0x98d4e3;
@@ -32,12 +32,13 @@ export function addOpeningVisuals(group,room) {
       mesh.renderOrder=5;tag(mesh,'symbol',kind,color);
     };
     if(o.type==='door') {
-      const hinge=position(o.offset,.04,0),tip=position(o.offset,.04,o.width);
+      const pose=doorPose(o);
+      const hinge=position(pose.hingeAlong,.04,0),tip=position(pose.hingeAlong,.04,pose.swingSign*o.width);
       line([hinge,tip],'door-leaf-symbol');
       const points=[];
       for(let j=0;j<=32;j++) {
         const angle=j/32*Math.PI/2;
-        points.push(position(o.offset+o.width*Math.cos(angle),.04,o.width*Math.sin(angle)));
+        points.push(position(pose.hingeAlong+pose.hingeSign*o.width*Math.cos(angle),.04,pose.swingSign*o.width*Math.sin(angle)));
       }
       line(points,'door-swing');
     } else {

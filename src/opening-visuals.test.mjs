@@ -37,3 +37,18 @@ test('opening details and plan symbols switch views with their host wall',()=>{
   updateSurfaces(cutaway,'3D',null);
   assert.equal(cutaway.children.some(m=>m.userData.openingId==='door' && m.visible),false);
 });
+
+test('all hinge/swing combinations align leaf positions and plan arc endpoints',()=>{
+  for(const hinge of ['A','B']) for(const swing of ['in','out']) {
+    const door={id:'pose',wall:'north',type:'door',offset:1,width:.9,height:2.1,sill:0,hinge,swing};
+    const group=createRoom({...room,openings:[door]});
+    const leaf=group.children.find(m=>m.userData.kind==='leaf');
+    assert.ok(swing==='in'?leaf.position.z>-2:leaf.position.z<-2);
+    assert.ok(Math.abs(leaf.position.x-(-3+1+(hinge==='B'?.9-.045:.045)))<1e-9);
+    const arc=group.children.find(m=>m.userData.kind==='door-swing').geometry.attributes.position;
+    const first=new THREE.Vector3().fromBufferAttribute(arc,0),last=new THREE.Vector3().fromBufferAttribute(arc,32);
+    assert.ok(Math.abs(first.x-(-3+1+(hinge==='A'?.9:0)))<1e-6);
+    assert.ok(Math.abs(last.x-(-3+1+(hinge==='B'?.9:0)))<1e-6);
+    assert.ok(Math.abs(last.z-(-2+(swing==='in'?.9:-.9)))<1e-6);
+  }
+});

@@ -58,13 +58,13 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic core/main.cpp -o build/terratec-core
 
 ```json
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "units": "m",
   "name": "Studio",
   "room": {
     "width": 6, "depth": 4, "height": 2.8,
     "outline": [{"x":-3,"z":-2},{"x":3,"z":-2},{"x":3,"z":2},{"x":-3,"z":2}],
-    "openings": [{"id":"door-1","type":"door","wall":"north","offset":1,"width":0.9,"height":2.1,"sill":0}]
+    "openings": [{"id":"door-1","type":"door","wall":"north","offset":1,"width":0.9,"height":2.1,"sill":0,"hinge":"A","swing":"in"}]
   }
 }
 ```
@@ -78,8 +78,9 @@ Width and depth inputs scale the outline about its bounding-box center. Height i
 uniform. Coordinates must be finite and within ±1000 m, wall lengths at least 0.1 m,
 and overall spans 0.1–1000 m. Crossing, concave and collapsed outlines are rejected.
 
-Schema 1 rectangles and schema 2 outlines migrate to schema 3 on read, with an empty
-opening list. Schema 3 preserves explicit outlines and openings. Width/depth are derived from its bounds. Unsupported versions are rejected.
+Schema 1 rectangles and schema 2 outlines migrate with empty opening lists. Schema 3
+openings migrate to schema 4, with A-end/inward defaults for doors. Schema 4 persists
+door hinge and swing settings. Width/depth are derived from its bounds. Unsupported versions are rejected.
 The service validates before saving and atomically replaces its single project file.
 Additional fields are discarded. Native area/volume/perimeter use the polygon,
 not its bounding rectangle. Both views render that same polygon. Plan shows wall-length labels in metres.
@@ -92,13 +93,13 @@ with 0.05 m horizontal separation between openings. Doors start at floor level;
 windows need a sill of at least 0.1 m. Up to 64 openings are supported. Shrinking a
 wall or lowering room height is rejected if existing openings would no longer fit.
 Opening add/edit/remove operations participate in undo/redo and project persistence.
-In 3D, windows have frames and translucent glazing; doors have frames and a fixed
-inward 90° leaf hinged at the A end. Plan shows door swing arcs and double-line
-window symbols. Details follow the host wall and cutaway visibility. Click a symbol
+In 3D, windows have frames and translucent glazing; doors have frames and a 90° leaf with selectable A/B hinge and inward/outward swing. Plan shows matching door swing arcs and double-line window symbols. Choose Door
+hinge and Door swing in the inspector, then Apply opening; both views, history and
+saved projects use those settings. Details follow the host wall and cutaway visibility. Click a symbol
 or visible opening detail to select its inspector.
 
-For canvas placement, select a wall and choose Place door/window. Click near that
-wall in Plan; the click sets the opening center along the wall and the offset from A
+For canvas placement, select a wall and choose Place door/window. Move near that wall in Plan to see a green valid or red invalid preview and a
+validation message. Previewing does not edit the project or history. Click to commit; the click sets the opening center along the wall and the offset from A
 snaps to the selected grid. Invalid/out-of-wall or overlapping placements are rejected
 and leave placement mode active. Escape or Cancel placement exits without an edit.
 A valid placement makes one undo entry. Place mode uses standard preset sizes; edit
@@ -121,7 +122,7 @@ build is not a production deployment; public hosting and authentication are futu
 ## Current limits
 
 One convex four-corner room and one saved project only. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
-BIM exchange, manufacturing, AI design or physics integration yet. Frames, glazing and door leaves are illustrative; there is no collision, hinge animation or door-swing clearance validation. Geometry
+BIM exchange, manufacturing, AI design or physics integration yet. Frames, glazing and door leaves are illustrative; there is no collision, hinge animation or door-swing clearance validation. Preview is a footprint marker rather than a full 3D opening. Geometry
 quantities come from the native core; Three.js constructs the preview from the same
 validated outline. The optional Google font falls back to the system sans-serif.
 
