@@ -330,3 +330,16 @@ keep independent settings, including after profile update/deletion. Profile list
 changes are project metadata, like opening presets, and are not in geometry undo.
 Profiles persist in saves, recovery, JSON and duplication; older projects default
 to an empty list. Save/export the project to keep newly created profiles.
+
+### Portable profiles and bulk settings
+
+**Export workshop profiles** downloads a versioned JSON file. Import accepts at
+most 32 KiB and merges up to 32 validated profiles with fresh IDs. Existing
+profiles are retained; colliding names receive an `(import N)` suffix. Invalid
+files or capacity violations leave the project unchanged. Save the project after
+import to persist the merged list.
+
+Select a profile, choose cabinet checkboxes (or Select all), and apply to the
+selection. The entire operation is one geometry undo step. Cabinet dimensions,
+materials and blank allowances stay independent. Profile exchange is available
+from the selected cabinet’s profile section.
