@@ -192,5 +192,20 @@ Scaled files declare physical width/height in millimetres while their viewBox re
 in model metres. At 1:100, a 1 m model length occupies 10 mm on paper. Text and line
 weights use consistent paper sizes. The selected scale appears on the drawing and
 in the filename. Print at 100%/actual size with fit-to-page disabled to retain scale;
-no paper size, pagination or automatic sheet fitting is applied. Scale selection is
+fixed A4/A3 sheet settings are available as described below; no automatic scaling or pagination is applied. Scale selection is
 an export setting and does not change the project geometry or stored dimensions.
+
+## A4/A3 plan sheets
+
+SVG paper size defaults to Drawing bounds. Choose A4 or A3 plus Portrait/Landscape
+for a fixed sheet. A print scale is required. Sheets use 10 mm margins and reserve
+12 mm for a footer inside the lower margin area. The complete drawing, including
+annotations and title, is centred in the remaining area without changing scale.
+
+Fit feedback shows required and usable millimetres. Export is disabled if the
+drawing does not fit; the exporter also rejects oversized layouts. Use suggested
+scale explicitly applies a supported scale that fits, when one is available. You
+can instead choose larger paper or change orientation. The SVG declares exact sheet
+size in millimetres, with a scale transform around the model-metre drawing, a border
+and footer. Continue printing at 100%/actual size with fit-to-page disabled.
+Pagination and printer-specific unprintable-area handling are not implemented.
