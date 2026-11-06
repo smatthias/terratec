@@ -160,3 +160,22 @@ regardless of camera/view. It includes wall sections, openings, hinge/swing symb
 wall dimensions, opening chains and an escaped project title. Coordinates are in
 metres; no physical print scale is assigned. It is a vector drawing, not a BIM or
 manufacturing interchange format. The export does not alter the project or history.
+
+## Recovery and portable JSON
+
+Unsaved validated model changes are captured in this browser's local storage, with
+up to 20 recovery snapshots. Use Recovery draft → Recover draft after a reload or
+workspace switch. Recovery opens an unsaved copy; Save project creates a new server
+project and clears the recovered snapshot, so the saved original is preserved.
+Discard draft removes a snapshot. If it belongs to the current workspace, it stays
+discarded until another model edit. Saving a project clears its current local draft.
+Storage failures are shown in the workspace; local recovery is not a server backup.
+Only validated model changes are captured: unfinished numeric fields, unapplied
+opening edits, placement previews and in-progress corner drags are not snapshots.
+
+Export JSON downloads the canonical model, including openings and named presets,
+without a server project ID. Import JSON accepts model files up to 64 KiB, validates
+and migrates supported versions before changing the workspace, then opens an unsaved
+copy with fresh geometry history. Invalid imports leave the current project intact.
+Save project gives imported data a new server ID. JSON transfer is independent of SVG
+and retains editable model data. Camera, selection and undo history are not exported.

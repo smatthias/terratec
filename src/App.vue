@@ -5,6 +5,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createRoom, updateSurfaces, fitCamera, pickSurface, surfaces, createGrid, pickOpening } from './room-scene.js';
 
 import { savePreset } from '../shared/presets.mjs';
+import { parseProjectJson, serializeProjectJson } from '../shared/project-json.mjs';
+import { RECOVERY_KEY, readDrafts, storeDraft, removeDraft } from '../shared/recovery.mjs';
 import { exportPlanSvg } from '../shared/plan-svg.mjs';
 import { validateProject } from '../shared/project.mjs';
 import { bounds, edgeIds, validateOutline, snapPoint, scaleOutline, moveCorner } from '../shared/geometry.mjs';
@@ -14,11 +16,49 @@ import { wallLength, openingAtPoint, previewOpening, openingPreset } from '../sh
 import { createHistory, commitHistory, undoHistory, redoHistory } from '../shared/history.mjs';
 const blankProject=()=>validateProject({schemaVersion:1,units:'m',name:'Untitled studio',room:{width:6,depth:4,height:2.8}});
 const project=ref(blankProject());
+const fingerprint=p=>JSON.stringify(validateProject(p));
+const baseline=ref(fingerprint(project.value)),draftKey=ref('draft-'+crypto.randomUUID()),recoveryOrigin=ref(null);
+const recoveryDrafts=ref([]),recoveryChoice=ref(''),recoveryNotice=ref(''),jsonInput=ref(null);
+const dirty=computed(()=>{try{return fingerprint(project.value)!==baseline.value;}catch{return true;}});
+function refreshDraftChoice() {
+  if(!recoveryDrafts.value.some(d=>d.key===recoveryChoice.value)) recoveryChoice.value=recoveryDrafts.value[0]?.key||'';
+}
+let ignoredDraft=null;
+function captureDraft() {
+  if(dragging.value || !dirty.value) return;
+  try {validateProject(project.value);}catch{return;}
+  if(ignoredDraft?.key===draftKey.value && ignoredDraft.snapshot===fingerprint(project.value)) return;
+  try {recoveryDrafts.value=storeDraft(localStorage,draftKey.value,project.value);refreshDraftChoice();}
+  catch {recoveryNotice.value='Local recovery storage is unavailable. Save or export your project.';}
+}
+function clearCurrentDraft() {
+  try {recoveryDrafts.value=removeDraft(localStorage,draftKey.value);if(recoveryOrigin.value) recoveryDrafts.value=removeDraft(localStorage,recoveryOrigin.value);recoveryOrigin.value=null;refreshDraftChoice();}
+  catch {recoveryNotice.value='Could not clear local recovery data.';}
+}
+function resetWorkspaceState() {
+  placementType.value=null;selected.value=null;selectedOpeningId.value=null;history.value=createHistory(project.value.room);resetView();
+}
+function recoverDraft() {
+  const draft=recoveryDrafts.value.find(d=>d.key===recoveryChoice.value);if(!draft)return;
+  captureDraft();project.value=validateProject(draft.project);activeProjectId.value=null;projectChoice.value='';
+  recoveryOrigin.value=draft.key;draftKey.value='draft-'+crypto.randomUUID();baseline.value='';resetWorkspaceState();message.value='Draft recovered as an unsaved copy';
+}
+function discardDraft() {
+  if(recoveryChoice.value===draftKey.value) {
+    let snapshot=null;try{snapshot=fingerprint(project.value);}catch{}
+    ignoredDraft={key:draftKey.value,snapshot};
+  }
+  try {recoveryDrafts.value=removeDraft(localStorage,recoveryChoice.value);refreshDraftChoice();message.value='Local draft discarded';}
+  catch {recoveryNotice.value='Could not clear local recovery data.';}
+}
+function beforeUnload() {captureDraft();}
+
 const activeProjectId=ref(null),projectChoice=ref(''),projectList=ref([]),listLoading=ref(true);
 const dimensionDraft=ref({width:project.value.room.width,depth:project.value.room.depth,height:project.value.room.height});
 watch(()=>project.value.room,room=>{dimensionDraft.value={width:room.width,depth:room.depth,height:room.height};},{deep:true});
 const history=ref(createHistory(project.value.room)), dragging=ref(false), cornerHandles=ref([]);
 let dragState;
+watch([project,dragging],captureDraft,{deep:true,flush:'post'});
 const editingLocked=computed(()=>busy.value || dragging.value);
 function applyRoom(room,record=true) {
   const next=validateProject({...project.value,room}).room;
@@ -189,9 +229,31 @@ async function refreshProjects() {
   finally {listLoading.value=false;}
 }
 function newProject() {
+  captureDraft();
   placementType.value=null;project.value=blankProject();activeProjectId.value=null;projectChoice.value='';
   selected.value=null;selectedOpeningId.value=null;history.value=createHistory(project.value.room);
+  baseline.value=fingerprint(project.value);draftKey.value='draft-'+crypto.randomUUID();recoveryOrigin.value=null;
   resetView();message.value='New project';
+}
+function downloadText(text,type,extension) {
+  const url=URL.createObjectURL(new Blob([text],{type})),link=document.createElement('a');
+  link.href=url;link.download=(project.value.name.replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,80)||'terratec')+extension;
+  link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function exportJson() {
+  try {downloadText(serializeProjectJson(project.value),'application/json','.json');message.value='Project JSON exported';}
+  catch(error) {message.value=error.message;}
+}
+async function importJson(event) {
+  const file=event.target.files?.[0];if(!file)return;
+  busy.value=true;
+  try {
+    if(file.size>65536) throw Error('Project JSON exceeds 64 KiB');
+    const imported=parseProjectJson(await file.text());
+    captureDraft();project.value=imported;activeProjectId.value=null;projectChoice.value='';draftKey.value='draft-'+crypto.randomUUID();
+    baseline.value='';recoveryOrigin.value=null;resetWorkspaceState();message.value='Project JSON imported as an unsaved copy';
+  } catch(error) {message.value='Import failed: '+error.message;}
+  finally {event.target.value='';busy.value=false;}
 }
 function exportPlan() {
   try {
@@ -201,6 +263,7 @@ function exportPlan() {
   } catch(error) {message.value=error.message;}
 }
 async function action(kind) {
+  if(kind==='load') captureDraft();
   placementType.value=null;
   busy.value = true;
   const atRevision = revision;
@@ -208,9 +271,11 @@ async function action(kind) {
     if(kind==='load') {
       if(projectChoice.value) {const record=await request('/api/projects/'+projectChoice.value,'GET');project.value=record.project;activeProjectId.value=record.id;}
       else {project.value=await request('/api/project','GET');activeProjectId.value=null;}
+      baseline.value=fingerprint(project.value);recoveryOrigin.value=null;draftKey.value=activeProjectId.value||'draft-'+crypto.randomUUID();
       history.value=createHistory(project.value.room);selected.value=null;selectedOpeningId.value=null;resetView();message.value='Saved project opened';
     } else if(kind==='save') {
       const record=await request(activeProjectId.value?'/api/projects/'+activeProjectId.value:'/api/projects',activeProjectId.value?'PUT':'POST',project.value);
+      baseline.value=fingerprint(record.project);clearCurrentDraft();draftKey.value=record.id;
       activeProjectId.value=record.id;projectChoice.value=record.id;await refreshProjects();message.value='Project saved';
     }
     else {
@@ -347,6 +412,9 @@ function keyboard(event) {
 watch(view, setupCamera);
 watch(gridSpacing,rebuild);
 onMounted(() => {
+  try {recoveryDrafts.value=readDrafts(localStorage.getItem(RECOVERY_KEY));refreshDraftChoice();}
+  catch {recoveryNotice.value='Local recovery data could not be read.';}
+  window.addEventListener('beforeunload',beforeUnload);
   refreshProjects();
   window.addEventListener('keydown',keyboard);
   window.addEventListener('blur',cancelDrag);
@@ -372,6 +440,7 @@ onMounted(() => {
   } catch { message.value = '3D view requires WebGL. Project save/load remains available.'; }
 });
 onBeforeUnmount(() => {
+  captureDraft();window.removeEventListener('beforeunload',beforeUnload);
   clearPreview(); cancelDrag(); window.removeEventListener('keydown',keyboard); window.removeEventListener('blur',cancelDrag);
   cancelAnimationFrame(frame); observer?.disconnect(); controls?.dispose(); disposeRoom();
   renderer?.domElement.removeEventListener('pointerdown',pointerDown);
@@ -385,8 +454,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="workspace">
-    <header><a class="brand" href="/">terra<span>tec</span><small>DESIGN / BUILD / CONNECT</small></a><div class="actions"><select v-model="projectChoice" aria-label="Saved projects" :disabled="editingLocked || listLoading"><option value="">Choose project</option><option v-for="entry in projectList" :key="entry.id" :value="entry.id">{{ entry.name }}</option></select><button :disabled="editingLocked" @click="newProject">New</button><button :disabled="editingLocked || !valid" @click="exportPlan">Export SVG</button><button :disabled="editingLocked || listLoading" @click="action('load')">Open saved</button><button class="primary" :disabled="editingLocked || !valid" @click="action('save')">Save project</button></div></header>
-    <aside><p class="eyebrow">PROJECT / 001</p><h1>A space to<br>make your own.</h1><label>Project name<input v-model="project.name" maxlength="120" :disabled="editingLocked"></label><div class="divider"></div><p class="eyebrow">ROOM DIMENSIONS · METRES</p><label v-for="key in ['width','depth']" :key="key">{{ key }}<input v-model.number="dimensionDraft[key]" @change="setDimension(key,$event)" type="number" min="0.1" max="1000" step="0.1" :disabled="editingLocked"></label><label>Height<input v-model.number="dimensionDraft.height" @change="setHeight" type="number" min="0.1" max="1000" step="0.1" :disabled="editingLocked"></label><div class="divider"></div><label class="snap-toggle"><input v-model="snapEnabled" type="checkbox" :disabled="editingLocked"> Snap endpoints to grid</label><label>Grid spacing<select v-model.number="gridSpacing" :disabled="editingLocked"><option :value=".1">0.10 m</option><option :value=".25">0.25 m</option><option :value=".5">0.50 m</option><option :value="1">1.00 m</option></select></label><p class="hint">Large rooms show a coarser grid; snapping uses the selected spacing.</p><fieldset v-if="selectedEdge >= 0" class="endpoint-editor" :disabled="editingLocked"><legend>{{ selectedLabel }} endpoints</legend><div v-for="(point,n) in endpointDraft" :key="n" class="endpoint-row"><label v-for="axis in ['x','z']" :key="axis">{{ n === 0 ? 'A' : 'B' }} {{ axis.toUpperCase() }}<input v-model.number="point[axis]" type="number" min="-1000" max="1000" :step="gridSpacing"></label></div><button @click="applyEndpoints">Apply endpoints</button><p class="hint">Adjoining walls share each corner. Convex four-corner rooms only.</p></fieldset><fieldset v-if="selectedEdge >= 0" class="opening-editor" :disabled="editingLocked"><legend>Wall openings</legend><div class="opening-actions"><button @click="addOpening('door')">Add door</button><button @click="addOpening('window')">Add window</button></div><div class="opening-actions"><button :aria-pressed="placementType === 'door'" @click="beginPlacement('door')">Place door</button><button :aria-pressed="placementType === 'window'" @click="beginPlacement('window')">Place window</button></div><div v-if="placementType && placementSize" class="placement-size"><p class="eyebrow">PLACEMENT SIZE · METRES</p><label v-for="field in ['width','height','sill']" :key="field">Placement {{ field }}<input v-model.number="placementSize[field]" type="number" min="0" step="0.01" :disabled="field === 'sill' && placementType === 'door'"></label><template v-if="placementType === 'door'"><label>Placement hinge<select v-model="placementSize.hinge" aria-label="Placement hinge"><option value="A">A end</option><option value="B">B end</option></select></label><label>Placement swing<select v-model="placementSize.swing" aria-label="Placement swing"><option value="in">Inward</option><option value="out">Outward</option></select></label></template><label>Preset name<input v-model="presetName" maxlength="60"></label><button @click="saveOpeningPreset">Save opening preset</button><label v-if="savedPresets.length">Saved opening preset<select v-model="presetId" aria-label="Saved opening preset"><option :value="null">Choose preset</option><option v-for="preset in savedPresets" :key="preset.id" :value="preset.id">{{ preset.name }}</option></select></label><div v-if="savedPresets.length" class="opening-actions"><button :disabled="!presetId" @click="useOpeningPreset">Use preset</button><button :disabled="!presetId" @click="removeOpeningPreset">Delete preset</button></div></div><p v-if="placementType" class="placement-note">Click the selected wall to place a {{ placementType }}.<button @click="placementType=null">Cancel placement</button></p><label v-if="wallOpenings.length">Opening<select v-model="selectedOpeningId" aria-label="Opening"><option :value="null">Choose opening</option><option v-for="(opening,index) in wallOpenings" :key="opening.id" :value="opening.id">{{ opening.type }} {{ index+1 }}</option></select></label><template v-if="openingDraft"><label v-for="field in ['offset','width','height','sill']" :key="field">Opening {{ field }}<input v-model.number="openingDraft[field]" type="number" min="0" step="0.05" :disabled="field === 'sill' && openingDraft.type === 'door'"></label><template v-if="openingDraft.type === 'door'"><label>Door hinge<select v-model="openingDraft.hinge" aria-label="Door hinge"><option value="A">A end</option><option value="B">B end</option></select></label><label>Door swing<select v-model="openingDraft.swing" aria-label="Door swing"><option value="in">Inward</option><option value="out">Outward</option></select></label></template><button @click="saveOpening">Apply opening</button><button @click="deleteOpening">Remove opening</button></template><p class="hint">Place mode uses the entered size and snaps only the offset from A. Door hinge and swing settings apply in both views. Offset follows A → B. Keep 0.05 m at wall ends, above openings and between openings. Plan cuts walls at up to 1.2 m.</p></fieldset><p v-if="!valid" class="hint">Enter a name and dimensions from 0.1 to 1000 m.</p><button class="calculate" :disabled="editingLocked || !valid" @click="action('calculate')">Calculate geometry ↗</button><dl v-if="metrics"><div><dt>Floor area</dt><dd>{{ metrics.area.toFixed(2) }} m²</dd></div><div><dt>Volume</dt><dd>{{ metrics.volume.toFixed(2) }} m³</dd></div><div><dt>Perimeter</dt><dd>{{ metrics.perimeter.toFixed(2) }} m</dd></div></dl><p class="hint">Width and depth scale the outline. Select a wall to edit its endpoints. Two walls are hidden in 3D.</p></aside>
+    <header><a class="brand" href="/">terra<span>tec</span><small>DESIGN / BUILD / CONNECT</small></a><div class="actions"><select v-model="projectChoice" aria-label="Saved projects" :disabled="editingLocked || listLoading"><option value="">Choose project</option><option v-for="entry in projectList" :key="entry.id" :value="entry.id">{{ entry.name }}</option></select><button :disabled="editingLocked" @click="newProject">New</button><button :disabled="editingLocked || !valid" @click="exportPlan">Export SVG</button><button :disabled="editingLocked || !valid" @click="exportJson">Export JSON</button><button :disabled="editingLocked" @click="jsonInput.click()">Import JSON</button><input ref="jsonInput" type="file" accept=".json,application/json" aria-label="Import project JSON" hidden @change="importJson"><button :disabled="editingLocked || listLoading" @click="action('load')">Open saved</button><button class="primary" :disabled="editingLocked || !valid" @click="action('save')">Save project</button></div></header>
+    <aside><p class="eyebrow">{{ dirty ? 'UNSAVED CHANGES' : 'PROJECT WORKSPACE' }}</p><section v-if="recoveryDrafts.length" class="recovery-panel" aria-label="Local recovery"><label>Recovery draft<select v-model="recoveryChoice" aria-label="Recovery draft"><option v-for="draft in recoveryDrafts" :key="draft.key" :value="draft.key">{{ draft.project.name }} · {{ draft.updatedAt }}</option></select></label><button :disabled="editingLocked" @click="recoverDraft">Recover draft</button><button :disabled="editingLocked" @click="discardDraft">Discard draft</button></section><p v-if="recoveryNotice" class="hint" role="status">{{ recoveryNotice }}</p><h1>A space to<br>make your own.</h1><label>Project name<input v-model="project.name" maxlength="120" :disabled="editingLocked"></label><div class="divider"></div><p class="eyebrow">ROOM DIMENSIONS · METRES</p><label v-for="key in ['width','depth']" :key="key">{{ key }}<input v-model.number="dimensionDraft[key]" @change="setDimension(key,$event)" type="number" min="0.1" max="1000" step="0.1" :disabled="editingLocked"></label><label>Height<input v-model.number="dimensionDraft.height" @change="setHeight" type="number" min="0.1" max="1000" step="0.1" :disabled="editingLocked"></label><div class="divider"></div><label class="snap-toggle"><input v-model="snapEnabled" type="checkbox" :disabled="editingLocked"> Snap endpoints to grid</label><label>Grid spacing<select v-model.number="gridSpacing" :disabled="editingLocked"><option :value=".1">0.10 m</option><option :value=".25">0.25 m</option><option :value=".5">0.50 m</option><option :value="1">1.00 m</option></select></label><p class="hint">Large rooms show a coarser grid; snapping uses the selected spacing.</p><fieldset v-if="selectedEdge >= 0" class="endpoint-editor" :disabled="editingLocked"><legend>{{ selectedLabel }} endpoints</legend><div v-for="(point,n) in endpointDraft" :key="n" class="endpoint-row"><label v-for="axis in ['x','z']" :key="axis">{{ n === 0 ? 'A' : 'B' }} {{ axis.toUpperCase() }}<input v-model.number="point[axis]" type="number" min="-1000" max="1000" :step="gridSpacing"></label></div><button @click="applyEndpoints">Apply endpoints</button><p class="hint">Adjoining walls share each corner. Convex four-corner rooms only.</p></fieldset><fieldset v-if="selectedEdge >= 0" class="opening-editor" :disabled="editingLocked"><legend>Wall openings</legend><div class="opening-actions"><button @click="addOpening('door')">Add door</button><button @click="addOpening('window')">Add window</button></div><div class="opening-actions"><button :aria-pressed="placementType === 'door'" @click="beginPlacement('door')">Place door</button><button :aria-pressed="placementType === 'window'" @click="beginPlacement('window')">Place window</button></div><div v-if="placementType && placementSize" class="placement-size"><p class="eyebrow">PLACEMENT SIZE · METRES</p><label v-for="field in ['width','height','sill']" :key="field">Placement {{ field }}<input v-model.number="placementSize[field]" type="number" min="0" step="0.01" :disabled="field === 'sill' && placementType === 'door'"></label><template v-if="placementType === 'door'"><label>Placement hinge<select v-model="placementSize.hinge" aria-label="Placement hinge"><option value="A">A end</option><option value="B">B end</option></select></label><label>Placement swing<select v-model="placementSize.swing" aria-label="Placement swing"><option value="in">Inward</option><option value="out">Outward</option></select></label></template><label>Preset name<input v-model="presetName" maxlength="60"></label><button @click="saveOpeningPreset">Save opening preset</button><label v-if="savedPresets.length">Saved opening preset<select v-model="presetId" aria-label="Saved opening preset"><option :value="null">Choose preset</option><option v-for="preset in savedPresets" :key="preset.id" :value="preset.id">{{ preset.name }}</option></select></label><div v-if="savedPresets.length" class="opening-actions"><button :disabled="!presetId" @click="useOpeningPreset">Use preset</button><button :disabled="!presetId" @click="removeOpeningPreset">Delete preset</button></div></div><p v-if="placementType" class="placement-note">Click the selected wall to place a {{ placementType }}.<button @click="placementType=null">Cancel placement</button></p><label v-if="wallOpenings.length">Opening<select v-model="selectedOpeningId" aria-label="Opening"><option :value="null">Choose opening</option><option v-for="(opening,index) in wallOpenings" :key="opening.id" :value="opening.id">{{ opening.type }} {{ index+1 }}</option></select></label><template v-if="openingDraft"><label v-for="field in ['offset','width','height','sill']" :key="field">Opening {{ field }}<input v-model.number="openingDraft[field]" type="number" min="0" step="0.05" :disabled="field === 'sill' && openingDraft.type === 'door'"></label><template v-if="openingDraft.type === 'door'"><label>Door hinge<select v-model="openingDraft.hinge" aria-label="Door hinge"><option value="A">A end</option><option value="B">B end</option></select></label><label>Door swing<select v-model="openingDraft.swing" aria-label="Door swing"><option value="in">Inward</option><option value="out">Outward</option></select></label></template><button @click="saveOpening">Apply opening</button><button @click="deleteOpening">Remove opening</button></template><p class="hint">Place mode uses the entered size and snaps only the offset from A. Door hinge and swing settings apply in both views. Offset follows A → B. Keep 0.05 m at wall ends, above openings and between openings. Plan cuts walls at up to 1.2 m.</p></fieldset><p v-if="!valid" class="hint">Enter a name and dimensions from 0.1 to 1000 m.</p><button class="calculate" :disabled="editingLocked || !valid" @click="action('calculate')">Calculate geometry ↗</button><dl v-if="metrics"><div><dt>Floor area</dt><dd>{{ metrics.area.toFixed(2) }} m²</dd></div><div><dt>Volume</dt><dd>{{ metrics.volume.toFixed(2) }} m³</dd></div><div><dt>Perimeter</dt><dd>{{ metrics.perimeter.toFixed(2) }} m</dd></div></dl><p class="hint">Width and depth scale the outline. Select a wall to edit its endpoints. Two walls are hidden in 3D.</p></aside>
     <main :class="{placing:placementType}"><nav aria-label="View"><button v-for="mode in ['3D','Plan']" :aria-pressed="view === mode" :class="{ selected: view === mode }" @click="view = mode">{{ mode }}</button><button :disabled="dragging" @click="resetView">Fit room</button><button :disabled="editingLocked || !history.past.length" @click="travel('undo')">Undo</button><button :disabled="editingLocked || !history.future.length" @click="travel('redo')">Redo</button></nav><div ref="viewport" class="viewport" aria-label="Interactive room preview"></div><div v-if="placementPreview" data-testid="placement-preview" class="preview-status" :class="{invalid:!placementPreview.valid}" role="status">{{ placementPreview.valid ? 'Placement valid · offset '+placementPreview.opening.offset.toFixed(2)+' m · '+placementPreview.opening.width.toFixed(2)+' × '+placementPreview.opening.height.toFixed(2)+' m' : placementPreview.error }}</div><div v-if="view === 'Plan'" class="dimension-layer"><svg class="dimension-lines" aria-label="Wall dimension lines"><g v-for="label in wallLabels" :key="label.id" v-show="label.visible" :data-wall-dimension="label.id"><line v-for="(segment,n) in label.segments" :key="n" v-bind="segment" /></g><g v-for="label in chainLabels" :key="label.id" v-show="label.visible" :data-chain-dimension="label.id"><line v-for="(segment,n) in label.segments" :key="n" v-bind="segment" /></g></svg><span v-for="label in chainLabels" :key="label.id" v-show="label.visible" class="wall-dimension chain-dimension" :class="{aperture:label.kind === 'opening'}" :data-chain-kind="label.kind" :title="label.kind === 'opening' ? 'Opening width' : 'Wall gap'" :style="{left:label.x+'px',top:label.y+'px'}">{{ label.length }} m</span><span v-for="label in wallLabels" :key="label.id" v-show="label.visible" class="wall-dimension" :data-wall="label.id" :style="{left:label.x+'px',top:label.y+'px'}">{{ label.length }} m</span></div><div v-if="view === 'Plan'" class="corner-layer"><button v-for="handle in cornerHandles" :key="handle.index" v-show="handle.visible" class="corner-handle" :class="{ dragging }" :style="{left:handle.x+'px',top:handle.y+'px'}" :aria-label="'Corner '+(handle.index+1)+' drag handle'" :disabled="busy || !valid" @pointerdown="startDrag(handle.index,$event)" @pointermove="dragCorner" @pointerup="finishDrag" @pointercancel="cancelDrag" @lostpointercapture="cancelDrag"></button></div><section class="surface-panel" aria-label="Room surfaces"><p class="eyebrow">ROOM SURFACES</p><button v-for="surface in surfaces" :key="surface.id" :aria-pressed="selected === surface.id" :class="{ selected: selected === surface.id }" @click="selected = surface.id">{{ surface.label }}</button><p role="status">{{ selectedLabel }}</p><small v-if="hiddenSelection">Hidden in cutaway · switch to Plan</small><button :disabled="!selected" @click="selected = null">Clear selection</button></section><div class="canvas-note">{{ view === '3D' ? 'ORBIT TO EXPLORE' : 'ORTHOGRAPHIC PLAN · NORTH UP' }}<span>{{ view === '3D' ? 'Click to select · Drag to orbit · Scroll to zoom' : 'Drag a corner to edit · Drag elsewhere to pan · Scroll to zoom' }}</span></div></main>
     <footer role="status" aria-live="polite"><span class="dot"></span><span>{{ busy ? 'Working…' : message }}</span><span class="version">FOUNDATION 01 · METRES</span></footer>
   </div>
