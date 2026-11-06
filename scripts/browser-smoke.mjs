@@ -575,6 +575,29 @@ try {
   assert.equal(await page.getByLabel('Cabinet material',{exact:true}).inputValue(),'birch');
   assert.equal(await page.getByLabel('Length allowance mm',{exact:true}).inputValue(),'8');
   assert.equal(await page.getByLabel('Width allowance mm',{exact:true}).inputValue(),'4');
+  await page.getByLabel('Stock length mm',{exact:true}).fill('600');
+  await page.getByLabel('Stock width mm',{exact:true}).fill('1300');
+  await page.getByLabel('Stock edge trim mm',{exact:true}).fill('5');
+  await page.getByLabel('Allow panel rotation',{exact:true}).uncheck();
+  await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByText('Cabinet updated',{exact:true}).waitFor();
+  assert.match(await page.getByTestId('stock-fit').textContent(),/panels exceed/);
+  await page.getByLabel('Allow panel rotation',{exact:true}).check();
+  await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByText('Cabinet updated',{exact:true}).waitFor();
+  assert.match(await page.getByTestId('stock-fit').textContent(),/panels exceed/); // Back is wider than the narrow sheet in either orientation.
+  await page.getByLabel('Stock length mm',{exact:true}).fill('2440');
+  await page.getByLabel('Stock width mm',{exact:true}).fill('1220');
+  await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByText('Cabinet updated',{exact:true}).waitFor();
+  assert.match(await page.getByTestId('stock-fit').textContent(),/Each panel fits/);
+  await page.getByRole('button',{name:'Save project',exact:true}).click();
+  await page.getByText('Project saved',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Open saved',exact:true}).click();
+  await page.getByText('Saved project opened',{exact:true}).waitFor();
+  await page.getByLabel('Furniture item',{exact:true}).selectOption({label:'Storage cabinet'});
+  assert.equal(await page.getByLabel('Stock edge trim mm',{exact:true}).inputValue(),'5');
+  assert.equal(await page.getByLabel('Allow panel rotation',{exact:true}).isChecked(),true);
   await page.getByRole('region',{name:'Cabinet panel bill of materials'}).waitFor();
   await page.getByText('10 panels · 2 handles',{exact:false}).waitFor();
   const bomDownloadPromise=page.waitForEvent('download');
@@ -582,7 +605,7 @@ try {
   const bomDownload=await bomDownloadPromise,bomStream=await bomDownload.createReadStream();let bomCsv='';
   for await(const chunk of bomStream)bomCsv+=chunk.toString();
   assert.ok(bomDownload.suggestedFilename().endsWith('_cabinet-panels.csv'));
-  assert.match(bomCsv,/Birch plywood/);assert.match(bomCsv,/1072.000/);assert.match(bomCsv,/blank_length_mm/);assert.match(bomCsv,/Storage cabinet/);assert.match(bomCsv,/1064.000/);assert.match(bomCsv,/"Shelf","3"/);
+  assert.match(bomCsv,/Birch plywood/);assert.match(bomCsv,/1072.000/);assert.match(bomCsv,/stock_fit/);assert.match(bomCsv,/"2440","1220","5","true","direct"/);assert.match(bomCsv,/blank_length_mm/);assert.match(bomCsv,/Storage cabinet/);assert.match(bomCsv,/1064.000/);assert.match(bomCsv,/"Shelf","3"/);
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});
   await page.screenshot({path:'test-results/workspace-desktop.png'});

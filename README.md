@@ -260,3 +260,15 @@ geometry. The inspector and CSV show finished and blank dimensions separately,
 with blank area before stock waste. Existing cabinets default to oak and zero
 allowances. Kerf, edging, grain, joinery, nesting and machine instructions still
 require workshop-specific configuration.
+
+### Stock sheet fit
+
+Each cabinet stores stock length/width in millimetres, edge trim on all four sides
+and a permission for 90-degree panel rotation. Defaults are 2440 × 1220 mm, zero
+trim and rotation allowed. Disable rotation when the grain direction requires it.
+The BOM and CSV classify each blank as direct, rotated or oversize against the
+usable sheet. Oversize counts include the quantity of each panel type. Stock
+settings save with the cabinet and participate in undo/recovery/JSON exchange.
+Individual panel fit does not establish that all panels fit together on a sheet;
+there is no nesting, kerf spacing or sheet count yet. Oversize panels remain
+exportable so the CSV can communicate the issue to a workshop.
