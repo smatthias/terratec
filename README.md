@@ -65,7 +65,8 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic core/main.cpp -o build/terratec-core
   "room": {
     "width": 6, "depth": 4, "height": 2.8,
     "outline": [{"x":-3,"z":-2},{"x":3,"z":-2},{"x":3,"z":2},{"x":-3,"z":2}],
-    "openings": [{"id":"door-1","type":"door","wall":"north","offset":1,"width":0.9,"height":2.1,"sill":0,"hinge":"A","swing":"in"}]
+    "openings": [{"id":"door-1","type":"door","wall":"north","offset":1,"width":0.9,"height":2.1,"sill":0,"hinge":"A","swing":"in"}],
+    "furniture": []
   }
 }
 ```
