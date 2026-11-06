@@ -49,7 +49,7 @@ try {
   await page.getByRole('button',{name:'South wall',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await page.getByText('Hidden in cutaway · switch to Plan').waitFor();
-  await page.getByLabel('height',{exact:true}).fill('3');
+  await page.getByLabel('Height',{exact:true}).fill('3');
   assert.equal(await page.getByRole('button',{name:'South wall',exact:true}).getAttribute('aria-pressed'),'true');
   await page.getByRole('button',{name:'Plan',exact:true}).click();
   await page.getByRole('button',{name:'Fit room',exact:true}).click();
