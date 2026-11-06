@@ -1,3 +1,4 @@
+import {snapPoint} from './geometry.mjs';
 export function cabinetFootprint(item) {
   const angle=item.rotation*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
   return [[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,z])=>({x:item.x+c*x*item.width/2+s*z*item.depth/2,z:item.z-s*x*item.width/2+c*z*item.depth/2}));
@@ -29,4 +30,11 @@ export function validateFurniture(value,outline,roomHeight) {
     ids.add(item.id);footprints.push(footprint);
     return {id:item.id,type:'cabinet',name:item.name.trim(),width:item.width,depth:item.depth,height:item.height,x:item.x,z:item.z,rotation:item.rotation,thickness:item.thickness,shelves:item.shelves};
   });
+}
+
+export function moveFurniture(room,id,point,spacing,snap=true) {
+  if(!room.furniture.some(item=>item.id===id)) throw Error('Cabinet not found');
+  const position=snapPoint(point,spacing,snap);
+  const furniture=validateFurniture(room.furniture.map(item=>item.id===id?{...item,...position}:item),room.outline,room.height);
+  return {...room,furniture};
 }

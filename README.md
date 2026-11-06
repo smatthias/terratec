@@ -227,7 +227,23 @@ undo/redo, project save/load, JSON exchange, duplication and recovery. Schema 6 
 supported. Rotated body footprints must stay in the convex room and cannot overlap;
 invalid geometry or room edits are rejected. Height cannot exceed the room height.
 
-There is no cabinet animation, direct object dragging, hardware clearance, doorway
+There is no cabinet animation, hardware clearance, doorway
 or door-swing clearance validation, furniture physics or CNC output yet. The body
 footprint collision check excludes protruding handles. Panels are illustrative until
 joinery and manufacturing allowances are introduced.
+
+## Cabinet movement and design panel list
+
+In Plan, drag a cabinet body to move it. Grabbing off-centre preserves the pointer
+position relative to the body; snapping applies to the cabinet centre. A completed
+drag makes one undo entry. Invalid releases, Escape, pointer cancellation, window
+blur, view changes or resizing restore the starting room. Clicking a body selects it
+without a geometry edit. Numeric position editing remains available.
+
+The selected cabinet shows a design panel bill of materials with grouped quantities,
+length/width/thickness in millimetres, total panel area/volume and handle count.
+Renderer and bill of materials share one part definition. Export panel CSV downloads
+that cabinet's list with quoted cells and formula-like text neutralised for spreadsheets.
+Hardware is listed separately from panel material. These are design dimensions, not
+machine-ready cut instructions: no kerf, edging, grain, joinery or machining allowances
+are applied. Panel bill export does not mutate the model or history.

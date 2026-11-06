@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **21%** of the planned functional scope, estimated by effort and verified
+Overall: **23%** of the planned functional scope, estimated by effort and verified
 capabilities. Percentages are planning estimates, not test coverage. This first
 foundation is not equivalent to a finished CAD application.
 
@@ -10,18 +10,18 @@ foundation is not equivalent to a finished CAD application.
 | Design workspace | 78% | Independent project duplication, fresh history and recovery of source edits | Placement alignment and editing polish |
 | Parametric geometry | 12% | Validated opening bounds and overlap checks; segmented wall voids | More constraints and arbitrary outlines |
 | Building design | 27% | A/B hinge and inward/outward swing, consistent in Plan/3D, undo and saves | Swing clearance checks and multiple rooms |
-| Interiors and furniture | 15% | Parametric cabinet panels/shelves, placement, rotation, body validation, undo and persistence | Direct movement and panel bill of materials |
+| Interiors and furniture | 25% | Direct snapped movement, rollback, one-step history and shared panel definitions | More furniture types and materials |
 | Drawings and exchange | 35% | A4/A3 sheets, orientation, margins, fit feedback and blocked oversized exports | Pagination and more exchange formats |
-| Manufacturing | 0% | — | Validated manufacturing job |
+| Manufacturing | 8% | Cabinet design panel quantities, area/volume totals and CSV export | Manufacturing allowances and cut-list validation |
 | Distributed production | 0% | — | Workshop profiles and handoff |
 | Customer and business tools | 0% | — | Quantity-based quotes |
 | Assisted design | 0% | — | Structured design commands |
 | TerraFlux integration | 0% | — | Model exchange contract |
 | Release readiness | 8% | Recovery snapshots, storage-failure feedback and import validation | Installation and recovery |
 
-Next iteration: add direct furniture movement and a cabinet panel bill of materials.
+Next iteration: add material choices and manufacturing allowances for cabinet panels.
 
-Validation: thirty-nine Node test groups and the Vite production build pass locally.
+Validation: forty-one Node test groups and the Vite production build pass locally.
 The preceding foundation passed CMake/CTest in GitHub Actions. Browser smoke checks
 cover save/load, native quantities, selection across views and edits, ray picking,
 pan versus click, deselection, keyboard interaction, and mobile overflow, snapped/unsnapped endpoint edits, invalid-shape rejection, edited-outline persistence, corner dragging, single-gesture undo, redo, cancellation keyboard history, opening CRUD/undo/persistence and opening-aware wall/height validation. Local
