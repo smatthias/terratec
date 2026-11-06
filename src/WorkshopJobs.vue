@@ -1,9 +1,15 @@
 <script setup>
-import {ref,onMounted,watch} from 'vue';
+import {ref,computed,onMounted,watch} from 'vue';
 import {exportJobBackup,MAX_JOB_BACKUP_BYTES} from '../shared/job-backup.mjs';
+import {filterJobs,jobRollup} from '../shared/job-register.mjs';
 import {verifyJobManifest} from '../shared/job-manifest.mjs';
 const props=defineProps({project:{type:Object,required:true}}),emit=defineEmits(['export','record']);
 const jobs=ref([]),choice=ref(''),record=ref(null),revision=ref(1),name=ref(''),reviewer=ref(''),note=ref(''),message=ref(''),busy=ref(false),comparison=ref('');
+const query=ref(''),statusFilter=ref('all'),sortOrder=ref('updated');
+const visibleJobs=computed(()=>filterJobs(jobs.value,{query:query.value,status:statusFilter.value,sort:sortOrder.value}));
+const totals=computed(()=>jobRollup(jobs.value));
+const outsideChoice=computed(()=>jobs.value.find(j=>j.id===choice.value)&&!visibleJobs.value.some(j=>j.id===choice.value));
+function openListed(id){choice.value=id;return load();}
 const workshop=ref(''),dueDate=ref(''),actor=ref(''),trackingNote=ref('');
 function fulfil(status){return run(async()=>{record.value=await request('/api/jobs/'+record.value.id+'/fulfilment',{revision:revision.value,expectedRevision:record.value.revisions.length,expectedEvent:selected().fulfilment?.events.length??0,status,workshop:workshop.value,dueDate:dueDate.value,actor:actor.value,note:trackingNote.value});await refresh();message.value='Workshop progress recorded: '+status;});}
 function backup(){return run(async()=>emit('record',await exportJobBackup(record.value)));}
@@ -25,7 +31,17 @@ onMounted(()=>run(refresh));
     <h3>Workshop job records</h3><p class="hint">Stored by this local service, independently of project saves. Revisions keep immutable model snapshots. Reviewed records document a local review, not production approval.</p>
     <fieldset :disabled="busy"><label>Workshop job name<input v-model="name" maxlength="80"></label><button :disabled="!name.trim()" @click="create">Create workshop job</button>
     <label>Restore workshop job backup<input type="file" accept=".json,application/json" aria-label="Restore workshop job backup file" @change="restoreFile"></label><p class="hint">Restore verifies all snapshots and history, creates a new job ID and renames name conflicts. Existing jobs stay intact. Restored review/tracking claims are not authenticated.</p><button @click="run(refresh)">Refresh workshop jobs</button>
-    <label v-if="jobs.length">Workshop job<select v-model="choice" aria-label="Workshop job"><option value="">Choose job</option><option v-for="job in jobs" :key="job.id" :value="job.id">{{ job.name }} · r{{ job.revision }} · {{ job.status }}</option></select></label><button :disabled="!choice" @click="load">Open workshop job</button>
+    <section aria-label="Workshop job register">
+      <p data-testid="job-rollup">{{ totals.total }} jobs · {{ totals.planned||0 }} planned · {{ totals.reviewed||0 }} reviewed · {{ (totals.assigned||0)+(totals['in-production']||0) }} active · {{ totals.completed||0 }} completed · {{ totals.cancelled||0 }} cancelled · {{ totals.blocked||0 }} blocked</p>
+      <label>Search workshop jobs<input v-model="query" type="search" placeholder="Name, workshop or ID"></label>
+      <label>Job status filter<select v-model="statusFilter" aria-label="Job status filter"><option value="all">All statuses</option><option v-for="state in ['planned','reviewed','assigned','in-production','completed','cancelled','blocked']" :key="state" :value="state">{{ state }}</option></select></label>
+      <label>Job sort order<select v-model="sortOrder" aria-label="Job sort order"><option value="updated">Recently updated</option><option value="name">Name</option><option value="due">Due date</option></select></label>
+      <button @click="query='';statusFilter='all';sortOrder='updated'">Clear job filters</button>
+      <p data-testid="job-filter-count">{{ visibleJobs.length }} of {{ jobs.length }} jobs shown</p>
+      <ul class="job-register-list"><li v-for="job in visibleJobs" :key="job.id" data-testid="job-register-row"><strong>{{ job.name }}</strong><span>r{{ job.revision }} · {{ job.workflowState }} · {{ job.summary.panels }} panels · {{ job.summary.sheets }} sheets · {{ job.summary.unplaced }} unplaced</span><span v-if="job.workshop">{{ job.workshop }} · due {{ job.dueDate||'not set' }}</span><small>Updated {{ job.updatedAt }}</small><button @click="openListed(job.id)" :aria-label="'Open job '+job.name">Open job</button></li></ul>
+      <p v-if="!visibleJobs.length" class="hint">No jobs match these filters. The opened job stays available below.</p>
+    </section>
+    <label v-if="jobs.length">Workshop job<select v-model="choice" aria-label="Workshop job"><option value="">Choose job</option><option v-if="outsideChoice" :value="choice">Opened selection outside filters</option><option v-for="job in visibleJobs" :key="job.id" :value="job.id">{{ job.name }} · r{{ job.revision }} · {{ job.workflowState }}</option></select></label><button :disabled="!choice" @click="load">Open workshop job</button>
     <template v-if="record"><h4>{{ record.name }}</h4><p v-if="record.restoredFrom" class="hint job-hash">Restored copy from {{ record.restoredFrom.id }} · {{ record.restoredFrom.restoredAt }}</p><label>Job revision<select v-model.number="revision" aria-label="Job revision" @change="comparison='' "><option v-for="r in record.revisions" :key="r.number" :value="r.number">Revision {{ r.number }} · {{ r.status }}</option></select></label>
       <p data-testid="job-record-status">Revision {{ revision }} · {{ selected().status }} · {{ selected().manifest.validation.status }}</p>
       <p class="hint job-hash">Source {{ selected().manifest.sourceSha256 }}</p>

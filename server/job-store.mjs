@@ -2,6 +2,7 @@ import {readFile,writeFile,mkdir,rename,rm,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {validProjectId} from './project-store.mjs';
+import {jobSummary} from '../shared/job-register.mjs';
 import {validateJobBackup} from '../shared/job-backup.mjs';
 import {createJobManifest} from '../shared/job-manifest.mjs';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
@@ -16,7 +17,7 @@ export function jobStore(dataDir){
   const list=async()=>{
     let files;try{files=await readdir(directory);}catch(e){if(e.code==='ENOENT')return [];throw e;}
     const records=await Promise.all(files.filter(f=>f.endsWith('.json')&&validProjectId(f.slice(0,-5))).map(f=>read(f.slice(0,-5))));
-    return records.map(r=>({id:r.id,name:r.name,updatedAt:r.updatedAt,revision:r.revisions.length,status:r.revisions.at(-1).status})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)||a.id.localeCompare(b.id));
+    return records.map(jobSummary).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)||a.id.localeCompare(b.id));
   };
   const write=async record=>{
     await mkdir(directory,{recursive:true});const temporary=join(directory,randomUUID()+'.tmp');

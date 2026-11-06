@@ -694,6 +694,24 @@ try {
   await page.getByTestId('job-record-message').filter({hasText:'Workshop job revision saved'}).waitFor();
   assert.match(await page.getByTestId('job-record-status').textContent(),/Revision 2 · planned/);
   assert.equal(await page.getByTestId('fulfilment-status').count(),0);
+  const latestJobId=await page.getByLabel('Workshop job',{exact:true}).inputValue();
+  assert.match(await page.getByTestId('job-rollup').textContent(),/2 jobs · 1 planned/);
+  await page.getByLabel('Job status filter',{exact:true}).selectOption('completed');
+  assert.equal(await page.getByTestId('job-register-row').count(),1);
+  assert.match(await page.getByTestId('job-filter-count').textContent(),/1 of 2 jobs/);
+  await page.getByRole('button',{name:'Open job Workshop test',exact:true}).click();
+  await page.getByTestId('fulfilment-status').filter({hasText:'completed'}).waitFor();
+  await page.getByLabel('Search workshop jobs',{exact:true}).fill('no matching workshop');
+  assert.equal(await page.getByTestId('job-register-row').count(),0);
+  assert.match(await page.getByTestId('fulfilment-status').textContent(),/completed/);
+  await page.getByRole('button',{name:'Clear job filters',exact:true}).click();
+  await page.getByLabel('Search workshop jobs',{exact:true}).fill('BERLIN');
+  assert.equal(await page.getByTestId('job-register-row').count(),1);
+  await page.getByLabel('Job sort order',{exact:true}).selectOption('due');
+  await page.getByRole('button',{name:'Clear job filters',exact:true}).click();
+  assert.equal(await page.getByTestId('job-register-row').count(),2);
+  await page.getByLabel('Workshop job',{exact:true}).selectOption(latestJobId);
+
   await page.getByRole('button',{name:'Open workshop job',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Workshop job opened'}).waitFor();
   await page.getByLabel('Job revision',{exact:true}).selectOption('1');

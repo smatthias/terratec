@@ -20,3 +20,5 @@ aside{min-width:0}.recovery-panel select{min-width:0;max-width:100%}
 .project-manufacturing{margin:18px 0;font-size:12px}.project-manufacturing article{border-top:1px solid #b9c9b2;margin-top:16px;padding-top:8px}.project-manufacturing h2{font-size:18px}.project-manufacturing h3{font-size:13px}.project-manufacturing ul{padding-left:20px;overflow-wrap:anywhere}
 
 .workshop-jobs{font-size:12px;margin:18px 0}.job-hash{overflow-wrap:anywhere}.workshop-jobs textarea{display:block;width:100%;max-width:100%;min-height:70px}
+
+.job-register-list{list-style:none;padding:0;margin:12px 0;max-height:360px;overflow:auto}.job-register-list li{padding:10px 0;border-top:1px solid #bbc7b6;overflow-wrap:anywhere}.job-register-list strong,.job-register-list span,.job-register-list small{display:block}.job-register-list small{font-size:10px}

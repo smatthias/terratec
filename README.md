@@ -415,3 +415,17 @@ snapshots/reviews/events and records its source ID, backup checksum and restore
 time. This is copy-based restore, without merging divergent histories. Restored
 review/tracking claims are untrusted historical metadata, not authenticated
 workshop statements. Export checksums establish consistency, not authorship.
+
+### Workshop job register
+
+The local register shows the latest revision’s workflow state, panel/sheet counts,
+unplaced panels, assigned workshop and due date. Search matches every entered
+word against job name, ID and the latest assignment’s workshop. Status filters
+cover planned, reviewed, assigned, in-production, completed, cancelled and blocked.
+Sort by recent update, name or due date (undated jobs last). Global summary counts
+remain visible while filters show a subset.
+
+Filtering does not close the opened record or alter any saved data. A selected
+job outside the filters stays available below. Old completed assignments do not
+carry into the summary for a newer planned revision. Reload/refresh retrieves
+updates from the local service; this is not a realtime multi-user dashboard.
