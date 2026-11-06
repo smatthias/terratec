@@ -1,3 +1,4 @@
+import {exportJobBackup,validateJobBackup} from '../shared/job-backup.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
@@ -27,6 +28,9 @@ test('fulfilment is revision-bound, validates transitions, preserves audit and r
   assert.equal(revised.revisions[1].status,'planned');assert.equal(revised.revisions[1].fulfilment,undefined);
   assert.deepEqual(revised.revisions[0].manifest,record.revisions[0].manifest);
   const persisted=await jobStore(directory).read(id);assert.equal(persisted.revisions[0].fulfilment.events.length,3);
+  assert.deepEqual(await validateJobBackup(JSON.parse(await exportJobBackup(persisted))),persisted);
+  const forged=structuredClone(persisted);forged.revisions[0].fulfilment.events[1].status='completed';
+  await assert.rejects(async()=>validateJobBackup(JSON.parse(await exportJobBackup(forged))),/tracking/);
   await store.review(id,{revision:2,expectedRevision:2,reviewer:'M',note:'Reviewed again'});
   await store.fulfil(id,{...input,revision:2,expectedRevision:2});
   const cancelled=await store.fulfil(id,{...input,revision:2,expectedRevision:2,expectedEvent:1,status:'cancelled'});assert.equal(cancelled.revisions[1].fulfilment.status,'cancelled');

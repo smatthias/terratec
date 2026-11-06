@@ -675,7 +675,19 @@ try {
   await page.getByRole('button',{name:'Export workshop job record',exact:true}).click();
   const recordDownload=await recordPromise,recordStream=await recordDownload.createReadStream();let recordJson='';
   for await(const chunk of recordStream)recordJson+=chunk.toString();
-  assert.deepEqual(JSON.parse(recordJson).revisions[0].fulfilment.events.map(e=>e.status),['assigned','in-production','completed']);
+  assert.deepEqual(JSON.parse(recordJson).record.revisions[0].fulfilment.events.map(e=>e.status),['assigned','in-production','completed']);
+  assert.equal(JSON.parse(recordJson).format,'terratec-job-backup');
+  const originalJobId=await page.getByLabel('Workshop job',{exact:true}).inputValue();
+  await page.getByLabel('Restore workshop job backup file',{exact:true}).setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(recordJson)});
+  await page.getByTestId('job-record-message').filter({hasText:'Workshop job restored as a new local record'}).waitFor();
+  assert.notEqual(await page.getByLabel('Workshop job',{exact:true}).inputValue(),originalJobId);
+  assert.equal(await page.getByLabel('Workshop job',{exact:true}).locator('option').count(),3);
+  assert.match(await page.getByTestId('fulfilment-status').textContent(),/completed/);
+  const alteredBackup=JSON.parse(recordJson);alteredBackup.record.name='Changed backup';
+  await page.getByLabel('Restore workshop job backup file',{exact:true}).setInputFiles({name:'bad-backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(alteredBackup))});
+  await page.getByTestId('job-record-message').filter({hasText:'Job backup checksum failed'}).waitFor();
+  assert.equal(await page.getByLabel('Workshop job',{exact:true}).locator('option').count(),3);
+
 
   await page.getByLabel('Project name',{exact:true}).fill('Workshop revised model');
   await page.getByRole('button',{name:'Save current model as new revision',exact:true}).click();

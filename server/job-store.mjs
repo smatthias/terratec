@@ -2,6 +2,7 @@ import {readFile,writeFile,mkdir,rename,rm,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {validProjectId} from './project-store.mjs';
+import {validateJobBackup} from '../shared/job-backup.mjs';
 import {createJobManifest} from '../shared/job-manifest.mjs';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 export function jobStore(dataDir){
@@ -25,6 +26,14 @@ export function jobStore(dataDir){
   const manifest=async project=>{try{return await createJobManifest(project);}catch(e){fail(e.message);}};
   const expected=(record,value)=>{if(!Number.isInteger(value)||value!==record.revisions.length)fail('Job changed; reload before editing',409);};
   return {read,list,
+    restore:input=>serial(async()=>{
+      let imported;try{imported=await validateJobBackup(input);}catch(e){fail(e.message);}
+      const existing=await list();if(existing.length>=50)fail('Maximum 50 local workshop jobs');
+      const originalId=imported.id,base=imported.name;let name=base,n=1;
+      while(existing.some(r=>r.name.toLowerCase()===name.toLowerCase())){const suffix=` (restore ${n++})`;name=base.slice(0,80-suffix.length)+suffix;}
+      const now=new Date().toISOString();
+      return write({...imported,id:randomUUID(),name,restoredFrom:{id:originalId,backupSha256:input.backupSha256,restoredAt:now}});
+    }),
     create:input=>serial(async()=>{
       if(typeof input?.name!=='string'||!input.name.trim()||input.name.trim().length>80)fail('Job name must contain 1–80 characters');
       if((await list()).length>=50)fail('Maximum 50 local workshop jobs');

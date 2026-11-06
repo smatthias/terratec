@@ -397,6 +397,21 @@ revision. Event-count and revision checks reject stale updates. Audit events are
 append-only through the API; source manifests and previous review records remain
 unchanged. `POST /api/jobs/:id/fulfilment` persists tracking. **Export workshop job
 record** includes all revisions, reviews and fulfilment history; the saved-revision
-export still contains only the original manifest. Job-record restore is not yet
-implemented. Assignment is local metadata: it sends no workshop messages, network
+export still contains only the original manifest. Job-record export uses a versioned backup envelope. Assignment is local metadata: it sends no workshop messages, network
 orders or machine instructions and does not establish authenticated sign-off.
+
+### Job backup and restore
+
+**Export workshop job record** now downloads a versioned backup with a SHA-256
+checksum covering the job record, revisions, reviews and tracking. Restore
+accepts this envelope up to 16 MiB, verifies all embedded model manifests and
+checks sequential revisions, review prerequisites, event transitions and timestamps.
+Invalid backups leave the store unchanged. Raw job JSON from older exports is
+not accepted; export again from the job register to obtain the backup envelope.
+
+`POST /api/jobs/restore` always creates a new local ID; it never overwrites a job.
+Matching names gain `(restore N)`. The restored record retains original revision
+snapshots/reviews/events and records its source ID, backup checksum and restore
+time. This is copy-based restore, without merging divergent histories. Restored
+review/tracking claims are untrusted historical metadata, not authenticated
+workshop statements. Export checksums establish consistency, not authorship.
