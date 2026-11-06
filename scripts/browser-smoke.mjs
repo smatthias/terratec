@@ -9,7 +9,7 @@ import { fitCamera } from '../src/room-scene.js';
 
 const dataDir = await mkdtemp(join(tmpdir(),'terratec-browser-'));
 const children = [];
-let browser;
+let browser, page;
 const logs = [];
 const start = (args, env = {}) => {
   const child = spawn(process.execPath,args,{env:{...process.env,...env},stdio:['ignore','pipe','pipe']});
@@ -30,7 +30,7 @@ try {
   start(['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5173','--strictPort']);
   await Promise.all([ready('http://127.0.0.1:3001/api/health'),ready('http://127.0.0.1:5173')]);
   browser = await chromium.launch({args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-  const page = await browser.newPage({viewport:{width:1440,height:1000}});
+  page = await browser.newPage({viewport:{width:1440,height:1000}});
   const errors = []; page.on('pageerror',error => errors.push(error.message));
   await page.goto('http://127.0.0.1:5173');
   await page.locator('canvas').waitFor();
@@ -78,6 +78,11 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false,'mobile horizontal overflow');
   assert.deepEqual(errors,[]);
   console.log('Browser smoke passed: project roundtrip, native metrics, selection across views and edits, wall picking, pan, deselection, keyboard, mobile.');
+} catch (error) {
+  await mkdir('test-results',{recursive:true});
+  await page?.screenshot({path:'test-results/failure.png',fullPage:true}).catch(() => {});
+  console.error(logs.join(''));
+  throw error;
 } finally {
   await browser?.close();
   await Promise.all(children.map(child => new Promise(resolve => {
