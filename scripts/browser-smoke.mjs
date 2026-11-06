@@ -655,6 +655,31 @@ try {
   await handoffPage.pdf({path:'test-results/workshop-handoff.pdf',preferCSSPageSize:true,printBackground:true});
   await handoffPage.locator('.page').first().screenshot({path:'test-results/workshop-summary.png'});
   await handoffPage.close();
+  await page.getByLabel('Workshop profile name',{exact:true}).fill('Local workshop');
+  await page.getByRole('button',{name:'Save workshop profile',exact:true}).click();
+  await page.getByText('Workshop profile saved · save project to keep it',{exact:true}).waitFor();
+  await page.getByLabel('Workshop profile',{exact:true}).selectOption({label:'Local workshop'});
+  await page.getByLabel('Stock kerf mm',{exact:true}).fill('6');
+  await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByText('Cabinet updated',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Apply workshop profile',exact:true}).click();
+  await page.getByText('Workshop profile applied',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Stock kerf mm',{exact:true}).inputValue(),'4');
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  assert.equal(await page.getByLabel('Stock kerf mm',{exact:true}).inputValue(),'6');
+  await page.getByRole('button',{name:'Redo',exact:true}).click();
+  assert.equal(await page.getByLabel('Stock kerf mm',{exact:true}).inputValue(),'4');
+  await page.getByRole('button',{name:'Save project',exact:true}).click();
+  await page.getByText('Project saved',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Open saved',exact:true}).click();
+  await page.getByText('Saved project opened',{exact:true}).waitFor();
+  await page.getByLabel('Furniture item',{exact:true}).selectOption({label:'Cabinet'});
+  await page.getByLabel('Workshop profile',{exact:true}).selectOption({label:'Local workshop'});
+  await page.getByRole('button',{name:'Delete workshop profile',exact:true}).click();
+  await page.getByText('Workshop profile removed · cabinet settings retained',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Stock kerf mm',{exact:true}).inputValue(),'4');
+  assert.equal(await page.getByRole('button',{name:'Apply workshop profile',exact:true}).isDisabled(),true);
+
 
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();

@@ -315,3 +315,18 @@ travel with each batch. Long registers paginate into bounded sections.
 The export reflects the current in-memory model, including applied unsaved edits.
 It contains escaped text, inline styles/SVG and no executable scripts or remote
 assets. This is a workshop review document, not a cutting sequence or CNC file.
+
+### Workshop profiles
+
+Select a cabinet, apply its stock settings, enter a workshop profile name and
+choose **Save workshop profile**. Profiles capture stock dimensions, trim, kerf
+and rotation permission. They do not capture material, thickness, panel allowances
+or cabinet geometry. Choose a saved profile and apply it to copy its settings to
+the selected cabinet in one undoable edit.
+
+Names are case-insensitively unique within the project (up to 32 profiles); saving
+an existing name replaces that profile while preserving its ID. Existing cabinets
+keep independent settings, including after profile update/deletion. Profile list
+changes are project metadata, like opening presets, and are not in geometry undo.
+Profiles persist in saves, recovery, JSON and duplication; older projects default
+to an empty list. Save/export the project to keep newly created profiles.
