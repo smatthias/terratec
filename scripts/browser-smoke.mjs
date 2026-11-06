@@ -146,10 +146,13 @@ try {
   await page.getByLabel('Height',{exact:true}).fill('4');
   await page.getByRole('button',{name:'Calculate geometry'}).click();
   await page.getByText('Geometry calculated',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Height',{exact:true}).inputValue(),'4');
   await page.getByRole('button',{name:'Fit room',exact:true}).focus();
   await page.keyboard.press('Control+z');
+  await page.getByText('Geometry edit undone',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Height',{exact:true}).inputValue(),'3');
   await page.keyboard.press('Control+Shift+z');
+  await page.getByText('Geometry edit redone',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Height',{exact:true}).inputValue(),'4');
   await page.getByRole('button',{name:'Save project'}).click();
   await page.getByText('Project saved',{exact:true}).waitFor();
