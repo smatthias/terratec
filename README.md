@@ -383,3 +383,20 @@ instance and require the expected revision number for edits; stale clients must
 reload. Limits: 50 jobs, 20 revisions per job, 128 KiB request bodies. Back up the
 data directory to preserve jobs; project JSON/recovery does not include them.
 This remains a local development service without multi-user authentication.
+
+### Workshop assignment and fulfilment
+
+The latest reviewed revision can be assigned a workshop name and optional due
+date. Assignment and each transition require an actor and notes. Supported paths
+are assigned → in-production → completed, or cancellation from either active
+state. Completed/cancelled records are terminal. Tracking belongs to that exact
+revision; a later revision starts planned with no assignment.
+
+Active assignments must be completed or cancelled before creating a new model
+revision. Event-count and revision checks reject stale updates. Audit events are
+append-only through the API; source manifests and previous review records remain
+unchanged. `POST /api/jobs/:id/fulfilment` persists tracking. **Export workshop job
+record** includes all revisions, reviews and fulfilment history; the saved-revision
+export still contains only the original manifest. Job-record restore is not yet
+implemented. Assignment is local metadata: it sends no workshop messages, network
+orders or machine instructions and does not establish authenticated sign-off.

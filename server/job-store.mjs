@@ -33,10 +33,31 @@ export function jobStore(dataDir){
     }),
     revise:(id,input)=>serial(async()=>{
       const record=await read(id);expected(record,input?.expectedRevision);
+      if(['assigned','in-production'].includes(record.revisions.at(-1).fulfilment?.status))fail('Close the active workshop assignment before creating a revision',409);
       if(record.revisions.length>=20)fail('Maximum 20 revisions per workshop job');
       const snapshot=await manifest(input.project);
       if(snapshot.sourceSha256===record.revisions.at(-1).manifest.sourceSha256)fail('Current project already matches the latest revision',409);
       record.revisions.push({number:record.revisions.length+1,status:'planned',manifest:snapshot,review:null});record.updatedAt=new Date().toISOString();return write(record);
+    }),
+    fulfil:(id,input)=>serial(async()=>{
+      const record=await read(id);expected(record,input?.expectedRevision);
+      const revision=record.revisions.find(r=>r.number===input.revision);
+      if(!revision||revision.number!==record.revisions.length||revision.status!=='reviewed')fail('Only the latest reviewed revision can be assigned or tracked',409);
+      const events=revision.fulfilment?.events??[];
+      if(!Number.isInteger(input.expectedEvent)||input.expectedEvent!==events.length)fail('Workshop tracking changed; reload before editing',409);
+      if(typeof input.actor!=='string'||!input.actor.trim()||input.actor.trim().length>80||typeof input.note!=='string'||!input.note.trim()||input.note.trim().length>1000)fail('Tracking needs an actor (1–80) and notes (1–1000 characters)');
+      if(!revision.fulfilment){
+        if(input.status!=='assigned'||typeof input.workshop!=='string'||!input.workshop.trim()||input.workshop.trim().length>80)fail('Assignment needs a workshop name');
+        const dueDate=input.dueDate??'';
+        if(typeof dueDate!=='string'||(dueDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)||!Number.isFinite(Date.parse(dueDate))||new Date(dueDate).toISOString().slice(0,10)!==dueDate)))fail('Invalid workshop due date');
+        revision.fulfilment={workshop:input.workshop.trim(),dueDate,status:'assigned',events:[]};
+      }else{
+        const allowed={'assigned':['in-production','cancelled'],'in-production':['completed','cancelled']};
+        if(!allowed[revision.fulfilment.status]?.includes(input.status))fail('Invalid workshop progress transition',409);
+      }
+      const now=new Date().toISOString();revision.fulfilment.status=input.status;
+      revision.fulfilment.events.push({number:events.length+1,status:input.status,at:now,actor:input.actor.trim(),note:input.note.trim()});
+      record.updatedAt=now;return write(record);
     }),
     review:(id,input)=>serial(async()=>{
       const record=await read(id);expected(record,input?.expectedRevision);
