@@ -92,6 +92,17 @@ with 0.05 m horizontal separation between openings. Doors start at floor level;
 windows need a sill of at least 0.1 m. Up to 64 openings are supported. Shrinking a
 wall or lowering room height is rejected if existing openings would no longer fit.
 Opening add/edit/remove operations participate in undo/redo and project persistence.
+In 3D, windows have frames and translucent glazing; doors have frames and a fixed
+inward 90° leaf hinged at the A end. Plan shows door swing arcs and double-line
+window symbols. Details follow the host wall and cutaway visibility. Click a symbol
+or visible opening detail to select its inspector.
+
+For canvas placement, select a wall and choose Place door/window. Click near that
+wall in Plan; the click sets the opening center along the wall and the offset from A
+snaps to the selected grid. Invalid/out-of-wall or overlapping placements are rejected
+and leave placement mode active. Escape or Cancel placement exits without an edit.
+A valid placement makes one undo entry. Place mode uses standard preset sizes; edit
+exact dimensions afterward in the inspector. Numeric Add door/window remains available.
 Native quantities remain floor area, interior volume and perimeter; wall material
 quantities are not yet calculated.
 
@@ -110,7 +121,7 @@ build is not a production deployment; public hosting and authentication are futu
 ## Current limits
 
 One convex four-corner room and one saved project only. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
-BIM exchange, manufacturing, AI design or physics integration yet. Openings have no frames, glass, door leaves or swing symbols. Geometry
+BIM exchange, manufacturing, AI design or physics integration yet. Frames, glazing and door leaves are illustrative; there is no collision, hinge animation or door-swing clearance validation. Geometry
 quantities come from the native core; Three.js constructs the preview from the same
 validated outline. The optional Google font falls back to the system sans-serif.
 

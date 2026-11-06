@@ -197,6 +197,42 @@ try {
   await page.getByRole('button',{name:'North wall',exact:true}).click();
   assert.equal(await page.getByLabel('Opening',{exact:true}).locator('option').count(),3);
   await page.getByRole('button',{name:'3D',exact:true}).click();
+  // Place on an angled wall, with snapped offsets and a cancellable placement mode.
+  await page.getByRole('button',{name:'West wall',exact:true}).click();
+  await page.getByRole('button',{name:'Place door',exact:true}).click();
+  await page.getByRole('button',{name:'Fit room',exact:true}).click();
+  const placeRect=await canvas.boundingBox();
+  const placeRoom={width:6.25,depth:4.25,height:4,outline:[{x:-3.25,z:-2.25},{x:3,z:-2},{x:3,z:2},{x:-3,z:2}]};
+  const placeCamera=new THREE.OrthographicCamera();fitCamera(placeCamera,placeRoom,placeRect.width/placeRect.height,'Plan');
+  async function clickWorld(point) {
+    const p=new THREE.Vector3(point.x,0,point.z).project(placeCamera);
+    await canvas.click({position:{x:(p.x+1)*placeRect.width/2,y:(1-p.y)*placeRect.height/2}});
+  }
+  await clickWorld({x:0,z:0});
+  await page.getByText('Click near the selected wall to place an opening',{exact:true}).waitFor();
+  await clickWorld({x:-3.125,z:-.125});
+  await page.getByText('Opening placed',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Opening offset',{exact:true}).inputValue(),'1.75');
+  assert.equal(await page.getByRole('button',{name:'Place door',exact:true}).getAttribute('aria-pressed'),'false');
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  assert.equal(await page.getByLabel('Opening',{exact:true}).count(),0);
+  await page.getByRole('button',{name:'Redo',exact:true}).click();
+  assert.equal(await page.getByLabel('Opening',{exact:true}).locator('option').count(),2);
+  await page.getByRole('button',{name:'Place window',exact:true}).click();
+  await clickWorld({x:-3.125,z:-.125});
+  await page.getByText('Openings on the same wall need',{exact:false}).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByText('Opening placement cancelled',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Place window',exact:true}).getAttribute('aria-pressed'),'false');
+  // Click a door symbol to reopen its inspector.
+  await page.getByRole('button',{name:'Floor',exact:true}).click();
+  const wallLen=Math.hypot(.25,4.25),tx=-.25/wallLen,tz=-4.25/wallLen;
+  await clickWorld({x:-3+tx*1.75-tz*.45,z:2+tz*1.75+tx*.45});
+  await page.getByLabel('Opening offset',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Opening offset',{exact:true}).inputValue(),'1.75');
+  await page.getByRole('button',{name:'Save project',exact:true}).click();
+  await page.getByText('Project saved',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});
   await page.screenshot({path:'test-results/workspace-desktop.png'});
   await page.setViewportSize({width:390,height:844});

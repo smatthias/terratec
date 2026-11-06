@@ -40,3 +40,20 @@ export function wallPanels(length,height,openings) {
   }
   return panels;
 }
+export function openingPreset(room,wall,type,id,offset) {
+  const length=wallLength(room.outline,wall),height=room.height;
+  return {id,wall,type,offset,width:Math.min(type==='door'?.9:1.2,length-.2),
+    height:type==='door'?Math.min(2.1,height-.05):Math.min(1.2,height*.4),sill:type==='door'?0:Math.max(.1,height*.3)};
+}
+export function openingAtPoint(room,wall,type,id,point,spacing,snap=true,tolerance=.25) {
+  const i=edgeIds.indexOf(wall),length=wallLength(room.outline,wall);
+  const a=room.outline[i],b=room.outline[(i+1)%4],tx=(b.x-a.x)/length,tz=(b.z-a.z)/length;
+  const along=(point.x-a.x)*tx+(point.z-a.z)*tz;
+  const distance=Math.abs((point.x-a.x)*(-tz)+(point.z-a.z)*tx);
+  if(!Number.isFinite(along) || distance>tolerance) throw Error('Click near the selected wall to place an opening');
+  const preset=openingPreset(room,wall,type,id,0);
+  const offset=along-preset.width/2;
+  preset.offset=snap?Number((Math.round(offset/spacing)*spacing).toFixed(8)):offset;
+  validateOpenings([...room.openings,preset],room.outline,room.height);
+  return preset;
+}

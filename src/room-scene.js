@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { rectangle, bounds, edgeIds } from '../shared/geometry.mjs';
 
+import { addOpeningVisuals } from './opening-visuals.js';
 import { wallPanels } from '../shared/openings.mjs';
 
 export const surfaces = [
@@ -34,6 +35,7 @@ export function createRoom(room) {
       mesh.userData.planVisible=panel.bottom<=slice && panel.top>=slice;
     }
   });
+  addOpeningVisuals(group,{...room,outline});
   return group;
 }
 
@@ -52,10 +54,11 @@ export function createGrid(room,spacing) {
 
 export function updateSurfaces(group, view, selected) {
   for (const mesh of group.children) {
-    mesh.visible = view === 'Plan' ? mesh.userData.planVisible!==false : !['south','east'].includes(mesh.userData.id);
+    mesh.visible = view === 'Plan' ? mesh.userData.role!=='detail' && mesh.userData.planVisible!==false :
+      mesh.userData.role!=='symbol' && !['south','east'].includes(mesh.userData.id);
     mesh.material.color.setHex(mesh.userData.baseColor);
-    mesh.material.emissive.setHex(mesh.userData.id === selected ? 0x766228 : 0x000000);
-    mesh.material.emissiveIntensity = .65;
+    mesh.material.emissive?.setHex(mesh.userData.id === selected ? 0x766228 : 0x000000);
+    if(mesh.material.emissive) mesh.material.emissiveIntensity = .65;
   }
 }
 
@@ -88,4 +91,12 @@ export function pickSurface(group, camera, x, y) {
   ray.setFromCamera(new THREE.Vector2(x,y), camera);
   group.updateMatrixWorld(true);
   return ray.intersectObjects(group.children.filter(mesh => mesh.visible), false)[0]?.object.userData.id ?? null;
+}
+
+export function pickOpening(group,camera,x,y) {
+  const ray=new THREE.Raycaster();ray.params.Line.threshold=.08;
+  ray.setFromCamera(new THREE.Vector2(x,y),camera);group.updateMatrixWorld(true);
+  const hits=ray.intersectObjects(group.children.filter(mesh=>mesh.visible),false);
+  const hit=camera.isOrthographicCamera?hits.find(hit=>hit.object.userData.role==='symbol')||hits[0]:hits[0];
+  return hit?.object.userData.openingId ?? null;
 }

@@ -36,7 +36,7 @@ test('wall panel area removes exactly the opening area',()=>{
 });
 test('3D mesh rays pass through openings but hit headers, sills and solid wall',()=>{
   const group=createRoom(room); updateSurfaces(group,'3D',null); group.updateMatrixWorld(true);
-  const north=group.children.filter(mesh=>mesh.userData.id==='north');
+  const north=group.children.filter(mesh=>mesh.userData.id==='north' && !mesh.userData.role);
   const ray=(along,y)=>new THREE.Raycaster(new THREE.Vector3(-3+along,y,-4),new THREE.Vector3(0,0,1)).intersectObjects(north,false);
   assert.equal(ray(1.4,1).length,0,'door void');
   assert.ok(ray(1.4,2.5).length>0,'door header');
