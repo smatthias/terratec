@@ -18,3 +18,5 @@ aside{min-width:0}.recovery-panel select{min-width:0;max-width:100%}
 .sheet-layout{margin-top:16px}.sheet-layout figure{margin:12px 0}.sheet-layout svg{display:block;width:100%;height:auto;max-height:260px}.sheet-layout figcaption{font-size:11px;margin-bottom:5px}
 
 .project-manufacturing{margin:18px 0;font-size:12px}.project-manufacturing article{border-top:1px solid #b9c9b2;margin-top:16px;padding-top:8px}.project-manufacturing h2{font-size:18px}.project-manufacturing h3{font-size:13px}.project-manufacturing ul{padding-left:20px;overflow-wrap:anywhere}
+
+.workshop-jobs{font-size:12px;margin:18px 0}.job-hash{overflow-wrap:anywhere}.workshop-jobs textarea{display:block;width:100%;max-width:100%;min-height:70px}

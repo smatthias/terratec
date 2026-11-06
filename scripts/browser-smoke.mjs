@@ -649,6 +649,32 @@ try {
   job.summary.panels++;
   await page.getByLabel('Verify job manifest file',{exact:true}).setInputFiles({name:'changed.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(job))});
   await page.getByText('Job manifest integrity or derived layout check failed',{exact:true}).waitFor();
+  await page.getByLabel('Workshop job name',{exact:true}).fill('Workshop test');
+  await page.getByRole('button',{name:'Create workshop job',exact:true}).click();
+  await page.getByTestId('job-record-message').filter({hasText:'Workshop job created'}).waitFor();
+  await page.getByRole('button',{name:'Compare job revision',exact:true}).click();
+  await page.getByTestId('job-comparison').filter({hasText:'Revision matches current project'}).waitFor();
+  await page.getByLabel('Review name',{exact:true}).fill('Matthias');
+  await page.getByLabel('Review notes',{exact:true}).fill('Checked the planning layout.');
+  await page.getByRole('button',{name:'Mark revision reviewed',exact:true}).click();
+  await page.getByTestId('job-record-message').filter({hasText:'Workshop revision marked reviewed'}).waitFor();
+  assert.match(await page.getByTestId('job-record-status').textContent(),/reviewed/);
+  await page.getByLabel('Project name',{exact:true}).fill('Workshop revised model');
+  await page.getByRole('button',{name:'Save current model as new revision',exact:true}).click();
+  await page.getByTestId('job-record-message').filter({hasText:'Workshop job revision saved'}).waitFor();
+  assert.match(await page.getByTestId('job-record-status').textContent(),/Revision 2 · planned/);
+  await page.getByRole('button',{name:'Open workshop job',exact:true}).click();
+  await page.getByTestId('job-record-message').filter({hasText:'Workshop job opened'}).waitFor();
+  await page.getByLabel('Job revision',{exact:true}).selectOption('1');
+  assert.match(await page.getByTestId('job-record-status').textContent(),/Revision 1 · reviewed/);
+  await page.getByRole('button',{name:'Compare job revision',exact:true}).click();
+  await page.getByTestId('job-comparison').filter({hasText:'Revision differs from current project'}).waitFor();
+  const savedJobPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export saved job revision',exact:true}).click();
+  const savedJobDownload=await savedJobPromise,savedJobStream=await savedJobDownload.createReadStream();let savedJobJson='';
+  for await(const chunk of savedJobStream)savedJobJson+=chunk.toString();
+  assert.equal(JSON.parse(savedJobJson).sourceSha256,job.sourceSha256);
+
 
   const handoffPromise=page.waitForEvent('download');
   await page.getByRole('button',{name:'Export printable workshop handoff',exact:true}).click();

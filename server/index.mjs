@@ -5,13 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
+import {jobStore} from './job-store.mjs';
 import { projectStore } from './project-store.mjs';
 import { validateProject } from './project.mjs';
 
 const run = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
 export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve(root, 'build/terratec-core') } = {}) {
-  const projects=projectStore(dataDir);
+  const projects=projectStore(dataDir),jobs=jobStore(dataDir);
   return createServer(async (req, res) => {
     const send = (status, value) => {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -19,6 +20,18 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
     };
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
+      const jobMatch=path.match(/^\/api\/jobs\/([^/]+)(?:\/(revisions|review))?$/);
+      if(path==='/api/jobs'||jobMatch){
+        if(req.method==='GET'&&path==='/api/jobs')return send(200,await jobs.list());
+        if(req.method==='GET'&&jobMatch&&!jobMatch[2])return send(200,await jobs.read(jobMatch[1]));
+        if(req.method!=='POST'||(jobMatch&&!jobMatch[2]))return send(405,{error:'Method not allowed'});
+        if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
+        const chunks=[];let size=0;
+        for await(const chunk of req){size+=chunk.length;if(size>131072)return send(413,{error:'Job request exceeds 128 KiB'});chunks.push(chunk);}
+        let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid job JSON'});}
+        const record=path==='/api/jobs'?await jobs.create(input):jobMatch[2]==='revisions'?await jobs.revise(jobMatch[1],input):await jobs.review(jobMatch[1],input);
+        return send(path==='/api/jobs'?201:200,record);
+      }
       const projectMatch=path.match(/^\/api\/projects\/([^/]+)$/);
       if(req.method==='GET' && path==='/api/projects') return send(200,await projects.list());
       if(req.method==='GET' && projectMatch) return send(200,await projects.read(projectMatch[1]));

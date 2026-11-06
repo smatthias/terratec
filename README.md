@@ -363,3 +363,23 @@ Empty jobs and unplaced oversize panels are blocking issues. Every other job is
 marked review-required for workshop decisions on materials, grain, joinery,
 edging, tooling and cutting sequence. Manifest export includes blockers so they
 remain visible to a recipient; it never means production approval or CNC readiness.
+
+### Local workshop job records
+
+Project manufacturing includes a job register stored by the local Node service,
+separately from project files. Create a named job to capture revision 1. Save a
+changed current model as a new revision; unchanged source snapshots are rejected.
+Old snapshots remain available for comparison and manifest export. Selecting a
+revision never replaces the design workspace.
+
+Only the latest planned revision can be marked reviewed, with a reviewer name
+and notes. Empty/oversize jobs cannot be marked reviewed. A new revision always
+starts planned and does not inherit an earlier review. Reviewed means a recorded
+local review, not production approval or authenticated sign-off.
+
+`GET/POST /api/jobs`, `GET /api/jobs/:id`, and POST revision/review subroutes persist
+atomic JSON records under `data/jobs`. Writes are serialised within this service
+instance and require the expected revision number for edits; stale clients must
+reload. Limits: 50 jobs, 20 revisions per job, 128 KiB request bodies. Back up the
+data directory to preserve jobs; project JSON/recovery does not include them.
+This remains a local development service without multi-user authentication.
