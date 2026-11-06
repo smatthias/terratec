@@ -637,6 +637,19 @@ try {
   assert.ok(projectCsvDownload.suggestedFilename().endsWith('_manufacturing.csv'));
   assert.match(projectCsv,/cabinet_id/);assert.match(projectCsv,/Storage cabinet/);assert.match(projectCsv,/Birch plywood/);
   assert.equal(projectCsv.trim().split('\r\n').length,19);
+  assert.match(await page.getByTestId('job-validation').textContent(),/review-required/);
+  const jobPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export workshop job manifest',exact:true}).click();
+  const jobDownload=await jobPromise,jobStream=await jobDownload.createReadStream();let jobJson='';
+  for await(const chunk of jobStream)jobJson+=chunk.toString();
+  assert.ok(jobDownload.suggestedFilename().endsWith('_job.json'));
+  const job=JSON.parse(jobJson);assert.equal(job.summary.panels,18);assert.match(job.sourceSha256,/^[a-f0-9]{64}$/);
+  await page.getByLabel('Verify job manifest file',{exact:true}).setInputFiles({name:'job.json',mimeType:'application/json',buffer:Buffer.from(jobJson)});
+  await page.getByText('Verified manifest · matches current project · review-required',{exact:true}).waitFor();
+  job.summary.panels++;
+  await page.getByLabel('Verify job manifest file',{exact:true}).setInputFiles({name:'changed.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(job))});
+  await page.getByText('Job manifest integrity or derived layout check failed',{exact:true}).waitFor();
+
   const handoffPromise=page.waitForEvent('download');
   await page.getByRole('button',{name:'Export printable workshop handoff',exact:true}).click();
   const handoffDownload=await handoffPromise,handoffStream=await handoffDownload.createReadStream();let handoffHtml='';

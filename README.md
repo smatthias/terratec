@@ -343,3 +343,23 @@ Select a profile, choose cabinet checkboxes (or Select all), and apply to the
 selection. The entire operation is one geometry undo step. Cabinet dimensions,
 materials and blank allowances stay independent. Profile exchange is available
 from the selected cabinet’s profile section.
+
+### Workshop job manifests
+
+Project manufacturing exports a versioned job JSON containing the validated
+project snapshot, source SHA-256, batch layouts, source cabinet/panel IDs, totals
+and handoff issues. A second SHA-256 covers the full manifest payload. The source
+reference includes project metadata and profiles as well as geometry. Identical
+normalised project snapshots produce the same source hash; export timestamps
+change the manifest hash.
+
+**Verify job manifest** accepts up to 2 MiB, rebuilds layouts from the embedded
+source and compares all derived content and hashes, then reports whether the
+source matches the current project. Verification does not import or modify the
+project. Subsequent edits clear the displayed result. Hashes establish consistency,
+not authorship or a digital signature. No network submission occurs.
+
+Empty jobs and unplaced oversize panels are blocking issues. Every other job is
+marked review-required for workshop decisions on materials, grain, joinery,
+edging, tooling and cutting sequence. Manifest export includes blockers so they
+remain visible to a recipient; it never means production approval or CNC readiness.
