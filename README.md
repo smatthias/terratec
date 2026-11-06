@@ -429,3 +429,23 @@ Filtering does not close the opened record or alter any saved data. A selected
 job outside the filters stays available below. Old completed assignments do not
 carry into the summary for a newer planned revision. Reload/refresh retrieves
 updates from the local service; this is not a realtime multi-user dashboard.
+
+### Revision costing and quote snapshots
+
+Each job revision can store up to 20 quote snapshots. Enter sheet prices per
+material, a handle price, hourly labour, whole labour minutes per panel and markup.
+Choose EUR, USD or GBP; there is no currency conversion or supplied market pricing.
+One rate per material applies to every stock size/thickness in that revision.
+Materials use nested whole sheet counts (including unused sheet area); hardware
+uses model handle counts and labour uses panel quantity × entered minutes.
+
+Values are calculated in integer cents. Labour is rounded once to cents, then
+markup is rounded once on the subtotal. Totals exclude tax, delivery and services
+not represented by these inputs. These are planning estimates, not invoices.
+Empty/oversize handoffs cannot be costed. Zero rates are valid and explicit.
+
+Save appends a revision/source-hash-bound snapshot; later rate or model edits do
+not change it. New model revisions have no quotes until one is saved. Quotes can
+be exported as JSON and travel with job backups; restore recomputes all totals
+against the embedded revision. `POST /api/jobs/:id/quotes` requires the expected
+head revision and selected revision’s quote count to reject stale appends.

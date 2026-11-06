@@ -1,0 +1,26 @@
+<script setup>
+import {ref,computed,watch} from 'vue';
+import {quoteCosting,moneyToCents} from '../shared/quote.mjs';
+const props=defineProps({revision:{type:Object,required:true},busy:Boolean}),emit=defineEmits(['save','export']);
+const currency=ref('EUR'),rates=ref({oak:'0.00',birch:'0.00',white:'0.00',handles:'0.00',labour:'0.00'}),minutes=ref(0),markup=ref(0),choice=ref('');
+const pricing=()=>{if(typeof markup.value!=='number'||!Number.isFinite(markup.value)||markup.value<0||markup.value>100||Math.abs(markup.value*100-Math.round(markup.value*100))>1e-6)throw Error('Enter markup from 0 to 100 with up to two decimals');return {currency:currency.value,sheetRates:{oak:moneyToCents(rates.value.oak),birch:moneyToCents(rates.value.birch),white:moneyToCents(rates.value.white)},handleUnitCents:moneyToCents(rates.value.handles),labourHourlyCents:moneyToCents(rates.value.labour),labourMinutesPerPanel:minutes.value,markupBps:Math.round(markup.value*100)};};
+const preview=computed(()=>{try{return {cost:quoteCosting(props.revision.manifest,props.revision.number,pricing())};}catch(e){return {error:e.message};}});
+const saved=computed(()=>props.revision.quotes?.find(q=>q.id===choice.value));
+watch(()=>props.revision.quotes,quotes=>{if(quotes?.length)choice.value=quotes.at(-1).id;},{deep:true,immediate:true});
+const amount=(cents,code=currency.value)=>(cents/100).toFixed(2)+' '+code;
+</script>
+<template>
+  <section aria-label="Revision costing" class="job-quotes"><h4>Revision costing</h4>
+    <p class="hint">User-entered planning rates. One sheet rate per material applies across all sizes and thicknesses. Whole stock sheets, handles and estimated labour are costed; tax, delivery, joinery and other services are excluded. Markup applies to the subtotal. Zero is allowed; no supplier prices are supplied.</p>
+    <fieldset :disabled="busy"><label>Quote currency<select v-model="currency" aria-label="Quote currency"><option>EUR</option><option>USD</option><option>GBP</option></select></label>
+      <label v-for="material in ['oak','birch','white']" :key="material">{{ material }} sheet price<input v-model="rates[material]" inputmode="decimal"></label>
+      <label>Handle unit price<input v-model="rates.handles" inputmode="decimal"></label><label>Labour hourly price<input v-model="rates.labour" inputmode="decimal"></label>
+      <label>Labour minutes per panel<input v-model.number="minutes" type="number" min="0" max="600" step="1"></label><label>Quote markup percent<input v-model.number="markup" type="number" min="0" max="100" step="0.01"></label>
+      <p v-if="preview.error" role="status">{{ preview.error }}</p>
+      <template v-if="preview.cost"><p>Materials {{ amount(preview.cost.materialCents) }} · handles {{ preview.cost.handles }} · labour {{ preview.cost.labourMinutes }} minutes</p><p data-testid="quote-preview">Subtotal {{ amount(preview.cost.subtotalCents) }} · markup {{ amount(preview.cost.markupCents) }} · total {{ amount(preview.cost.totalCents) }} (tax excluded)</p></template>
+      <button :disabled="!preview.cost" @click="emit('save',pricing())">Save revision quote snapshot</button>
+      <label v-if="revision.quotes?.length">Saved quote<select v-model="choice" aria-label="Saved quote"><option v-for="(q,index) in revision.quotes" :key="q.id" :value="q.id">Quote {{ index+1 }} · {{ amount(q.costing.totalCents,q.costing.pricing.currency) }}</option></select></label>
+      <template v-if="saved"><p data-testid="saved-quote">Saved total {{ amount(saved.costing.totalCents,saved.costing.pricing.currency) }} · revision {{ saved.costing.revision }} · {{ saved.createdAt }}</p><button @click="emit('export',JSON.stringify({format:'terratec-quote',version:1,...saved},null,2)+'\n')">Export saved quote JSON</button></template>
+    </fieldset>
+  </section>
+</template>

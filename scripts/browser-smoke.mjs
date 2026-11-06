@@ -652,6 +652,25 @@ try {
   await page.getByLabel('Workshop job name',{exact:true}).fill('Workshop test');
   await page.getByRole('button',{name:'Create workshop job',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Workshop job created'}).waitFor();
+  await page.getByLabel('birch sheet price',{exact:true}).fill('100.00');
+  await page.getByLabel('Handle unit price',{exact:true}).fill('2.50');
+  await page.getByLabel('Labour hourly price',{exact:true}).fill('60.00');
+  await page.getByLabel('Labour minutes per panel',{exact:true}).fill('5');
+  await page.getByLabel('Quote markup percent',{exact:true}).fill('10');
+  await page.getByRole('button',{name:'Save revision quote snapshot',exact:true}).click();
+  await page.getByTestId('job-record-message').filter({hasText:'Revision quote snapshot saved'}).waitFor();
+  assert.match(await page.getByTestId('saved-quote').textContent(),/revision 1/);
+  const quotePromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export saved quote JSON',exact:true}).click();
+  const quoteDownload=await quotePromise,quoteStream=await quoteDownload.createReadStream();let quoteJson='';
+  for await(const chunk of quoteStream)quoteJson+=chunk.toString();
+  const quote=JSON.parse(quoteJson);
+  assert.equal(quote.costing.sourceSha256,job.sourceSha256);assert.equal(quote.costing.handles,4);
+  assert.equal(quote.costing.materialCents,job.summary.sheets*10000);
+  assert.equal(quote.costing.totalCents,Math.round((job.summary.sheets*10000+1000+9000)*1.1));
+  await page.getByLabel('birch sheet price',{exact:true}).fill('200.00');
+  assert.match(await page.getByTestId('saved-quote').textContent(),new RegExp((quote.costing.totalCents/100).toFixed(2)));
+
   await page.getByRole('button',{name:'Compare job revision',exact:true}).click();
   await page.getByTestId('job-comparison').filter({hasText:'Revision matches current project'}).waitFor();
   await page.getByLabel('Review name',{exact:true}).fill('Matthias');
@@ -693,6 +712,7 @@ try {
   await page.getByRole('button',{name:'Save current model as new revision',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Workshop job revision saved'}).waitFor();
   assert.match(await page.getByTestId('job-record-status').textContent(),/Revision 2 · planned/);
+  assert.equal(await page.getByTestId('saved-quote').count(),0);
   assert.equal(await page.getByTestId('fulfilment-status').count(),0);
   const latestJobId=await page.getByLabel('Workshop job',{exact:true}).inputValue();
   assert.match(await page.getByTestId('job-rollup').textContent(),/2 jobs · 1 planned/);

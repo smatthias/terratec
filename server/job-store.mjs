@@ -2,6 +2,7 @@ import {readFile,writeFile,mkdir,rename,rm,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {validProjectId} from './project-store.mjs';
+import {quoteCosting} from '../shared/quote.mjs';
 import {jobSummary} from '../shared/job-register.mjs';
 import {validateJobBackup} from '../shared/job-backup.mjs';
 import {createJobManifest} from '../shared/job-manifest.mjs';
@@ -48,6 +49,16 @@ export function jobStore(dataDir){
       const snapshot=await manifest(input.project);
       if(snapshot.sourceSha256===record.revisions.at(-1).manifest.sourceSha256)fail('Current project already matches the latest revision',409);
       record.revisions.push({number:record.revisions.length+1,status:'planned',manifest:snapshot,review:null});record.updatedAt=new Date().toISOString();return write(record);
+    }),
+    quote:(id,input)=>serial(async()=>{
+      const record=await read(id);expected(record,input?.expectedRevision);
+      const revision=record.revisions.find(r=>r.number===input.revision);
+      if(!revision)fail('Job revision not found');
+      const quotes=revision.quotes??[];
+      if(input.expectedQuoteCount!==quotes.length)fail('Quotes changed; reload before editing',409);
+      if(quotes.length>=20)fail('Maximum 20 quote snapshots per revision');
+      let costing;try{costing=quoteCosting(revision.manifest,revision.number,input.pricing);}catch(e){fail(e.message);}
+      const now=new Date().toISOString();revision.quotes=[...quotes,{id:randomUUID(),createdAt:now,costing}];record.updatedAt=now;return write(record);
     }),
     fulfil:(id,input)=>serial(async()=>{
       const record=await read(id);expected(record,input?.expectedRevision);

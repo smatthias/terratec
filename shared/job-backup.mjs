@@ -1,3 +1,4 @@
+import {quoteCosting} from './quote.mjs';
 import {verifyJobManifest} from './job-manifest.mjs';
 export const MAX_JOB_BACKUP_BYTES=16777216;
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
@@ -30,6 +31,11 @@ export async function validateJobBackup(input){
       if(revision.manifest.validation.status==='blocked'||!review||!text(review.reviewer,80)||!text(review.note,1000)||!date(review.reviewedAt)||Date.parse(review.reviewedAt)<previous)throw Error('Invalid job review history');
       previous=Date.parse(review.reviewedAt);
     }else if(revision.review!=null||revision.fulfilment!=null)throw Error('Planned revision cannot have review or tracking');
+    const quotes=revision.quotes??[];
+    if(!Array.isArray(quotes)||quotes.length>20||new Set(quotes.map(q=>q.id)).size!==quotes.length)throw Error('Invalid quote history');
+    for(const q of quotes){
+      if(!uuid(q.id)||!date(q.createdAt)||Date.parse(q.createdAt)<snapshotTime||Date.parse(q.createdAt)>Date.parse(r.updatedAt)||JSON.stringify(canonical(q.costing))!==JSON.stringify(canonical(quoteCosting(revision.manifest,revision.number,q.costing?.pricing))))throw Error('Invalid quote snapshot');
+    }
     const f=revision.fulfilment;
     if(f!=null){
       if(!text(f.workshop,80)||typeof f.dueDate!=='string'||(f.dueDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(f.dueDate)||!date(f.dueDate)||new Date(f.dueDate).toISOString().slice(0,10)!==f.dueDate))||!Array.isArray(f.events)||!f.events.length||f.events.length>3)throw Error('Invalid workshop assignment');

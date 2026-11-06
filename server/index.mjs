@@ -22,7 +22,7 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
       const restoring=path==='/api/jobs/restore';
-      const jobMatch=path.match(/^\/api\/jobs\/([^/]+)(?:\/(revisions|review|fulfilment))?$/);
+      const jobMatch=path.match(/^\/api\/jobs\/([^/]+)(?:\/(revisions|review|fulfilment|quotes))?$/);
       if(path==='/api/jobs'||jobMatch){
         if(req.method==='GET'&&path==='/api/jobs')return send(200,await jobs.list());
         if(req.method==='GET'&&jobMatch&&!jobMatch[2]&&!restoring)return send(200,await jobs.read(jobMatch[1]));
@@ -31,7 +31,7 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
         const chunks=[];let size=0;
         for await(const chunk of req){size+=chunk.length;if(size>(restoring?MAX_JOB_BACKUP_BYTES:131072))return send(413,{error:restoring?'Job backup exceeds 16 MiB':'Job request exceeds 128 KiB'});chunks.push(chunk);}
         let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid job JSON'});}
-        const record=restoring?await jobs.restore(input):path==='/api/jobs'?await jobs.create(input):jobMatch[2]==='revisions'?await jobs.revise(jobMatch[1],input):jobMatch[2]==='review'?await jobs.review(jobMatch[1],input):await jobs.fulfil(jobMatch[1],input);
+        const record=restoring?await jobs.restore(input):path==='/api/jobs'?await jobs.create(input):jobMatch[2]==='revisions'?await jobs.revise(jobMatch[1],input):jobMatch[2]==='review'?await jobs.review(jobMatch[1],input):jobMatch[2]==='quotes'?await jobs.quote(jobMatch[1],input):await jobs.fulfil(jobMatch[1],input);
         return send(path==='/api/jobs'||restoring?201:200,record);
       }
       const projectMatch=path.match(/^\/api\/projects\/([^/]+)$/);
