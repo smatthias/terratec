@@ -58,9 +58,10 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic core/main.cpp -o build/terratec-core
 
 ```json
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "units": "m",
   "name": "Studio",
+  "presets": [],
   "room": {
     "width": 6, "depth": 4, "height": 2.8,
     "outline": [{"x":-3,"z":-2},{"x":3,"z":-2},{"x":3,"z":2},{"x":-3,"z":2}],
@@ -79,12 +80,14 @@ uniform. Coordinates must be finite and within ±1000 m, wall lengths at least 0
 and overall spans 0.1–1000 m. Crossing, concave and collapsed outlines are rejected.
 
 Schema 1 rectangles and schema 2 outlines migrate with empty opening lists. Schema 3
-openings migrate to schema 4, with A-end/inward defaults for doors. Schema 4 persists
-door hinge and swing settings. Width/depth are derived from its bounds. Unsupported versions are rejected.
+openings migrate to schema 4, with A-end/inward defaults for doors. Schema 5 persists door hinge/swing settings and named opening presets. Older projects
+migrate with an empty preset list. Width/depth are derived from its bounds. Unsupported versions are rejected.
 The service validates before saving and atomically replaces its single project file.
 Additional fields are discarded. Native area/volume/perimeter use the polygon,
 not its bounding rectangle. Both views render that same polygon. Plan shows wall dimensions in metres with measurement lines, extension lines and end ticks.
 Lines follow angled walls and stay a fixed distance from the edge on screen as you zoom.
+Selecting a wall with openings adds a second chain of opening widths and intervening
+gaps. The overall wall dimension moves outward to keep both rows separate.
 
 Select a wall, then Add door or Add window. Set offset (from endpoint A toward B),
 width, height and sill, then Apply opening. Openings leave real holes in the 3D mesh.
@@ -105,9 +108,12 @@ snaps to the selected grid. Invalid/out-of-wall or overlapping placements are re
 and leave placement mode active. Escape or Cancel placement exits without an edit.
 A valid placement makes one undo entry. Place mode includes width, height and sill fields, plus door hinge/swing controls.
 Entered sizes are kept exactly; snapping affects only the offset along the wall.
-The preview and committed opening use the same sizes and validation. Size presets
-are remembered per type for the current session; placed dimensions are saved with
-the project. Numeric Add door/window still uses its standard presets. Numeric Add door/window remains available.
+The preview and committed opening use the same sizes and validation. Current placement sizes are remembered per type for the session. To reuse them later,
+enter a Preset name and choose Save opening preset, then Save project. Named presets
+include type, exact sizes and door orientation. Choose a saved preset and Use preset
+to fill placement controls. Saving the same name/type updates it; Delete preset removes
+it. Preset edits are project metadata and are separate from geometry undo/redo.
+Up to 32 presets are stored per project; their fit is checked when placed on a wall. Numeric Add door/window still uses its standard presets. Numeric Add door/window remains available.
 Native quantities remain floor area, interior volume and perimeter; wall material
 quantities are not yet calculated.
 
