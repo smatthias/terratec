@@ -287,3 +287,17 @@ and height reflecting any rotation. Sheet numbers begin at 1. It is a planning
 layout for one cabinet: it does not optimise across cabinets, guarantee minimum
 sheet count, specify a cutting sequence or generate CNC instructions. Material
 and grain requirements still need workshop review.
+
+### Project manufacturing batches
+
+Open **Project manufacturing** to nest all cabinets together. A batch combines
+only matching material, thickness, stock dimensions, edge trim, rotation permission
+and kerf. Each panel keeps its cabinet ID and name; different blank allowances
+can share a batch because the resulting panel sizes are packed individually.
+Cabinet codes in the preview link panel labels to the source list. Batch and
+sheet numbers are regenerated deterministically; sheet numbers restart per batch.
+
+Project CSV includes batch, material/thickness, cabinet identity, panel identity,
+placements and stock settings, including oversize panels. Previews update with
+edits and undo/redo. Computation runs only while this section is open. Nesting
+remains heuristic, with no guaranteed minimum count, cutting sequence or CNC.

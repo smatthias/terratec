@@ -16,3 +16,5 @@ aside{min-width:0}.recovery-panel select{min-width:0;max-width:100%}
 .furniture-editor{border:1px solid #b9c9b2;border-radius:6px;padding:10px;margin:18px 0}.furniture-editor legend{font-size:12px;padding:0 6px}.furniture-editor button{font-size:11px;padding:7px;margin:4px 0}.furniture-editor label{font-size:11px;margin:10px 0}.furniture-editor input{padding:7px}
 .cabinet-bom{margin-top:18px;padding-top:12px;border-top:1px solid #b9c9b2;font-size:11px;line-height:1.6}.bom-row{padding:6px 0;border-bottom:1px solid #d1dacb}.bom-row strong,.bom-row span{display:block}
 .sheet-layout{margin-top:16px}.sheet-layout figure{margin:12px 0}.sheet-layout svg{display:block;width:100%;height:auto;max-height:260px}.sheet-layout figcaption{font-size:11px;margin-bottom:5px}
+
+.project-manufacturing{margin:18px 0;font-size:12px}.project-manufacturing article{border-top:1px solid #b9c9b2;margin-top:16px;padding-top:8px}.project-manufacturing h2{font-size:18px}.project-manufacturing h3{font-size:13px}.project-manufacturing ul{padding-left:20px;overflow-wrap:anywhere}
