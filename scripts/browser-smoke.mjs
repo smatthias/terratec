@@ -578,6 +578,7 @@ try {
   await page.getByLabel('Stock length mm',{exact:true}).fill('600');
   await page.getByLabel('Stock width mm',{exact:true}).fill('1300');
   await page.getByLabel('Stock edge trim mm',{exact:true}).fill('5');
+  await page.getByLabel('Stock kerf mm',{exact:true}).fill('4');
   await page.getByLabel('Allow panel rotation',{exact:true}).uncheck();
   await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
   await page.getByText('Cabinet updated',{exact:true}).waitFor();
@@ -597,6 +598,16 @@ try {
   await page.getByText('Saved project opened',{exact:true}).waitFor();
   await page.getByLabel('Furniture item',{exact:true}).selectOption({label:'Storage cabinet'});
   assert.equal(await page.getByLabel('Stock edge trim mm',{exact:true}).inputValue(),'5');
+  assert.equal(await page.getByLabel('Stock kerf mm',{exact:true}).inputValue(),'4');
+  assert.match(await page.getByTestId('nesting-summary').textContent(),/0 unplaced/);
+  assert.ok(await page.getByRole('img',{name:/Sheet .* panel layout/}).count()>0);
+  const layoutDownloadPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export layout CSV',exact:true}).click();
+  const layoutDownload=await layoutDownloadPromise,layoutStream=await layoutDownload.createReadStream();let layoutCsv='';
+  for await(const chunk of layoutStream)layoutCsv+=chunk.toString();
+  assert.ok(layoutDownload.suggestedFilename().endsWith('_cabinet-layout.csv'));
+  assert.match(layoutCsv,/x_mm/);assert.match(layoutCsv,/kerf_mm/);assert.match(layoutCsv,/"placed","4"/);
+  assert.equal(layoutCsv.trim().split('\r\n').length,11);
   assert.equal(await page.getByLabel('Allow panel rotation',{exact:true}).isChecked(),true);
   await page.getByRole('region',{name:'Cabinet panel bill of materials'}).waitFor();
   await page.getByText('10 panels · 2 handles',{exact:false}).waitFor();

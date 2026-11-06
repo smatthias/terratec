@@ -270,5 +270,20 @@ The BOM and CSV classify each blank as direct, rotated or oversize against the
 usable sheet. Oversize counts include the quantity of each panel type. Stock
 settings save with the cabinet and participate in undo/recovery/JSON exchange.
 Individual panel fit does not establish that all panels fit together on a sheet;
-there is no nesting, kerf spacing or sheet count yet. Oversize panels remain
+use the layout preview for a combined packing estimate. Oversize panels remain
 exportable so the CSV can communicate the issue to a workshop.
+
+### Cabinet sheet layouts
+
+The selected cabinet now packs panel blanks across stock sheets with a deterministic
+guillotine heuristic. Set kerf (0–20 mm, default 3 mm), then apply the cabinet.
+Kerf reserves space between blanks; no extra gap is required against the usable
+sheet boundary, which already excludes edge trim. Rotation follows the stock
+permission. The preview shows sheet coordinates, panel IDs and gross stock area
+utilisation. Oversize panels appear as unplaced and are retained in layout CSV.
+
+Layout CSV uses millimetres from the top-left of each sheet, with placed width
+and height reflecting any rotation. Sheet numbers begin at 1. It is a planning
+layout for one cabinet: it does not optimise across cabinets, guarantee minimum
+sheet count, specify a cutting sequence or generate CNC instructions. Material
+and grain requirements still need workshop review.
