@@ -180,7 +180,7 @@ try {
   // Invalid overlap and a wall-height edit cannot damage valid openings.
   await page.getByLabel('Opening offset',{exact:true}).fill('1.2');
   await page.getByRole('button',{name:'Apply opening',exact:true}).click();
-  await page.getByText('Openings on the same wall need',{exact:false}).waitFor();
+  await page.locator('footer').getByText('Openings on the same wall need',{exact:false}).waitFor();
   await page.getByLabel('Height',{exact:true}).fill('1');
   await page.getByRole('button',{name:'Calculate geometry'}).click();
   await page.getByText('Geometry calculated',{exact:true}).waitFor();
@@ -209,7 +209,7 @@ try {
     await canvas.click({position:{x:(p.x+1)*placeRect.width/2,y:(1-p.y)*placeRect.height/2}});
   }
   await clickWorld({x:0,z:0});
-  await page.getByText('Click near the selected wall to place an opening',{exact:true}).waitFor();
+  await page.locator('footer').getByText('Click near the selected wall to place an opening',{exact:true}).waitFor();
   await clickWorld({x:-3.125,z:-.125});
   await page.getByText('Opening placed',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Opening offset',{exact:true}).inputValue(),'1.75');
@@ -220,7 +220,7 @@ try {
   assert.equal(await page.getByLabel('Opening',{exact:true}).locator('option').count(),2);
   await page.getByRole('button',{name:'Place window',exact:true}).click();
   await clickWorld({x:-3.125,z:-.125});
-  await page.getByText('Openings on the same wall need',{exact:false}).waitFor();
+  await page.locator('footer').getByText('Openings on the same wall need',{exact:false}).waitFor();
   await page.keyboard.press('Escape');
   await page.getByText('Opening placement cancelled',{exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Place window',exact:true}).getAttribute('aria-pressed'),'false');

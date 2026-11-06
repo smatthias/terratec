@@ -41,7 +41,7 @@ const valid = computed(() => { try { validateProject(project.value); return true
 const gridSpacing=ref(.25), snapEnabled=ref(true), endpointDraft=ref([]);
 const selectedEdge=computed(()=>edgeIds.indexOf(selected.value));
 const placementType=ref(null), placementPreview=ref(null);
-let previewGroup;
+let previewGroup,previewId;
 const selectedOpeningId=ref(null), openingDraft=ref(null), wallLabels=ref([]);
 const wallOpenings=computed(()=>project.value.room.openings.filter(o=>o.wall===selected.value));
 watch([selected,selectedOpeningId,project],()=>{
@@ -65,7 +65,7 @@ function addOpening(type) {
   } catch(error) { message.value=error.message; }
 }
 function beginPlacement(type) {
-  clearPreview();
+  clearPreview(); previewId=crypto.randomUUID();
   view.value='Plan'; placementType.value=type;
   message.value='Click near the selected wall · Escape cancels placement';
 }
@@ -82,7 +82,7 @@ function updatePreview(event) {
   ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);
   const point=ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),0),new THREE.Vector3());
   if(!point) {clearPreview();return;}
-  const result=previewOpening(project.value.room,selected.value,placementType.value,'preview',point,gridSpacing.value,snapEnabled.value,
+  const result=previewOpening(project.value.room,selected.value,placementType.value,previewId,point,gridSpacing.value,snapEnabled.value,
     Math.max(.15,(camera.top-camera.bottom)/camera.zoom/rect.height*18));
   clearPreview();placementPreview.value=result;
   previewGroup=createPlacementPreview(project.value.room,result);scene.add(previewGroup);
