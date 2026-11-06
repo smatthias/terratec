@@ -8,7 +8,7 @@ const storage=()=>{const map=new Map();return {getItem:key=>map.get(key)??null,s
 test('JSON roundtrip migrates old formats, strips external IDs and rejects invalid or oversized files',()=>{
   const text=serializeProjectJson({...project,id:'external-server-id'});
   assert.deepEqual(parseProjectJson(text),project);assert.equal(text.includes('external-server-id'),false);
-  assert.equal(parseProjectJson(JSON.stringify({schemaVersion:1,units:'m',name:'Old',room:{width:6,depth:4,height:3}})).schemaVersion,5);
+  assert.equal(parseProjectJson(JSON.stringify({schemaVersion:1,units:'m',name:'Old',room:{width:6,depth:4,height:3}})).schemaVersion,6);
   assert.throws(()=>parseProjectJson('{bad'));
   assert.throws(()=>parseProjectJson(JSON.stringify({...project,units:'ft'})));
   assert.throws(()=>parseProjectJson(' '.repeat(65537)));

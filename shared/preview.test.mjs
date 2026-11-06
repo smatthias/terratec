@@ -5,9 +5,9 @@ import {previewOpening,openingAtPoint} from './openings.mjs';
 import {validateProject} from './project.mjs';
 import {createPlacementPreview} from '../src/placement-preview.js';
 const room={width:6,depth:4,height:3,outline:rectangle(6,4),openings:[]};
-test('schema 3 doors migrate to explicit defaults and schema 5 orientation persists',()=>{
+test('schema 3 doors migrate to explicit defaults and schema 6 orientation persists',()=>{
   const old={schemaVersion:3,units:'m',name:'Old',room:{...room,openings:[{id:'door',wall:'north',type:'door',offset:1,width:.9,height:2.1,sill:0}]}};
-  const migrated=validateProject(old);assert.equal(migrated.schemaVersion,5);
+  const migrated=validateProject(old);assert.equal(migrated.schemaVersion,6);
   assert.equal(migrated.room.openings[0].hinge,'A');assert.equal(migrated.room.openings[0].swing,'in');
   migrated.room.openings[0].hinge='B';migrated.room.openings[0].swing='out';
   assert.deepEqual(validateProject(JSON.parse(JSON.stringify(migrated))),migrated);

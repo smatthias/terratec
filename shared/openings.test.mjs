@@ -12,7 +12,7 @@ const window={id:'window-1',type:'window',wall:'north',offset:3,width:1.2,height
 const room={width:6,depth:4,height:3,outline,openings:[door,window]};
 test('openings migrate, persist and participate in undo/redo',()=>{
   const old={schemaVersion:2,units:'m',name:'Studio',room:{...room,openings:undefined}};
-  const migrated=validateProject(old); assert.equal(migrated.schemaVersion,5); assert.deepEqual(migrated.room.openings,[]);
+  const migrated=validateProject(old); assert.equal(migrated.schemaVersion,6); assert.deepEqual(migrated.room.openings,[]);
   const project=validateProject({...old,schemaVersion:3,room});
   assert.deepEqual(validateProject(JSON.parse(JSON.stringify(project))),project);
   const history=commitHistory(createHistory(migrated.room),project.room);

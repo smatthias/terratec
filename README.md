@@ -58,7 +58,7 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic core/main.cpp -o build/terratec-core
 
 ```json
 {
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "units": "m",
   "name": "Studio",
   "presets": [],
@@ -80,7 +80,8 @@ uniform. Coordinates must be finite and within ±1000 m, wall lengths at least 0
 and overall spans 0.1–1000 m. Crossing, concave and collapsed outlines are rejected.
 
 Schema 1 rectangles and schema 2 outlines migrate with empty opening lists. Schema 3
-openings migrate to schema 4, with A-end/inward defaults for doors. Schema 5 persists door hinge/swing settings and named opening presets. Older projects
+openings migrate to schema 4, with A-end/inward defaults for doors. Schema 6 persists doors, named opening presets and furniture. Earlier projects migrate
+with an empty furniture list. Older projects
 migrate with an empty preset list. Width/depth are derived from its bounds. Unsupported versions are rejected.
 The service validates before saving and atomically replaces its single project file.
 Additional fields are discarded. Native area/volume/perimeter use the polygon,
@@ -209,3 +210,23 @@ can instead choose larger paper or change orientation. The SVG declares exact sh
 size in millimetres, with a scale transform around the model-metre drawing, a border
 and footer. Continue printing at 100%/actual size with fit-to-page disabled.
 Pagination and printer-specific unprintable-area handling are not implemented.
+
+## Parametric cabinets
+
+Add cabinet creates a cabinet at the room centre; Place cabinet switches to Plan
+and places one at a clicked position. Position follows the selected grid snapping.
+Select its footprint in Plan, a visible panel in 3D, or Furniture item in the sidebar.
+Edit name, width/depth/height, X/Z position, rotation in degrees, panel thickness and
+shelf count, then Apply cabinet. Remove cabinet deletes the selected item.
+
+The model has separate side/top/bottom/back/shelf panels, two closed front doors and
+handles. Plan and SVG show its body footprint. Furniture CRUD participates in geometry
+undo/redo, project save/load, JSON exchange, duplication and recovery. Schema 6 adds
+`room.furniture`; earlier schemas migrate with no furniture. Up to 64 cabinets are
+supported. Rotated body footprints must stay in the convex room and cannot overlap;
+invalid geometry or room edits are rejected. Height cannot exceed the room height.
+
+There is no cabinet animation, direct object dragging, hardware clearance, doorway
+or door-swing clearance validation, furniture physics or CNC output yet. The body
+footprint collision check excludes protruding handles. Panels are illustrative until
+joinery and manufacturing allowances are introduced.

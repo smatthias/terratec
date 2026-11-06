@@ -16,7 +16,7 @@ test('presets update by type/name, preserve IDs, validate and persist through pr
   assert.throws(()=>validatePresets([{...preset,height:NaN}]));
   assert.throws(()=>validatePresets([{...preset,name:''}]));
   const old={schemaVersion:1,units:'m',name:'Project',room:{width:6,depth:4,height:3}};
-  const next=validateProject(old);assert.equal(next.schemaVersion,5);assert.deepEqual(next.presets,[]);
+  const next=validateProject(old);assert.equal(next.schemaVersion,6);assert.deepEqual(next.presets,[]);
   next.presets=updated;
   assert.deepEqual(validateProject(JSON.parse(JSON.stringify(next))).presets,updated);
 });

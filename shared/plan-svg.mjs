@@ -1,5 +1,6 @@
 import {validateProject} from './project.mjs';
 import {bounds,edgeIds} from './geometry.mjs';
+import {cabinetFootprint} from './furniture.mjs';
 import {wallPanels,doorPose} from './openings.mjs';
 export const escapeXml=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 function buildDrawing(input,{scale=null}={}) {
@@ -11,6 +12,7 @@ function buildDrawing(input,{scale=null}={}) {
   const poly=(p,fill)=>items.push(`<polygon points="${p.map(point).join(' ')}" fill="${fill}" stroke="#263e3c" stroke-width="${stroke}"/>`);
   const text=(p,value)=>{point(p);items.push(`<text x="${p.x}" y="${p.z}" text-anchor="middle" font-family="sans-serif" font-size="${font}" fill="#263e3c">${escapeXml(value)}</text>`);};
   poly(room.outline,'#eef2e9');
+  for(const item of room.furniture) poly(cabinetFootprint(item),'#d8bd8e');
   room.outline.forEach((a,i)=>{
     const b=room.outline[(i+1)%4],length=Math.hypot(b.x-a.x,b.z-a.z),tx=(b.x-a.x)/length,tz=(b.z-a.z)/length,wall=edgeIds[i];
     const at=(along,inset=0)=>({x:a.x+tx*along-tz*inset,z:a.z+tz*along+tx*inset});

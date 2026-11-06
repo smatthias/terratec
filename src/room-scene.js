@@ -4,6 +4,8 @@ import { rectangle, bounds, edgeIds } from '../shared/geometry.mjs';
 import { addOpeningVisuals } from './opening-visuals.js';
 import { wallPanels } from '../shared/openings.mjs';
 
+import { addFurnitureVisuals } from './furniture-scene.js';
+
 export const surfaces = [
   { id: 'floor', label: 'Floor' },
   { id: 'north', label: 'North wall' },
@@ -36,6 +38,7 @@ export function createRoom(room) {
     }
   });
   addOpeningVisuals(group,{...room,outline});
+  addFurnitureVisuals(group,{...room,outline});
   return group;
 }
 
