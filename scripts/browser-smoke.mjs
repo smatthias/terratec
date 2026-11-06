@@ -278,6 +278,43 @@ try {
   assert.equal(await page.getByRole('button',{name:'Undo',exact:true}).isDisabled(),true,'placement commits one history entry');
   await page.getByRole('button',{name:'Redo',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
+  // Full wall dimensions include extension lines and end ticks.
+  await page.getByRole('button',{name:'Plan',exact:true}).click();
+  await page.locator('[data-wall-dimension=north] line').first().waitFor();
+  assert.equal(await page.locator('.dimension-lines line').count(),20);
+  const beforeDimension=await page.locator('[data-wall-dimension=north] line').first().getAttribute('x1');
+  const zoomRect=await canvas.boundingBox();
+  await page.mouse.move(zoomRect.x+zoomRect.width*.5,zoomRect.y+zoomRect.height*.5);
+  await page.mouse.wheel(0,-150);
+  await page.waitForFunction(previous=>document.querySelector('[data-wall-dimension=north] line').getAttribute('x1')!==previous,beforeDimension);
+  await page.getByRole('button',{name:'Fit room',exact:true}).click();
+  // Place a custom-sized door on the empty east wall; exact sizes are not snapped.
+  await page.getByRole('button',{name:'East wall',exact:true}).click();
+  await page.getByRole('button',{name:'Place door',exact:true}).click();
+  await page.getByLabel('Placement width',{exact:true}).fill('0.83');
+  await page.getByLabel('Placement height',{exact:true}).fill('2.03');
+  await page.getByLabel('Placement hinge',{exact:true}).selectOption('B');
+  await page.getByLabel('Placement swing',{exact:true}).selectOption('out');
+  // Lower part of the wall avoids the surface panel overlay.
+  const customPoint=new THREE.Vector3(3,0,1).project(placeCamera);
+  const customX=placeRect.x+(customPoint.x+1)*placeRect.width/2,customY=placeRect.y+(1-customPoint.y)*placeRect.height/2;
+  await page.mouse.move(customX,customY);
+  await page.locator('[data-testid=placement-preview]:not(.invalid)').waitFor();
+  assert.match(await page.getByTestId('placement-preview').textContent(),/0.83 × 2.03/);
+  await page.mouse.click(customX,customY);
+  await page.getByText('Opening placed',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Opening width',{exact:true}).inputValue(),'0.83');
+  assert.equal(await page.getByLabel('Opening height',{exact:true}).inputValue(),'2.03');
+  assert.equal(await page.getByLabel('Door hinge',{exact:true}).inputValue(),'B');
+  assert.equal(await page.getByLabel('Door swing',{exact:true}).inputValue(),'out');
+  await page.getByRole('button',{name:'Save project',exact:true}).click();
+  await page.getByText('Project saved',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Open saved',exact:true}).click();
+  await page.getByText('Saved project opened',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'East wall',exact:true}).click();
+  await page.getByLabel('Opening',{exact:true}).selectOption({label:'door 1'});
+  assert.equal(await page.getByLabel('Opening width',{exact:true}).inputValue(),'0.83');
+  await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});
   await page.screenshot({path:'test-results/workspace-desktop.png'});
   await page.setViewportSize({width:390,height:844});

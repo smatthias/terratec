@@ -47,12 +47,16 @@ export function openingPreset(room,wall,type,id,offset) {
   return {...(type==='door'?{hinge:'A',swing:'in'}:{}),id,wall,type,offset,width:Math.min(type==='door'?.9:1.2,length-.2),
     height:type==='door'?Math.min(2.1,height-.05):Math.min(1.2,height*.4),sill:type==='door'?0:Math.max(.1,height*.3)};
 }
-export function previewOpening(room,wall,type,id,point,spacing,snap=true,tolerance=.25) {
+export function previewOpening(room,wall,type,id,point,spacing,snap=true,tolerance=.25,size) {
   const i=edgeIds.indexOf(wall),length=wallLength(room.outline,wall);
   const a=room.outline[i],b=room.outline[(i+1)%4],tx=(b.x-a.x)/length,tz=(b.z-a.z)/length;
   const along=(point.x-a.x)*tx+(point.z-a.z)*tz;
   const distance=Math.abs((point.x-a.x)*(-tz)+(point.z-a.z)*tx);
   const opening=openingPreset(room,wall,type,id,0);
+  if(size) {
+    opening.width=size.width;opening.height=size.height;opening.sill=type==='door'?0:size.sill;
+    if(type==='door') {opening.hinge=size.hinge??'A';opening.swing=size.swing??'in';}
+  }
   const offset=along-opening.width/2;
   opening.offset=snap?Number((Math.round(offset/spacing)*spacing).toFixed(8)):offset;
   try {

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import {edgeIds} from '../shared/geometry.mjs';
 export function createPlacementPreview(room,result) {
-  const o=result.opening,i=edgeIds.indexOf(o.wall),a=room.outline[i],b=room.outline[(i+1)%4];
+  const o=result.opening;
+  if(![o.offset,o.width].every(Number.isFinite) || o.width<=0) return new THREE.Group();
+  const i=edgeIds.indexOf(o.wall),a=room.outline[i],b=room.outline[(i+1)%4];
   const length=Math.hypot(b.x-a.x,b.z-a.z),tx=(b.x-a.x)/length,tz=(b.z-a.z)/length;
   const point=(along,inset)=>new THREE.Vector3(a.x+tx*along-tz*inset,.07,a.z+tz*along+tx*inset);
   const points=[point(o.offset,-.2),point(o.offset+o.width,-.2),point(o.offset+o.width,.2),point(o.offset,.2)];

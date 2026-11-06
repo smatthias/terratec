@@ -83,7 +83,8 @@ openings migrate to schema 4, with A-end/inward defaults for doors. Schema 4 per
 door hinge and swing settings. Width/depth are derived from its bounds. Unsupported versions are rejected.
 The service validates before saving and atomically replaces its single project file.
 Additional fields are discarded. Native area/volume/perimeter use the polygon,
-not its bounding rectangle. Both views render that same polygon. Plan shows wall-length labels in metres.
+not its bounding rectangle. Both views render that same polygon. Plan shows wall dimensions in metres with measurement lines, extension lines and end ticks.
+Lines follow angled walls and stay a fixed distance from the edge on screen as you zoom.
 
 Select a wall, then Add door or Add window. Set offset (from endpoint A toward B),
 width, height and sill, then Apply opening. Openings leave real holes in the 3D mesh.
@@ -102,8 +103,11 @@ For canvas placement, select a wall and choose Place door/window. Move near that
 validation message. Previewing does not edit the project or history. Click to commit; the click sets the opening center along the wall and the offset from A
 snaps to the selected grid. Invalid/out-of-wall or overlapping placements are rejected
 and leave placement mode active. Escape or Cancel placement exits without an edit.
-A valid placement makes one undo entry. Place mode uses standard preset sizes; edit
-exact dimensions afterward in the inspector. Numeric Add door/window remains available.
+A valid placement makes one undo entry. Place mode includes width, height and sill fields, plus door hinge/swing controls.
+Entered sizes are kept exactly; snapping affects only the offset along the wall.
+The preview and committed opening use the same sizes and validation. Size presets
+are remembered per type for the current session; placed dimensions are saved with
+the project. Numeric Add door/window still uses its standard presets. Numeric Add door/window remains available.
 Native quantities remain floor area, interior volume and perimeter; wall material
 quantities are not yet calculated.
 
