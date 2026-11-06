@@ -182,7 +182,7 @@ try {
   await page.getByRole('button',{name:'Apply opening',exact:true}).click();
   await page.getByText('Openings on the same wall need',{exact:false}).waitFor();
   await page.getByLabel('Height',{exact:true}).fill('1');
-  await page.getByRole('button',{name:'Calculate geometry',exact:true}).click();
+  await page.getByRole('button',{name:'Calculate geometry'}).click();
   await page.getByText('Geometry calculated',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Height',{exact:true}).inputValue(),'4');
   await page.getByRole('button',{name:'Remove opening',exact:true}).click();
