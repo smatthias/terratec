@@ -652,6 +652,12 @@ try {
   await page.getByLabel('Workshop job name',{exact:true}).fill('Workshop test');
   await page.getByRole('button',{name:'Create workshop job',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Workshop job created'}).waitFor();
+  await page.getByLabel('Customer name',{exact:true}).fill('Example customer');
+  await page.getByLabel('Customer email',{exact:true}).fill('customer@example.com');
+  await page.getByRole('button',{name:'Save customer record',exact:true}).click();
+  await page.getByTestId('customer-message').filter({hasText:'Customer record saved'}).waitFor();
+  await page.getByRole('button',{name:'Use customer in quote',exact:true}).click();
+  assert.equal(await page.getByLabel('Quote recipient contact',{exact:true}).inputValue(),'customer@example.com');
   await page.getByLabel('Quote customer',{exact:true}).fill('Example customer');
   await page.getByLabel('Quote reference',{exact:true}).fill('Q-TEST-01');
   await page.getByLabel('Quote notes',{exact:true}).fill('Workshop estimate for review.');
@@ -667,11 +673,16 @@ try {
   await page.getByRole('button',{name:'Export saved quote JSON',exact:true}).click();
   const quoteDownload=await quotePromise,quoteStream=await quoteDownload.createReadStream();let quoteJson='';
   for await(const chunk of quoteStream)quoteJson+=chunk.toString();
-  const quote=JSON.parse(quoteJson);assert.equal(quote.details.customer,'Example customer');assert.equal(quote.details.reference,'Q-TEST-01');
+  const quote=JSON.parse(quoteJson);assert.equal(quote.details.customer,'Example customer');assert.equal(quote.details.reference,'Q-TEST-01');assert.equal(quote.details.customerContact,'customer@example.com');assert.ok(quote.details.customerId);
   assert.equal(quote.costing.sourceSha256,job.sourceSha256);assert.equal(quote.costing.handles,4);
   assert.equal(quote.costing.materialCents,job.summary.sheets*10000);
   assert.equal(quote.costing.totalCents,Math.round((job.summary.sheets*10000+1000+9000)*1.1));
   await page.getByLabel('birch sheet price',{exact:true}).fill('200.00');
+  await page.getByRole('button',{name:'Edit customer record',exact:true}).click();
+  await page.getByLabel('Customer name',{exact:true}).fill('Updated customer');
+  await page.getByRole('button',{name:'Save customer record',exact:true}).click();
+  await page.getByTestId('customer-message').filter({hasText:'Customer record saved'}).waitFor();
+  assert.match(await page.getByTestId('saved-quote-details').textContent(),/Example customer/);
   await page.getByLabel('Quote customer',{exact:true}).fill('Unsaved customer');
   const quotePrintPromise=page.waitForEvent('download');
   await page.getByRole('button',{name:'Export printable quote',exact:true}).click();
@@ -688,6 +699,14 @@ try {
   await mkdir('test-results',{recursive:true});
   await quotePage.pdf({path:'test-results/quote-estimate.pdf',preferCSSPageSize:true,printBackground:true});
   await quotePage.locator('.page').first().screenshot({path:'test-results/quote-summary.png'});await quotePage.close();
+  await page.getByLabel('Quote status actor',{exact:true}).fill('Matthias');
+  await page.getByLabel('Quote status note',{exact:true}).fill('Local status record only');
+  await page.getByRole('button',{name:'Record quote as sent',exact:true}).click();
+  await page.getByTestId('job-record-message').filter({hasText:'Quote status recorded: sent'}).waitFor();
+  await page.getByRole('button',{name:'Record quote as accepted',exact:true}).click();
+  await page.getByTestId('job-record-message').filter({hasText:'Quote status recorded: accepted'}).waitFor();
+  assert.match(await page.getByTestId('quote-status').textContent(),/accepted/);
+
 
   assert.match(await page.getByTestId('saved-quote').textContent(),new RegExp((quote.costing.totalCents/100).toFixed(2)));
 

@@ -466,3 +466,21 @@ escaped; the document contains no scripts or remote assets.
 The export is a planning estimate, not an invoice. Tax, delivery and unmodelled
 services remain excluded. Recipient fields are plain metadata; no customer account,
 message sending or legal quote acceptance workflow is implied.
+
+### Customers and local quote lifecycle
+
+Customer records store name, email, phone, address and notes in the local service
+(`data/customers`, maximum 200 records). Create or edit them from Revision costing,
+then choose **Use customer in quote** to copy name/contact data into the draft.
+Saved quote details include that snapshot and the customer ID; later customer
+edits leave saved quotes unchanged. Customer records themselves are separate
+from job backups and require a data-directory backup. `GET/POST /api/customers`
+and `GET/PUT /api/customers/:id` use version checks to reject stale edits.
+
+Saved quotes start as local drafts. Record sent status, then accepted, declined
+or withdrawn, with actor/notes for each event. These are terminal outcomes and
+do not alter saved costs or recipient fields. `POST /api/jobs/:id/quote-status`
+uses revision/event checks to prevent stale updates. Job backups include and
+validate the event history. The printable estimate shows its recorded status.
+No emails or other communications are sent, and accepted status is a local
+observation rather than authenticated customer acceptance or a legal approval.

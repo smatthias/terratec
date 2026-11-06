@@ -1,3 +1,4 @@
+import {nextQuoteLifecycle} from '../shared/quote-lifecycle.mjs';
 import {readFile,writeFile,mkdir,rename,rm,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
@@ -49,6 +50,13 @@ export function jobStore(dataDir){
       const snapshot=await manifest(input.project);
       if(snapshot.sourceSha256===record.revisions.at(-1).manifest.sourceSha256)fail('Current project already matches the latest revision',409);
       record.revisions.push({number:record.revisions.length+1,status:'planned',manifest:snapshot,review:null});record.updatedAt=new Date().toISOString();return write(record);
+    }),
+    quoteStatus:(id,input)=>serial(async()=>{
+      const record=await read(id);expected(record,input?.expectedRevision);
+      const revision=record.revisions.find(r=>r.number===input.revision),quote=revision?.quotes?.find(q=>q.id===input.quoteId);
+      if(!quote)fail('Quote snapshot not found',404);
+      const now=new Date().toISOString();try{quote.lifecycle=nextQuoteLifecycle(quote,input,now);}catch(e){fail(e.message,e.message.includes('changed')?409:400);}
+      record.updatedAt=now;return write(record);
     }),
     quote:(id,input)=>serial(async()=>{
       const record=await read(id);expected(record,input?.expectedRevision);

@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import {MAX_JOB_BACKUP_BYTES} from '../shared/job-backup.mjs';
+import {customerStore} from './customer-store.mjs';
 import {jobStore} from './job-store.mjs';
 import { projectStore } from './project-store.mjs';
 import { validateProject } from './project.mjs';
@@ -13,7 +14,7 @@ import { validateProject } from './project.mjs';
 const run = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
 export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve(root, 'build/terratec-core') } = {}) {
-  const projects=projectStore(dataDir),jobs=jobStore(dataDir);
+  const projects=projectStore(dataDir),jobs=jobStore(dataDir),customers=customerStore(dataDir);
   return createServer(async (req, res) => {
     const send = (status, value) => {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -21,8 +22,17 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
     };
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
+      const customerMatch=path.match(/^\/api\/customers\/([^/]+)$/);
+      if(path==='/api/customers'||customerMatch){
+        if(req.method==='GET')return send(200,customerMatch?await customers.read(customerMatch[1]):await customers.list());
+        if(req.method!==(customerMatch?'PUT':'POST'))return send(405,{error:'Method not allowed'});
+        if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
+        const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>8192)return send(413,{error:'Customer request exceeds 8 KiB'});chunks.push(chunk);}
+        let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid customer JSON'});}
+        return send(customerMatch?200:201,await customers.save(input,customerMatch?.[1]));
+      }
       const restoring=path==='/api/jobs/restore';
-      const jobMatch=path.match(/^\/api\/jobs\/([^/]+)(?:\/(revisions|review|fulfilment|quotes))?$/);
+      const jobMatch=path.match(/^\/api\/jobs\/([^/]+)(?:\/(revisions|review|fulfilment|quotes|quote-status))?$/);
       if(path==='/api/jobs'||jobMatch){
         if(req.method==='GET'&&path==='/api/jobs')return send(200,await jobs.list());
         if(req.method==='GET'&&jobMatch&&!jobMatch[2]&&!restoring)return send(200,await jobs.read(jobMatch[1]));
@@ -31,7 +41,7 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
         const chunks=[];let size=0;
         for await(const chunk of req){size+=chunk.length;if(size>(restoring?MAX_JOB_BACKUP_BYTES:131072))return send(413,{error:restoring?'Job backup exceeds 16 MiB':'Job request exceeds 128 KiB'});chunks.push(chunk);}
         let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid job JSON'});}
-        const record=restoring?await jobs.restore(input):path==='/api/jobs'?await jobs.create(input):jobMatch[2]==='revisions'?await jobs.revise(jobMatch[1],input):jobMatch[2]==='review'?await jobs.review(jobMatch[1],input):jobMatch[2]==='quotes'?await jobs.quote(jobMatch[1],input):await jobs.fulfil(jobMatch[1],input);
+        const record=restoring?await jobs.restore(input):path==='/api/jobs'?await jobs.create(input):jobMatch[2]==='revisions'?await jobs.revise(jobMatch[1],input):jobMatch[2]==='review'?await jobs.review(jobMatch[1],input):jobMatch[2]==='quotes'?await jobs.quote(jobMatch[1],input):jobMatch[2]==='quote-status'?await jobs.quoteStatus(jobMatch[1],input):await jobs.fulfil(jobMatch[1],input);
         return send(path==='/api/jobs'||restoring?201:200,record);
       }
       const projectMatch=path.match(/^\/api\/projects\/([^/]+)$/);

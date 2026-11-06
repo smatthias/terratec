@@ -24,10 +24,11 @@ export function moneyToCents(value){
 export function validateQuoteDetails(input={}){
   if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Invalid quote details');
   const result={};
-  for(const [field,max] of [['customer',120],['reference',80],['notes',1000]]){
+  for(const [field,max] of [['customer',120],['reference',80],['notes',1000],['customerContact',1000],['customerId',64]]){
     const value=input[field]??'';
     if(typeof value!=='string'||value.length>max)throw Error('Invalid quote '+field);
     result[field]=value.trim();
   }
+  if(result.customerId&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(result.customerId))throw Error('Invalid quote customer ID');
   return result;
 }
