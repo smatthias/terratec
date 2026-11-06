@@ -2,7 +2,7 @@ import {readFile,writeFile,mkdir,rename,rm,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {validProjectId} from './project-store.mjs';
-import {quoteCosting} from '../shared/quote.mjs';
+import {quoteCosting,validateQuoteDetails} from '../shared/quote.mjs';
 import {jobSummary} from '../shared/job-register.mjs';
 import {validateJobBackup} from '../shared/job-backup.mjs';
 import {createJobManifest} from '../shared/job-manifest.mjs';
@@ -57,8 +57,8 @@ export function jobStore(dataDir){
       const quotes=revision.quotes??[];
       if(input.expectedQuoteCount!==quotes.length)fail('Quotes changed; reload before editing',409);
       if(quotes.length>=20)fail('Maximum 20 quote snapshots per revision');
-      let costing;try{costing=quoteCosting(revision.manifest,revision.number,input.pricing);}catch(e){fail(e.message);}
-      const now=new Date().toISOString();revision.quotes=[...quotes,{id:randomUUID(),createdAt:now,costing}];record.updatedAt=now;return write(record);
+      let costing,details;try{costing=quoteCosting(revision.manifest,revision.number,input.pricing);details=validateQuoteDetails(input.details);}catch(e){fail(e.message);}
+      const now=new Date().toISOString();revision.quotes=[...quotes,{id:randomUUID(),createdAt:now,costing,details}];record.updatedAt=now;return write(record);
     }),
     fulfil:(id,input)=>serial(async()=>{
       const record=await read(id);expected(record,input?.expectedRevision);

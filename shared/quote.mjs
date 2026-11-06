@@ -21,3 +21,13 @@ export function moneyToCents(value){
   if(typeof value!=='string'||!/^\d{1,5}(\.\d{1,2})?$/.test(value))throw Error('Enter prices with up to two decimals');
   const [major,minor='']=value.split('.');return Number(major)*100+Number(minor.padEnd(2,'0'));
 }
+export function validateQuoteDetails(input={}){
+  if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Invalid quote details');
+  const result={};
+  for(const [field,max] of [['customer',120],['reference',80],['notes',1000]]){
+    const value=input[field]??'';
+    if(typeof value!=='string'||value.length>max)throw Error('Invalid quote '+field);
+    result[field]=value.trim();
+  }
+  return result;
+}

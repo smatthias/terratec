@@ -449,3 +449,20 @@ not change it. New model revisions have no quotes until one is saved. Quotes can
 be exported as JSON and travel with job backups; restore recomputes all totals
 against the embedded revision. `POST /api/jobs/:id/quotes` requires the expected
 head revision and selected revision’s quote count to reject stale appends.
+
+### Printable quotes and recipient fields
+
+Quotes can snapshot a customer/recipient (120 characters), reference (80) and
+notes (1000) alongside the saved costing. Later form edits do not change saved
+quotes. Job backup/restore validates and retains these fields; older quotes without
+them remain readable.
+
+**Export printable quote** downloads self-contained HTML with A4 portrait print
+styles: a recipient/total summary, paginated material quantities and pricing/source
+references. Open it in a browser to print or save as PDF. It uses the selected
+saved quote, including its currency, rates and revision reference. User text is
+escaped; the document contains no scripts or remote assets.
+
+The export is a planning estimate, not an invoice. Tax, delivery and unmodelled
+services remain excluded. Recipient fields are plain metadata; no customer account,
+message sending or legal quote acceptance workflow is implied.

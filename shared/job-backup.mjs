@@ -1,4 +1,4 @@
-import {quoteCosting} from './quote.mjs';
+import {quoteCosting,validateQuoteDetails} from './quote.mjs';
 import {verifyJobManifest} from './job-manifest.mjs';
 export const MAX_JOB_BACKUP_BYTES=16777216;
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
@@ -34,6 +34,7 @@ export async function validateJobBackup(input){
     const quotes=revision.quotes??[];
     if(!Array.isArray(quotes)||quotes.length>20||new Set(quotes.map(q=>q.id)).size!==quotes.length)throw Error('Invalid quote history');
     for(const q of quotes){
+      validateQuoteDetails(q.details);
       if(!uuid(q.id)||!date(q.createdAt)||Date.parse(q.createdAt)<snapshotTime||Date.parse(q.createdAt)>Date.parse(r.updatedAt)||JSON.stringify(canonical(q.costing))!==JSON.stringify(canonical(quoteCosting(revision.manifest,revision.number,q.costing?.pricing))))throw Error('Invalid quote snapshot');
     }
     const f=revision.fulfilment;

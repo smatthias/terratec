@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **50%** of the planned functional scope, estimated by effort and verified
+Overall: **52%** of the planned functional scope, estimated by effort and verified
 capabilities. Percentages are planning estimates, not test coverage. This first
 foundation is not equivalent to a finished CAD application.
 
@@ -11,17 +11,17 @@ foundation is not equivalent to a finished CAD application.
 | Parametric geometry | 12% | Validated opening bounds and overlap checks; segmented wall voids | More constraints and arbitrary outlines |
 | Building design | 27% | A/B hinge and inward/outward swing, consistent in Plan/3D, undo and saves | Swing clearance checks and multiple rooms |
 | Interiors and furniture | 30% | Oak, birch and white board appearance with persistent material selection | More furniture types and material detail |
-| Drawings and exchange | 40% | A4/A3 sheets, orientation, margins, fit feedback and blocked oversized exports | Pagination and more exchange formats |
+| Drawings and exchange | 43% | A4/A3 sheets, orientation, margins, fit feedback and blocked oversized exports | Pagination and more exchange formats |
 | Manufacturing | 58% | Snapshot manifests, derived layout verification and blocking handoff checks | Costing and workshop cutting constraints |
 | Distributed production | 55% | Searchable job register, workflow filters, due-date sorting and latest-revision summaries | Workshop contacts and assignment presets |
-| Customer and business tools | 18% | Revision-linked costing snapshots with user rates, integer cents, markup and JSON export | Printable quotes and customer references |
+| Customer and business tools | 26% | Saved customer/reference/notes and printable quotes with cost/material breakdown | Customer records and quote lifecycle |
 | Assisted design | 0% | — | Structured design commands |
 | TerraFlux integration | 0% | — | Model exchange contract |
 | Release readiness | 12% | Recovery snapshots, storage-failure feedback and import validation | Installation and recovery |
 
-Next iteration: printable quote sheets with customer/reference fields.
+Next iteration: customer records and draft/sent/accepted quote lifecycle metadata.
 
-Validation: sixty-six Node test groups and the Vite production build pass locally.
+Validation: sixty-seven Node test groups and the Vite production build pass locally.
 The preceding foundation passed CMake/CTest in GitHub Actions. Browser smoke checks
 cover save/load, native quantities, selection across views and edits, ray picking,
 pan versus click, deselection, keyboard interaction, and mobile overflow, snapped/unsnapped endpoint edits, invalid-shape rejection, edited-outline persistence, corner dragging, single-gesture undo, redo, cancellation keyboard history, opening CRUD/undo/persistence and opening-aware wall/height validation. Local

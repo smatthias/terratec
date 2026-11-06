@@ -652,6 +652,9 @@ try {
   await page.getByLabel('Workshop job name',{exact:true}).fill('Workshop test');
   await page.getByRole('button',{name:'Create workshop job',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Workshop job created'}).waitFor();
+  await page.getByLabel('Quote customer',{exact:true}).fill('Example customer');
+  await page.getByLabel('Quote reference',{exact:true}).fill('Q-TEST-01');
+  await page.getByLabel('Quote notes',{exact:true}).fill('Workshop estimate for review.');
   await page.getByLabel('birch sheet price',{exact:true}).fill('100.00');
   await page.getByLabel('Handle unit price',{exact:true}).fill('2.50');
   await page.getByLabel('Labour hourly price',{exact:true}).fill('60.00');
@@ -664,11 +667,28 @@ try {
   await page.getByRole('button',{name:'Export saved quote JSON',exact:true}).click();
   const quoteDownload=await quotePromise,quoteStream=await quoteDownload.createReadStream();let quoteJson='';
   for await(const chunk of quoteStream)quoteJson+=chunk.toString();
-  const quote=JSON.parse(quoteJson);
+  const quote=JSON.parse(quoteJson);assert.equal(quote.details.customer,'Example customer');assert.equal(quote.details.reference,'Q-TEST-01');
   assert.equal(quote.costing.sourceSha256,job.sourceSha256);assert.equal(quote.costing.handles,4);
   assert.equal(quote.costing.materialCents,job.summary.sheets*10000);
   assert.equal(quote.costing.totalCents,Math.round((job.summary.sheets*10000+1000+9000)*1.1));
   await page.getByLabel('birch sheet price',{exact:true}).fill('200.00');
+  await page.getByLabel('Quote customer',{exact:true}).fill('Unsaved customer');
+  const quotePrintPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export printable quote',exact:true}).click();
+  const quotePrintDownload=await quotePrintPromise,quotePrintStream=await quotePrintDownload.createReadStream();let quoteHtml='';
+  for await(const chunk of quotePrintStream)quoteHtml+=chunk.toString();
+  assert.ok(quotePrintDownload.suggestedFilename().endsWith('_quote.html'));
+  const quotePage=await browser.newPage({viewport:{width:703,height:1032}});
+  await quotePage.setContent(quoteHtml);await quotePage.emulateMedia({media:'print'});
+  assert.match(await quotePage.locator('body').textContent(),/Example customer/);
+  assert.ok(!(await quotePage.locator('body').textContent()).includes('Unsaved customer'));
+  assert.match(await quotePage.locator('body').textContent(),new RegExp((quote.costing.totalCents/100).toFixed(2)));
+  const quoteHeights=await quotePage.locator('.page').evaluateAll(pages=>pages.map(p=>p.getBoundingClientRect().height));
+  assert.ok(quoteHeights.every(h=>h<=1032),'quote sections fit A4 portrait content height');
+  await mkdir('test-results',{recursive:true});
+  await quotePage.pdf({path:'test-results/quote-estimate.pdf',preferCSSPageSize:true,printBackground:true});
+  await quotePage.locator('.page').first().screenshot({path:'test-results/quote-summary.png'});await quotePage.close();
+
   assert.match(await page.getByTestId('saved-quote').textContent(),new RegExp((quote.costing.totalCents/100).toFixed(2)));
 
   await page.getByRole('button',{name:'Compare job revision',exact:true}).click();

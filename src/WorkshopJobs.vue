@@ -4,7 +4,7 @@ import {ref,computed,onMounted,watch} from 'vue';
 import {exportJobBackup,MAX_JOB_BACKUP_BYTES} from '../shared/job-backup.mjs';
 import {filterJobs,jobRollup} from '../shared/job-register.mjs';
 import {verifyJobManifest} from '../shared/job-manifest.mjs';
-const props=defineProps({project:{type:Object,required:true}}),emit=defineEmits(['export','record','quote']);
+const props=defineProps({project:{type:Object,required:true}}),emit=defineEmits(['export','record','quote','quotePrint']);
 const jobs=ref([]),choice=ref(''),record=ref(null),revision=ref(1),name=ref(''),reviewer=ref(''),note=ref(''),message=ref(''),busy=ref(false),comparison=ref('');
 const query=ref(''),statusFilter=ref('all'),sortOrder=ref('updated');
 const visibleJobs=computed(()=>filterJobs(jobs.value,{query:query.value,status:statusFilter.value,sort:sortOrder.value}));
@@ -15,7 +15,7 @@ const workshop=ref(''),dueDate=ref(''),actor=ref(''),trackingNote=ref('');
 function fulfil(status){return run(async()=>{record.value=await request('/api/jobs/'+record.value.id+'/fulfilment',{revision:revision.value,expectedRevision:record.value.revisions.length,expectedEvent:selected().fulfilment?.events.length??0,status,workshop:workshop.value,dueDate:dueDate.value,actor:actor.value,note:trackingNote.value});await refresh();message.value='Workshop progress recorded: '+status;});}
 function backup(){return run(async()=>emit('record',await exportJobBackup(record.value)));}
 function restoreFile(event){const file=event.target.files?.[0];event.target.value='';if(!file)return;return run(async()=>{if(file.size>MAX_JOB_BACKUP_BYTES)throw Error('Job backup exceeds 16 MiB');const input=JSON.parse(await file.text());const restored=await request('/api/jobs/restore',input);record.value=restored;choice.value=restored.id;revision.value=restored.revisions.length;comparison.value='';await refresh();message.value='Workshop job restored as a new local record';});}
-function saveQuote(pricing){return run(async()=>{record.value=await request('/api/jobs/'+record.value.id+'/quotes',{revision:revision.value,expectedRevision:record.value.revisions.length,expectedQuoteCount:selected().quotes?.length??0,pricing});await refresh();message.value='Revision quote snapshot saved';});}
+function saveQuote({pricing,details}){return run(async()=>{record.value=await request('/api/jobs/'+record.value.id+'/quotes',{revision:revision.value,expectedRevision:record.value.revisions.length,expectedQuoteCount:selected().quotes?.length??0,pricing,details});await refresh();message.value='Revision quote snapshot saved';});}
 const selected=()=>record.value?.revisions.find(r=>r.number===revision.value);
 watch(()=>props.project,()=>comparison.value='',{deep:true});
 async function request(path,body){const response=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const result=await response.json();if(!response.ok)throw Error(result.error);return result;}
@@ -63,7 +63,7 @@ onMounted(()=>run(refresh));
         <template v-if="!selected().fulfilment"><label>Assigned workshop<input v-model="workshop" maxlength="80"></label><label>Workshop due date<input v-model="dueDate" type="date"></label><button :disabled="!actor.trim()||!trackingNote.trim()||!workshop.trim()" @click="fulfil('assigned')">Assign workshop</button></template>
         <template v-else><button v-if="selected().fulfilment.status==='assigned'" :disabled="!actor.trim()||!trackingNote.trim()" @click="fulfil('in-production')">Start production tracking</button><button v-if="selected().fulfilment.status==='in-production'" :disabled="!actor.trim()||!trackingNote.trim()" @click="fulfil('completed')">Mark workshop completed</button><button :disabled="!actor.trim()||!trackingNote.trim()" @click="fulfil('cancelled')">Cancel workshop assignment</button></template>
       </template>
-      <JobQuotes :key="record.id+':'+revision" :revision="selected()" :busy="busy" @save="saveQuote" @export="emit('quote',$event)"/>
+      <JobQuotes :key="record.id+':'+revision" :revision="selected()" :busy="busy" :job-name="record.name" @save="saveQuote" @export="emit('quote',$event)" @print="emit('quotePrint',$event)"/>
     </template></fieldset><p role="status" data-testid="job-record-message">{{ message }}</p>
   </section>
 </template>
