@@ -26,3 +26,17 @@ test('moving furniture snaps only position, preserves grab data and rejects inva
   assert.throws(()=>moveFurniture(occupied,item.id,{x:2,z:0},.25,true),/overlap/);
   assert.equal(JSON.stringify(room),before);
 });
+
+test('materials and total per-axis blank allowances persist without changing finished geometry',()=>{
+  const configured={...item,material:'birch',lengthAllowanceMm:8,widthAllowanceMm:4};
+  const normal=moveFurniture({...room,furniture:[configured]},item.id,{x:0,z:0},.25).furniture[0];
+  assert.equal(normal.material,'birch');assert.equal(normal.lengthAllowanceMm,8);
+  const bom=cabinetBom(normal),base=cabinetBom(item);
+  assert.equal(bom.volume,base.volume);assert.ok(bom.blankArea>bom.area);
+  for(const row of bom.rows){assert.ok(Math.abs(row.blankLength-row.length-.008)<1e-12);assert.ok(Math.abs(row.blankWidth-row.width-.004)<1e-12);assert.equal(row.material,'Birch plywood');}
+  assert.match(cabinetBomCsv(normal),/1072.000/);
+  assert.equal(cabinetParts(normal)[0].color,0xdec49a);
+  for(const change of [{material:'unknown'},{lengthAllowanceMm:-1},{widthAllowanceMm:51},{lengthAllowanceMm:'8'},{widthAllowanceMm:NaN}])
+    assert.throws(()=>moveFurniture({...room,furniture:[{...configured,...change}]},item.id,{x:0,z:0},.25),/material/);
+  assert.equal(moveFurniture(room,item.id,{x:0,z:0},.25).furniture[0].lengthAllowanceMm,0);
+});

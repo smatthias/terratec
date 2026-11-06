@@ -1,3 +1,4 @@
+export const cabinetMaterials={oak:{label:'Oak board',color:0xb88c59},birch:{label:'Birch plywood',color:0xdec49a},white:{label:'White board',color:0xe8e8e2}};
 export function cabinetParts(item) {
   const {width:w,height:h,depth:d,thickness:t}=item,parts=[];
   const add=(part,label,size,position,cut,color=0xb88c59)=>parts.push({part,label,size,position,cut,color});
@@ -9,6 +10,8 @@ export function cabinetParts(item) {
     add('front','Front',[(w-2*t)/2-.003,h-2*t,t],[sign*(w-2*t)/4,h/2,d/2-t/2],[h-2*t,(w-2*t)/2-.003],0xd8b788);
     add('handle','Handle',[.015,.12,.025],[sign*.04,h*.55,d/2+.012],null,0x3e463d);
   }
+  const material=cabinetMaterials[item.material??'oak'];
+  for(const part of parts) if(part.cut) part.color=material.color;
   return parts;
 }
 export function cabinetBom(item) {
@@ -20,14 +23,14 @@ export function cabinetBom(item) {
     if(existing) existing.quantity++;
     else rows.push({part:piece.part,label:piece.label,quantity:1,length,width,thickness:item.thickness});
   }
-  for(const row of rows) {row.area=row.quantity*row.length*row.width;row.volume=row.area*row.thickness;}
-  return {rows,handles,panelCount:rows.reduce((n,r)=>n+r.quantity,0),area:rows.reduce((n,r)=>n+r.area,0),volume:rows.reduce((n,r)=>n+r.volume,0)};
+  for(const row of rows) {row.area=row.quantity*row.length*row.width;row.volume=row.area*row.thickness;row.blankLength=row.length+(item.lengthAllowanceMm??0)/1000;row.blankWidth=row.width+(item.widthAllowanceMm??0)/1000;row.blankArea=row.quantity*row.blankLength*row.blankWidth;row.material=cabinetMaterials[item.material??'oak'].label;}
+  return {blankArea:rows.reduce((n,r)=>n+r.blankArea,0),rows,handles,panelCount:rows.reduce((n,r)=>n+r.quantity,0),area:rows.reduce((n,r)=>n+r.area,0),volume:rows.reduce((n,r)=>n+r.volume,0)};
 }
 const csvCell=value=>{const text=String(value),safe=/^[=+\-@\t\r]/.test(text)?"'"+text:text;return '"'+safe.replace(/"/g,'""')+'"';};
 export function cabinetBomCsv(item) {
   const bom=cabinetBom(item);
-  const rows=[['cabinet','part','quantity','length_mm','width_mm','thickness_mm','area_m2','volume_m3']];
-  for(const row of bom.rows) rows.push([item.name,row.label,row.quantity,(row.length*1000).toFixed(3),(row.width*1000).toFixed(3),(row.thickness*1000).toFixed(3),row.area.toFixed(6),row.volume.toFixed(9)]);
-  rows.push([item.name,'Handle',bom.handles,'','','','','']);
+  const rows=[['cabinet','part','quantity','length_mm','width_mm','thickness_mm','area_m2','volume_m3','material','blank_length_mm','blank_width_mm','blank_area_m2']];
+  for(const row of bom.rows) rows.push([item.name,row.label,row.quantity,(row.length*1000).toFixed(3),(row.width*1000).toFixed(3),(row.thickness*1000).toFixed(3),row.area.toFixed(6),row.volume.toFixed(9),row.material,(row.blankLength*1000).toFixed(3),(row.blankWidth*1000).toFixed(3),row.blankArea.toFixed(6)]);
+  rows.push([item.name,'Handle',bom.handles,'','','','','','','','','']);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }

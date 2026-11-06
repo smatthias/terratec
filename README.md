@@ -247,3 +247,16 @@ that cabinet's list with quoted cells and formula-like text neutralised for spre
 Hardware is listed separately from panel material. These are design dimensions, not
 machine-ready cut instructions: no kerf, edging, grain, joinery or machining allowances
 are applied. Panel bill export does not mutate the model or history.
+
+### Cabinet materials and panel blanks
+
+Choose oak board, birch plywood or white board, then apply the cabinet. Material
+selection changes panel colour and is included in saved projects and panel CSV.
+These are appearance labels, not certified structural material specifications.
+
+Length/width allowances are total additions in millimetres (0–50 per axis),
+applied once to each finished panel dimension. They do not alter rendered
+geometry. The inspector and CSV show finished and blank dimensions separately,
+with blank area before stock waste. Existing cabinets default to oak and zero
+allowances. Kerf, edging, grain, joinery, nesting and machine instructions still
+require workshop-specific configuration.
