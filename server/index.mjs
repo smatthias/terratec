@@ -1,0 +1,67 @@
+import { createServer } from 'node:http';
+import { readFile, mkdir, rename, writeFile, rm } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { randomUUID } from 'node:crypto';
+import { validateProject } from './project.mjs';
+
+const run = promisify(execFile);
+const root = fileURLToPath(new URL('../', import.meta.url));
+export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve(root, 'build/terratec-core') } = {}) {
+  return createServer(async (req, res) => {
+    const send = (status, value) => {
+      res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(value));
+    };
+    try {
+      const path = new URL(req.url, 'http://localhost').pathname;
+      if (req.method === 'GET' && path === '/api/health') return send(200, { status: 'ok' });
+      if (req.method === 'GET' && path === '/api/project') {
+        try { return send(200, validateProject(JSON.parse(await readFile(join(dataDir, 'project.json'), 'utf8')))); }
+        catch (error) { if (error.code === 'ENOENT') return send(404, { error: 'No saved project yet' }); throw error; }
+      }
+      if (req.method !== 'PUT' && req.method !== 'POST') return send(404, { error: 'Route not found' });
+      if (path !== '/api/project' && path !== '/api/geometry') return send(404, { error: 'Route not found' });
+      if ((path === '/api/project' && req.method !== 'PUT') || (path === '/api/geometry' && req.method !== 'POST'))
+        return send(405, { error: 'Method not allowed' });
+      // The development service accepts same-origin JSON requests only.
+      if (!req.headers['content-type']?.toLowerCase().startsWith('application/json'))
+        return send(415, { error: 'Use application/json' });
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of req) {
+        size += chunk.length;
+        if (size > 65536) { send(413, { error: 'Project exceeds 64 KiB' }); return; }
+        chunks.push(chunk);
+      }
+      let project;
+      try { project = validateProject(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+      catch (error) { return send(400, { error: error.message }); }
+      if (path === '/api/geometry') {
+        try {
+          const { width, depth, height } = project.room;
+          const { stdout } = await run(corePath, [width, depth, height].map(String), { timeout: 5000 });
+          return send(200, JSON.parse(stdout));
+        } catch { return send(503, { error: 'Geometry core unavailable. Build terratec-core first.' }); }
+      }
+      await mkdir(dataDir, { recursive: true });
+      const temporary = join(dataDir, `${randomUUID()}.tmp`);
+      try {
+        await writeFile(temporary, JSON.stringify(project, null, 2) + '\n');
+        await rename(temporary, join(dataDir, 'project.json'));
+      } finally { await rm(temporary, { force: true }); }
+      send(200, project);
+    } catch (error) {
+      console.error(error);
+      if (!res.headersSent) send(500, { error: 'Project service failed' });
+      else res.end();
+    }
+  });
+}
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const port = Number(process.env.PORT || 3001);
+  makeServer({ dataDir: process.env.TERRATEC_DATA_DIR, corePath: process.env.TERRATEC_CORE })
+    .listen(port, '127.0.0.1', () => console.log(`TerraTec API: http://127.0.0.1:${port}`));
+}
