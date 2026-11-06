@@ -41,8 +41,8 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
       catch (error) { return send(400, { error: error.message }); }
       if (path === '/api/geometry') {
         try {
-          const { width, depth, height } = project.room;
-          const { stdout } = await run(corePath, [width, depth, height].map(String), { timeout: 5000 });
+          const { height, outline } = project.room;
+          const { stdout } = await run(corePath, ['--polygon', height, ...outline.flatMap(p => [p.x,p.z])].map(String), { timeout: 5000 });
           return send(200, JSON.parse(stdout));
         } catch { return send(503, { error: 'Geometry core unavailable. Build terratec-core first.' }); }
       }

@@ -48,17 +48,30 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic core/main.cpp -o build/terratec-core
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "units": "m",
   "name": "Studio",
-  "room": { "width": 6, "depth": 4, "height": 2.8 }
+  "room": {
+    "width": 6, "depth": 4, "height": 2.8,
+    "outline": [{"x":-3,"z":-2},{"x":3,"z":-2},{"x":3,"z":2},{"x":-3,"z":2}]
+  }
 }
 ```
 
-Coordinates are right-handed, with Y up and the floor in X/Z. Dimensions describe
-the clear interior and must be finite numbers from 0.1 to 1000 metres. The service
-validates before saving and atomically replaces its single project file. Unsupported
-versions are rejected rather than silently migrated. Additional fields are discarded.
+Coordinates are right-handed, with Y up and the floor in X/Z. The outline stores
+four shared interior corners in clockwise plan order; wall IDs follow the initial
+north/east/south/west edges even after rotation. Select a wall and edit A/B coordinates,
+then Apply endpoints. Adjoining walls update together. Optional grid snapping uses
+0.1, 0.25, 0.5 or 1 m increments; large rooms render a coarser grid for performance.
+Width and depth inputs scale the outline about its bounding-box center. Height is
+uniform. Coordinates must be finite and within ±1000 m, wall lengths at least 0.1 m,
+and overall spans 0.1–1000 m. Crossing, concave and collapsed outlines are rejected.
+
+Schema 1 rectangular projects migrate to schema 2 on read; schema 2 saves the explicit
+outline. Width/depth are derived from its bounds. Unsupported versions are rejected.
+The service validates before saving and atomically replaces its single project file.
+Additional fields are discarded. Native area/volume/perimeter use the polygon,
+not its bounding rectangle. Both views render that same polygon.
 
 | Endpoint | Behavior |
 | --- | --- |
@@ -74,9 +87,9 @@ build is not a production deployment; public hosting and authentication are futu
 
 ## Current limits
 
-One rectangular room and one saved project only. Orthographic plan and surface selection are available. No arbitrary wall drawing, snapping,
+One convex four-corner room and one saved project only. Orthographic plan, surface selection, grid snapping and numeric endpoint editing are available. No arbitrary wall drawing,
 undo, BIM exchange, manufacturing, AI design or physics integration yet. Geometry
 quantities come from the native core; Three.js constructs the preview from the same
-validated dimensions. The optional Google font falls back to the system sans-serif.
+validated outline. The optional Google font falls back to the system sans-serif.
 
 Progress and next steps are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).

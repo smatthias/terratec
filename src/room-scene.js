@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { rectangle, bounds, edgeIds } from '../shared/geometry.mjs';
 
 export const surfaces = [
   { id: 'floor', label: 'Floor' },
@@ -8,21 +9,38 @@ export const surfaces = [
   { id: 'east', label: 'East wall' }
 ];
 
-export function createRoom({ width: w, depth: d, height: h }) {
+export function createRoom(room) {
+  const outline=room.outline || rectangle(room.width,room.depth);
   const group = new THREE.Group();
-  const box = (id, size, position, color) => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), new THREE.MeshStandardMaterial({ color, roughness: .85 }));
-    mesh.position.set(...position);
-    mesh.userData = { id, baseColor: color };
-    mesh.name = surfaces.find(surface => surface.id === id).label;
-    group.add(mesh);
+  const add = (id, geometry, position, color, angle=0) => {
+    const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color,roughness:.85,side:THREE.DoubleSide}));
+    mesh.position.set(...position); mesh.rotation.y=angle;
+    mesh.userData={id,baseColor:color}; mesh.name=surfaces.find(surface=>surface.id===id).label;
+    group.add(mesh); return mesh;
   };
-  box('floor', [w,.08,d], [0,-.04,0], 0x9eb8ac);
-  box('north', [w+.32,h,.16], [0,h/2,-d/2-.08], 0xddd6c8);
-  box('west', [.16,h,d], [-w/2-.08,h/2,0], 0xc4cabb);
-  box('south', [w+.32,h,.16], [0,h/2,d/2+.08], 0xddd6c8);
-  box('east', [.16,h,d], [w/2+.08,h/2,0], 0xc4cabb);
+  const shape=new THREE.Shape(outline.map(p=>new THREE.Vector2(p.x,-p.z)));
+  const floor=add('floor',new THREE.ShapeGeometry(shape),[0,-.001,0],0x9eb8ac);
+  floor.rotation.x=-Math.PI/2;
+  outline.forEach((a,i)=>{
+    const b=outline[(i+1)%4], dx=b.x-a.x, dz=b.z-a.z, length=Math.hypot(dx,dz);
+    add(edgeIds[i],new THREE.BoxGeometry(length+.16,room.height,.16),
+      [(a.x+b.x)/2+dz/length*.08,room.height/2,(a.z+b.z)/2-dx/length*.08],
+      i%2 ? 0xc4cabb : 0xddd6c8,-Math.atan2(dz,dx));
+  });
   return group;
+}
+
+export function createGrid(room,spacing) {
+  const b=bounds(room.outline || rectangle(room.width,room.depth));
+  // Keep the rendered grid bounded; snapping always uses the requested spacing.
+  const step=spacing*Math.max(1,Math.ceil(Math.max(b.width,b.depth)/spacing/100));
+  const minX=Math.floor((b.minX-1)/step)*step, maxX=Math.ceil((b.maxX+1)/step)*step;
+  const minZ=Math.floor((b.minZ-1)/step)*step, maxZ=Math.ceil((b.maxZ+1)/step)*step;
+  const vertices=[];
+  for(let x=minX;x<=maxX+1e-8;x+=step) vertices.push(x,.005,minZ,x,.005,maxZ);
+  for(let z=minZ;z<=maxZ+1e-8;z+=step) vertices.push(minX,.005,z,maxX,.005,z);
+  return new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(vertices,3)),
+    new THREE.LineBasicMaterial({color:0x66887f,transparent:true,opacity:.35}));
 }
 
 export function updateSurfaces(group, view, selected) {
@@ -35,14 +53,15 @@ export function updateSurfaces(group, view, selected) {
 }
 
 export function fitCamera(camera, room, aspect, view) {
-  const w = room.width + .32, d = room.depth + .32;
+  const b=bounds(room.outline || rectangle(room.width,room.depth));
+  const w = b.width + .32, d = b.depth + .32;
   if (view === 'Plan') {
     const halfHeight = Math.max(d/2, w/(2*aspect)) * 1.3;
     camera.left = -halfHeight*aspect; camera.right = halfHeight*aspect;
     camera.top = halfHeight; camera.bottom = -halfHeight;
     camera.zoom = 1;
     camera.up.set(0,0,-1);
-    camera.position.set(0,room.height+10,0);
+    camera.position.set(b.x,room.height+10,b.z);
     camera.near = .01; camera.far = room.height+100;
   } else {
     camera.aspect = aspect;
@@ -50,10 +69,10 @@ export function fitCamera(camera, room, aspect, view) {
     // Account for narrow portrait viewports as well as tall rooms.
     const distance = extent*1.8 / Math.min(1,aspect);
     camera.up.set(0,1,0);
-    camera.position.set(distance,distance*.8,distance);
+    camera.position.set(b.x+distance,distance*.8,b.z+distance);
     camera.near = .01; camera.far = Math.max(2000,distance*10);
   }
-  camera.lookAt(0,0,0);
+  camera.lookAt(b.x,0,b.z);
   camera.updateProjectionMatrix(); camera.updateMatrixWorld();
 }
 

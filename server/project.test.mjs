@@ -9,7 +9,7 @@ import { validateProject } from './project.mjs';
 
 const project = { schemaVersion: 1, units: 'm', name: 'Studio', room: { width: 6, depth: 4, height: 2.8 } };
 test('project contract rejects unsupported formats and invalid dimensions', () => {
-  for (const change of [{ schemaVersion: 2 }, { units: 'mm' }, { name: ' ' }, { room: { width: -1, depth: 4, height: 3 } }, { room: { width: '6', depth: 4, height: 3 } }])
+  for (const change of [{ schemaVersion: 3 }, { units: 'mm' }, { name: ' ' }, { room: { width: -1, depth: 4, height: 3 } }, { room: { width: '6', depth: 4, height: 3 } }])
     assert.throws(() => validateProject({ ...project, ...change }));
 });
 test('native geometry computes quantities and rejects malformed dimensions', () => {
@@ -39,5 +39,5 @@ test('API persists across restarts, preserves saved data after invalid writes, a
   assert.deepEqual(await quantities.json(), { area: 24, volume: 67.2, perimeter: 20 });
   assert.equal((await send('/api/project', 'PUT', { ...project, name: 'x'.repeat(70000) })).status, 413);
   await stop(); base = await start();
-  assert.deepEqual(await (await fetch(base + '/api/project')).json(), project);
+  assert.deepEqual(await (await fetch(base + '/api/project')).json(), validateProject(project));
 });
