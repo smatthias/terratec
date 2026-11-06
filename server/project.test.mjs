@@ -9,7 +9,7 @@ import { validateProject } from './project.mjs';
 
 const project = { schemaVersion: 1, units: 'm', name: 'Studio', room: { width: 6, depth: 4, height: 2.8 } };
 test('project contract rejects unsupported formats and invalid dimensions', () => {
-  for (const change of [{ schemaVersion: 3 }, { units: 'mm' }, { name: ' ' }, { room: { width: -1, depth: 4, height: 3 } }, { room: { width: '6', depth: 4, height: 3 } }])
+  for (const change of [{ schemaVersion: 4 }, { units: 'mm' }, { name: ' ' }, { room: { width: -1, depth: 4, height: 3 } }, { room: { width: '6', depth: 4, height: 3 } }])
     assert.throws(() => validateProject({ ...project, ...change }));
 });
 test('native geometry computes quantities and rejects malformed dimensions', () => {

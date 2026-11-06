@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { rectangle, bounds, edgeIds } from '../shared/geometry.mjs';
 
+import { wallPanels } from '../shared/openings.mjs';
+
 export const surfaces = [
   { id: 'floor', label: 'Floor' },
   { id: 'north', label: 'North wall' },
@@ -23,9 +25,14 @@ export function createRoom(room) {
   floor.rotation.x=-Math.PI/2;
   outline.forEach((a,i)=>{
     const b=outline[(i+1)%4], dx=b.x-a.x, dz=b.z-a.z, length=Math.hypot(dx,dz);
-    add(edgeIds[i],new THREE.BoxGeometry(length+.16,room.height,.16),
-      [(a.x+b.x)/2+dz/length*.08,room.height/2,(a.z+b.z)/2-dx/length*.08],
-      i%2 ? 0xc4cabb : 0xddd6c8,-Math.atan2(dz,dx));
+    for(const panel of wallPanels(length,room.height,(room.openings||[]).filter(o=>o.wall===edgeIds[i]))) {
+      const along=(panel.left+panel.right)/2;
+      const mesh=add(edgeIds[i],new THREE.BoxGeometry(panel.right-panel.left,panel.top-panel.bottom,.16),
+        [a.x+dx/length*along+dz/length*.08,(panel.bottom+panel.top)/2,a.z+dz/length*along-dx/length*.08],
+        i%2 ? 0xc4cabb : 0xddd6c8,-Math.atan2(dz,dx));
+      const slice=Math.min(1.2,room.height/2);
+      mesh.userData.planVisible=panel.bottom<=slice && panel.top>=slice;
+    }
   });
   return group;
 }
@@ -45,7 +52,7 @@ export function createGrid(room,spacing) {
 
 export function updateSurfaces(group, view, selected) {
   for (const mesh of group.children) {
-    mesh.visible = view === 'Plan' || !['south','east'].includes(mesh.userData.id);
+    mesh.visible = view === 'Plan' ? mesh.userData.planVisible!==false : !['south','east'].includes(mesh.userData.id);
     mesh.material.color.setHex(mesh.userData.baseColor);
     mesh.material.emissive.setHex(mesh.userData.id === selected ? 0x766228 : 0x000000);
     mesh.material.emissiveIntensity = .65;

@@ -58,12 +58,13 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic core/main.cpp -o build/terratec-core
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "units": "m",
   "name": "Studio",
   "room": {
     "width": 6, "depth": 4, "height": 2.8,
-    "outline": [{"x":-3,"z":-2},{"x":3,"z":-2},{"x":3,"z":2},{"x":-3,"z":2}]
+    "outline": [{"x":-3,"z":-2},{"x":3,"z":-2},{"x":3,"z":2},{"x":-3,"z":2}],
+    "openings": [{"id":"door-1","type":"door","wall":"north","offset":1,"width":0.9,"height":2.1,"sill":0}]
   }
 }
 ```
@@ -77,11 +78,22 @@ Width and depth inputs scale the outline about its bounding-box center. Height i
 uniform. Coordinates must be finite and within ±1000 m, wall lengths at least 0.1 m,
 and overall spans 0.1–1000 m. Crossing, concave and collapsed outlines are rejected.
 
-Schema 1 rectangular projects migrate to schema 2 on read; schema 2 saves the explicit
-outline. Width/depth are derived from its bounds. Unsupported versions are rejected.
+Schema 1 rectangles and schema 2 outlines migrate to schema 3 on read, with an empty
+opening list. Schema 3 preserves explicit outlines and openings. Width/depth are derived from its bounds. Unsupported versions are rejected.
 The service validates before saving and atomically replaces its single project file.
 Additional fields are discarded. Native area/volume/perimeter use the polygon,
-not its bounding rectangle. Both views render that same polygon.
+not its bounding rectangle. Both views render that same polygon. Plan shows wall-length labels in metres.
+
+Select a wall, then Add door or Add window. Set offset (from endpoint A toward B),
+width, height and sill, then Apply opening. Openings leave real holes in the 3D mesh.
+Plan shows a horizontal wall section at min(1.2 m, half the room height); walls above
+that plane are hidden, including door headers. Side and top clearances are 0.05 m,
+with 0.05 m horizontal separation between openings. Doors start at floor level;
+windows need a sill of at least 0.1 m. Up to 64 openings are supported. Shrinking a
+wall or lowering room height is rejected if existing openings would no longer fit.
+Opening add/edit/remove operations participate in undo/redo and project persistence.
+Native quantities remain floor area, interior volume and perimeter; wall material
+quantities are not yet calculated.
 
 | Endpoint | Behavior |
 | --- | --- |
@@ -98,7 +110,7 @@ build is not a production deployment; public hosting and authentication are futu
 ## Current limits
 
 One convex four-corner room and one saved project only. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
-BIM exchange, manufacturing, AI design or physics integration yet. Geometry
+BIM exchange, manufacturing, AI design or physics integration yet. Openings have no frames, glass, door leaves or swing symbols. Geometry
 quantities come from the native core; Three.js constructs the preview from the same
 validated outline. The optional Google font falls back to the system sans-serif.
 

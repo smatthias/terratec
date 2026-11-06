@@ -6,6 +6,7 @@ import { createRoom, updateSurfaces, fitCamera, pickSurface, surfaces, createGri
 
 import { validateProject } from '../shared/project.mjs';
 import { bounds, edgeIds, validateOutline, snapPoint, scaleOutline, moveCorner } from '../shared/geometry.mjs';
+import { wallLength } from '../shared/openings.mjs';
 import { createHistory, commitHistory, undoHistory, redoHistory } from '../shared/history.mjs';
 const project = ref(validateProject({ schemaVersion: 1, units: 'm', name: 'Untitled studio', room: { width: 6, depth: 4, height: 2.8 } }));
 const dimensionDraft=ref({width:project.value.room.width,depth:project.value.room.depth,height:project.value.room.height});
@@ -37,6 +38,41 @@ const hiddenSelection = computed(() => view.value === '3D' && ['south','east'].i
 const valid = computed(() => { try { validateProject(project.value); return true; } catch { return false; } });
 const gridSpacing=ref(.25), snapEnabled=ref(true), endpointDraft=ref([]);
 const selectedEdge=computed(()=>edgeIds.indexOf(selected.value));
+const selectedOpeningId=ref(null), openingDraft=ref(null), wallLabels=ref([]);
+const wallOpenings=computed(()=>project.value.room.openings.filter(o=>o.wall===selected.value));
+watch([selected,selectedOpeningId,project],()=>{
+  const current=wallOpenings.value.find(o=>o.id===selectedOpeningId.value);
+  openingDraft.value=current?{...current}:null;
+},{deep:true});
+function addOpening(type) {
+  try {
+    const length=wallLength(project.value.room.outline,selected.value), height=project.value.room.height;
+    const width=Math.min(type==='door'?.9:1.2,length-.2);
+    const occupied=[...wallOpenings.value].sort((a,b)=>a.offset-b.offset);
+    let offset=.1;
+    for(const o of occupied) {
+      if(offset+width<=o.offset-.05) break;
+      offset=Math.max(offset,o.offset+o.width+.1);
+    }
+    const opening={id:crypto.randomUUID(),wall:selected.value,type,offset,width,
+      height:type==='door'?Math.min(2.1,height-.05):Math.min(1.2,height*.4),sill:type==='door'?0:Math.max(.1,height*.3)};
+    applyRoom({...project.value.room,openings:[...project.value.room.openings,opening]});
+    selectedOpeningId.value=opening.id; message.value=type==='door'?'Door added':'Window added';
+  } catch(error) { message.value=error.message; }
+}
+function saveOpening() {
+  try {
+    applyRoom({...project.value.room,openings:project.value.room.openings.map(o=>o.id===openingDraft.value.id?{...openingDraft.value}:o)});
+    message.value='Opening updated';
+  } catch(error) { message.value=error.message; }
+}
+function deleteOpening() {
+  try {
+    applyRoom({...project.value.room,openings:project.value.room.openings.filter(o=>o.id!==selectedOpeningId.value)});
+    selectedOpeningId.value=null; message.value='Opening removed';
+  } catch(error) { message.value=error.message; }
+}
+
 function syncEndpoints() {
   const i=selectedEdge.value, points=project.value.room.outline;
   endpointDraft.value=i<0?[]:[{...points[i]},{...points[(i+1)%4]}];
@@ -138,13 +174,20 @@ function pointerMove(event) {
 }
 function clearPointer() { pointerStart = null; }
 function projectHandles() {
-  if(!camera || !viewport.value || view.value!=='Plan') { if(cornerHandles.value.length) cornerHandles.value=[]; return; }
+  if(!camera || !viewport.value || view.value!=='Plan') { if(cornerHandles.value.length) cornerHandles.value=[]; if(wallLabels.value.length) wallLabels.value=[]; return; }
   const w=viewport.value.clientWidth,h=viewport.value.clientHeight;
   const next=project.value.room.outline.map((p,index)=>{
     const point=new THREE.Vector3(p.x,0,p.z).project(camera);
     return {index,x:(point.x+1)*w/2,y:(1-point.y)*h/2,visible:Math.abs(point.x)<1 && Math.abs(point.y)<1};
   });
   if(JSON.stringify(next)!==JSON.stringify(cornerHandles.value)) cornerHandles.value=next;
+  const outline=project.value.room.outline;
+  const labels=outline.map((a,i)=>{
+    const b=outline[(i+1)%4],length=Math.hypot(b.x-a.x,b.z-a.z);
+    const point=new THREE.Vector3((a.x+b.x)/2-(b.z-a.z)/length*.25,0,(a.z+b.z)/2+(b.x-a.x)/length*.25).project(camera);
+    return {id:edgeIds[i],length:length.toFixed(2),x:(point.x+1)*w/2,y:(1-point.y)*h/2,visible:Math.abs(point.x)<1 && Math.abs(point.y)<1};
+  });
+  if(JSON.stringify(labels)!==JSON.stringify(wallLabels.value)) wallLabels.value=labels;
 }
 function startDrag(index,event) {
   if(event.button!==0 || !event.isPrimary || editingLocked.value || !valid.value) return;
@@ -233,8 +276,8 @@ onBeforeUnmount(() => {
 <template>
   <div class="workspace">
     <header><a class="brand" href="/">terra<span>tec</span><small>DESIGN / BUILD / CONNECT</small></a><div class="actions"><button :disabled="editingLocked" @click="action('load')">Open saved</button><button class="primary" :disabled="editingLocked || !valid" @click="action('save')">Save project</button></div></header>
-    <aside><p class="eyebrow">PROJECT / 001</p><h1>A space to<br>make your own.</h1><label>Project name<input v-model="project.name" maxlength="120" :disabled="editingLocked"></label><div class="divider"></div><p class="eyebrow">ROOM DIMENSIONS · METRES</p><label v-for="key in ['width','depth']" :key="key">{{ key }}<input v-model.number="dimensionDraft[key]" @change="setDimension(key,$event)" type="number" min="0.1" max="1000" step="0.1" :disabled="editingLocked"></label><label>Height<input v-model.number="dimensionDraft.height" @change="setHeight" type="number" min="0.1" max="1000" step="0.1" :disabled="editingLocked"></label><div class="divider"></div><label class="snap-toggle"><input v-model="snapEnabled" type="checkbox" :disabled="editingLocked"> Snap endpoints to grid</label><label>Grid spacing<select v-model.number="gridSpacing" :disabled="editingLocked"><option :value=".1">0.10 m</option><option :value=".25">0.25 m</option><option :value=".5">0.50 m</option><option :value="1">1.00 m</option></select></label><p class="hint">Large rooms show a coarser grid; snapping uses the selected spacing.</p><fieldset v-if="selectedEdge >= 0" class="endpoint-editor" :disabled="editingLocked"><legend>{{ selectedLabel }} endpoints</legend><div v-for="(point,n) in endpointDraft" :key="n" class="endpoint-row"><label v-for="axis in ['x','z']" :key="axis">{{ n === 0 ? 'A' : 'B' }} {{ axis.toUpperCase() }}<input v-model.number="point[axis]" type="number" min="-1000" max="1000" :step="gridSpacing"></label></div><button @click="applyEndpoints">Apply endpoints</button><p class="hint">Adjoining walls share each corner. Convex four-corner rooms only.</p></fieldset><p v-if="!valid" class="hint">Enter a name and dimensions from 0.1 to 1000 m.</p><button class="calculate" :disabled="editingLocked || !valid" @click="action('calculate')">Calculate geometry ↗</button><dl v-if="metrics"><div><dt>Floor area</dt><dd>{{ metrics.area.toFixed(2) }} m²</dd></div><div><dt>Volume</dt><dd>{{ metrics.volume.toFixed(2) }} m³</dd></div><div><dt>Perimeter</dt><dd>{{ metrics.perimeter.toFixed(2) }} m</dd></div></dl><p class="hint">Width and depth scale the outline. Select a wall to edit its endpoints. Two walls are hidden in 3D.</p></aside>
-    <main><nav aria-label="View"><button v-for="mode in ['3D','Plan']" :aria-pressed="view === mode" :class="{ selected: view === mode }" @click="view = mode">{{ mode }}</button><button :disabled="dragging" @click="resetView">Fit room</button><button :disabled="editingLocked || !history.past.length" @click="travel('undo')">Undo</button><button :disabled="editingLocked || !history.future.length" @click="travel('redo')">Redo</button></nav><div ref="viewport" class="viewport" aria-label="Interactive room preview"></div><div v-if="view === 'Plan'" class="corner-layer"><button v-for="handle in cornerHandles" :key="handle.index" v-show="handle.visible" class="corner-handle" :class="{ dragging }" :style="{left:handle.x+'px',top:handle.y+'px'}" :aria-label="'Corner '+(handle.index+1)+' drag handle'" :disabled="busy || !valid" @pointerdown="startDrag(handle.index,$event)" @pointermove="dragCorner" @pointerup="finishDrag" @pointercancel="cancelDrag" @lostpointercapture="cancelDrag"></button></div><section class="surface-panel" aria-label="Room surfaces"><p class="eyebrow">ROOM SURFACES</p><button v-for="surface in surfaces" :key="surface.id" :aria-pressed="selected === surface.id" :class="{ selected: selected === surface.id }" @click="selected = surface.id">{{ surface.label }}</button><p role="status">{{ selectedLabel }}</p><small v-if="hiddenSelection">Hidden in cutaway · switch to Plan</small><button :disabled="!selected" @click="selected = null">Clear selection</button></section><div class="canvas-note">{{ view === '3D' ? 'ORBIT TO EXPLORE' : 'ORTHOGRAPHIC PLAN · NORTH UP' }}<span>{{ view === '3D' ? 'Click to select · Drag to orbit · Scroll to zoom' : 'Drag a corner to edit · Drag elsewhere to pan · Scroll to zoom' }}</span></div></main>
+    <aside><p class="eyebrow">PROJECT / 001</p><h1>A space to<br>make your own.</h1><label>Project name<input v-model="project.name" maxlength="120" :disabled="editingLocked"></label><div class="divider"></div><p class="eyebrow">ROOM DIMENSIONS · METRES</p><label v-for="key in ['width','depth']" :key="key">{{ key }}<input v-model.number="dimensionDraft[key]" @change="setDimension(key,$event)" type="number" min="0.1" max="1000" step="0.1" :disabled="editingLocked"></label><label>Height<input v-model.number="dimensionDraft.height" @change="setHeight" type="number" min="0.1" max="1000" step="0.1" :disabled="editingLocked"></label><div class="divider"></div><label class="snap-toggle"><input v-model="snapEnabled" type="checkbox" :disabled="editingLocked"> Snap endpoints to grid</label><label>Grid spacing<select v-model.number="gridSpacing" :disabled="editingLocked"><option :value=".1">0.10 m</option><option :value=".25">0.25 m</option><option :value=".5">0.50 m</option><option :value="1">1.00 m</option></select></label><p class="hint">Large rooms show a coarser grid; snapping uses the selected spacing.</p><fieldset v-if="selectedEdge >= 0" class="endpoint-editor" :disabled="editingLocked"><legend>{{ selectedLabel }} endpoints</legend><div v-for="(point,n) in endpointDraft" :key="n" class="endpoint-row"><label v-for="axis in ['x','z']" :key="axis">{{ n === 0 ? 'A' : 'B' }} {{ axis.toUpperCase() }}<input v-model.number="point[axis]" type="number" min="-1000" max="1000" :step="gridSpacing"></label></div><button @click="applyEndpoints">Apply endpoints</button><p class="hint">Adjoining walls share each corner. Convex four-corner rooms only.</p></fieldset><fieldset v-if="selectedEdge >= 0" class="opening-editor" :disabled="editingLocked"><legend>Wall openings</legend><div class="opening-actions"><button @click="addOpening('door')">Add door</button><button @click="addOpening('window')">Add window</button></div><label v-if="wallOpenings.length">Opening<select v-model="selectedOpeningId"><option :value="null">Choose opening</option><option v-for="(opening,index) in wallOpenings" :key="opening.id" :value="opening.id">{{ opening.type }} {{ index+1 }}</option></select></label><template v-if="openingDraft"><label v-for="field in ['offset','width','height','sill']" :key="field">Opening {{ field }}<input v-model.number="openingDraft[field]" type="number" min="0" step="0.05" :disabled="field === 'sill' && openingDraft.type === 'door'"></label><button @click="saveOpening">Apply opening</button><button @click="deleteOpening">Remove opening</button></template><p class="hint">Offset follows A → B. Keep 0.05 m at wall ends, above openings and between openings. Plan cuts walls at up to 1.2 m.</p></fieldset><p v-if="!valid" class="hint">Enter a name and dimensions from 0.1 to 1000 m.</p><button class="calculate" :disabled="editingLocked || !valid" @click="action('calculate')">Calculate geometry ↗</button><dl v-if="metrics"><div><dt>Floor area</dt><dd>{{ metrics.area.toFixed(2) }} m²</dd></div><div><dt>Volume</dt><dd>{{ metrics.volume.toFixed(2) }} m³</dd></div><div><dt>Perimeter</dt><dd>{{ metrics.perimeter.toFixed(2) }} m</dd></div></dl><p class="hint">Width and depth scale the outline. Select a wall to edit its endpoints. Two walls are hidden in 3D.</p></aside>
+    <main><nav aria-label="View"><button v-for="mode in ['3D','Plan']" :aria-pressed="view === mode" :class="{ selected: view === mode }" @click="view = mode">{{ mode }}</button><button :disabled="dragging" @click="resetView">Fit room</button><button :disabled="editingLocked || !history.past.length" @click="travel('undo')">Undo</button><button :disabled="editingLocked || !history.future.length" @click="travel('redo')">Redo</button></nav><div ref="viewport" class="viewport" aria-label="Interactive room preview"></div><div v-if="view === 'Plan'" class="dimension-layer"><span v-for="label in wallLabels" :key="label.id" v-show="label.visible" class="wall-dimension" :data-wall="label.id" :style="{left:label.x+'px',top:label.y+'px'}">{{ label.length }} m</span></div><div v-if="view === 'Plan'" class="corner-layer"><button v-for="handle in cornerHandles" :key="handle.index" v-show="handle.visible" class="corner-handle" :class="{ dragging }" :style="{left:handle.x+'px',top:handle.y+'px'}" :aria-label="'Corner '+(handle.index+1)+' drag handle'" :disabled="busy || !valid" @pointerdown="startDrag(handle.index,$event)" @pointermove="dragCorner" @pointerup="finishDrag" @pointercancel="cancelDrag" @lostpointercapture="cancelDrag"></button></div><section class="surface-panel" aria-label="Room surfaces"><p class="eyebrow">ROOM SURFACES</p><button v-for="surface in surfaces" :key="surface.id" :aria-pressed="selected === surface.id" :class="{ selected: selected === surface.id }" @click="selected = surface.id">{{ surface.label }}</button><p role="status">{{ selectedLabel }}</p><small v-if="hiddenSelection">Hidden in cutaway · switch to Plan</small><button :disabled="!selected" @click="selected = null">Clear selection</button></section><div class="canvas-note">{{ view === '3D' ? 'ORBIT TO EXPLORE' : 'ORTHOGRAPHIC PLAN · NORTH UP' }}<span>{{ view === '3D' ? 'Click to select · Drag to orbit · Scroll to zoom' : 'Drag a corner to edit · Drag elsewhere to pan · Scroll to zoom' }}</span></div></main>
     <footer role="status" aria-live="polite"><span class="dot"></span><span>{{ busy ? 'Working…' : message }}</span><span class="version">FOUNDATION 01 · METRES</span></footer>
   </div>
 </template>

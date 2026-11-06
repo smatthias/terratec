@@ -4,9 +4,9 @@ import {execFileSync} from 'node:child_process';
 import {rectangle,moveCorner,snapPoint,scaleOutline,bounds,validateOutline} from './geometry.mjs';
 import {validateProject} from './project.mjs';
 const old={schemaVersion:1,units:'m',name:'Legacy',room:{width:6,depth:4,height:3}};
-test('legacy project migrates to explicit connected corners and schema 2 roundtrips',()=>{
+test('legacy project migrates to explicit connected corners and schema 3 roundtrips',()=>{
   const next=validateProject(old);
-  assert.equal(next.schemaVersion,2); assert.deepEqual(next.room.outline,rectangle(6,4));
+  assert.equal(next.schemaVersion,3); assert.deepEqual(next.room.outline,rectangle(6,4));
   next.room.outline=moveCorner(next.room.outline,0,{x:-3.4,z:-2.4},.25,true);
   const normalized=validateProject(next);
   assert.deepEqual(normalized.room.outline[0],{x:-3.5,z:-2.5});
