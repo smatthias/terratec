@@ -1,3 +1,4 @@
+import {furnitureClearance,clearanceSettings} from './furniture-clearance.mjs';
 import {previewFurnitureInsertion} from './furniture-library.mjs';
 import {cabinetInterval} from './cabinet-arrange.mjs';
 export function placementRotation(value){if(typeof value!=='number'||!Number.isFinite(value))throw Error('Enter a finite placement rotation');return ((value%360)+360)%360;}
@@ -21,12 +22,13 @@ export function placementGuides(candidate,furniture,tolerance=.08){
   }
   return guides;
 }
-export function evaluateFurniturePlacement(room,request,spacing,snap=true,guideSnap=false){
+export function evaluateFurniturePlacement(room,request,spacing,snap=true,guideSnap=false,clearanceOptions){
   let result=previewFurnitureInsertion(room,request,spacing,snap);
   let guides=placementGuides(result.candidate,room.furniture);
   if(guideSnap&&guides.length&&result.candidate){
     const point={x:result.candidate.x,z:result.candidate.z};for(const guide of guides)point[guide.axis]+=guide.delta;
     result=previewFurnitureInsertion(room,{...request,point},spacing,false);guides=placementGuides(result.candidate,room.furniture);
   }
-  return {...result,guides};
+  let clearance=null;try{const settings=clearanceSettings(clearanceOptions);if(result.candidate)clearance=furnitureClearance(room,result.candidate,settings);if(result.valid&&settings.enforce&&clearance?.issues.length)result={...result,valid:false,error:'Clearance: '+clearance.issues[0].message};}catch(error){result={...result,valid:false,error:error.message};}
+  return {...result,guides,clearance};
 }

@@ -1,0 +1,27 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {rectangle} from './geometry.mjs';
+import {furnitureClearance,clearanceSettings} from './furniture-clearance.mjs';
+import {evaluateFurniturePlacement} from './furniture-placement.mjs';
+const item={id:'a',name:'Cabinet',type:'cabinet',x:0,z:0,width:1,depth:.4,height:1.2,rotation:0,thickness:.018,shelves:1};
+const door={id:'door',type:'door',wall:'north',offset:2.5,width:1,height:2.1,sill:0,hinge:'A',swing:'in'};
+const room={height:3,outline:rectangle(6,4),openings:[door],furniture:[{...item,x:2}]};
+test('wall gaps measure rotated bodies against finite wall segments',()=>{
+ assert.ok(Math.abs(furnitureClearance(room,item).nearestWall.distance-1.8)<1e-10);
+ const angle=Math.PI/4,outline=room.outline.map(p=>({x:p.x*Math.cos(angle)+p.z*Math.sin(angle),z:-p.x*Math.sin(angle)+p.z*Math.cos(angle)}));
+ assert.ok(Math.abs(furnitureClearance({...room,outline,openings:[]},{...item,rotation:45}).nearestWall.distance-1.8)<1e-10);
+ assert.ok(furnitureClearance(room,{...item,z:-1.78}).issues.some(i=>i.code==='WALL_GAP'));
+ assert.throws(()=>clearanceSettings({minWall:-1}));assert.throws(()=>clearanceSettings({doorDepth:NaN}));
+});
+test('opening planning zones respect door swing depth and window sill height',()=>{
+ const near={...item,z:-.9,depth:.5};assert.ok(furnitureClearance(room,near).issues.some(i=>i.code==='DOOR_ZONE'));
+ assert.ok(!furnitureClearance({...room,openings:[{...door,swing:'out'}]},near).issues.some(i=>i.code==='DOOR_ZONE'));
+ const window={...door,id:'window',type:'window',sill:1.5,height:1};
+ assert.ok(!furnitureClearance({...room,openings:[window]},{...item,z:-1.7}).issues.some(i=>i.code==='WINDOW_ZONE'));
+ assert.ok(furnitureClearance({...room,openings:[window]},{...item,z:-1.7,height:1.8}).issues.some(i=>i.code==='WINDOW_ZONE'));
+});
+test('preview clearances are advisory unless explicitly enforced and do not mutate the room',()=>{
+ const before=JSON.stringify(room),request={kind:'copy',sourceId:'a',id:'new',point:{x:0,z:-1}};
+ const advisory=evaluateFurniturePlacement(room,request,.1,true,false);assert.equal(advisory.valid,true);assert.ok(advisory.clearance.issues.length);
+ const strict=evaluateFurniturePlacement(room,request,.1,true,false,{enforce:true,minWall:.05,doorDepth:.6});assert.equal(strict.valid,false);assert.match(strict.error,/Clearance/);assert.equal(JSON.stringify(room),before);
+});

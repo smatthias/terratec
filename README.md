@@ -597,3 +597,25 @@ Use keyboard rotation during pointer placement; leaving the canvas to use sideba
 controls cancels that mode. Numeric previews keep the sidebar rotation controls
 and can be viewed in Plan or 3D. Guide alignment uses projected body bounds and
 does not imply door-swing, handle or shortest-distance clearance.
+
+### Wall and opening clearance planning
+
+Furniture clearance reports the nearest finite wall-segment distance from the
+rotated body, with a configurable minimum wall gap (0–2 m). It flags door planning
+zones and windows whose sill is below cabinet height. Inward doors use a
+conservative rectangular zone as deep as the larger of door width and configured
+access depth (0–3 m); outward doors use the access depth. Windows use a fixed
+0.15 m service zone. Touching a zone boundary does not count as overlap.
+
+These are advisory workspace settings, not saved model rules or building-code
+checks. **Enforce clearance for preview insertion** additionally blocks preview
+confirmation when these planning checks fail. Existing geometry, direct copy/add,
+dragging and numeric edits remain advisory; normal body containment/collision
+checks always apply. Preview feedback updates after position, rotation, guide
+snapping or clearance-setting changes. Cyan lines show nearest-wall gaps and
+orange outlines show conflicting opening zones.
+
+Checks exclude handles, passage accessibility rules and actual hinge-sweep sectors.
+Door rectangles intentionally overestimate inward sweep and do not model opening
+leaves as rigid collision bodies. The settings are planning aids, not regulatory
+or physical clearance certification.
