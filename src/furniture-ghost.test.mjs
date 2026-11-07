@@ -19,3 +19,18 @@ test('alignment guide lines are non-pickable and dispose with the preview',()=>{
  const ray=new THREE.Raycaster(new THREE.Vector3(0,4,0),new THREE.Vector3(0,-1,0));assert.equal(ray.intersectObject(group,true).length,0);
  let disposed=0;line.geometry.addEventListener('dispose',()=>disposed++);disposeFurnitureGhost(group);assert.equal(disposed,1);
 });
+
+test('standalone selected clearance overlays draw sweep curves, ignore picking and release resources',async()=>{
+ const {createClearanceOverlay}=await import('./furniture-ghost.js');
+ const {furnitureClearance}=await import('../shared/furniture-clearance.mjs');
+ const {rectangle}=await import('../shared/geometry.mjs');
+ const report=furnitureClearance({outline:rectangle(6,4),openings:[{id:'d',type:'door',wall:'north',offset:2.5,width:1,height:2,sill:0,hinge:'A',swing:'in'}]},{...item,x:-.35,z:-1.5,width:.2,depth:.2},{doorDepth:0});
+ const overlay=createClearanceOverlay(report),scene=new THREE.Scene();scene.add(overlay);
+ assert.equal(overlay.children.length,2);
+ const arc=overlay.children.find(line=>line.isLineLoop);assert.equal(arc.geometry.attributes.position.count,66);
+ assert.equal(arc.material.color.getHex(),0xffa75a);
+ const ray=new THREE.Raycaster(new THREE.Vector3(-.35,4,-1.5),new THREE.Vector3(0,-1,0));assert.equal(ray.intersectObject(overlay,true).length,0);
+ let disposed=0;overlay.traverse(line=>{line.geometry?.addEventListener('dispose',()=>disposed++);line.material?.addEventListener('dispose',()=>disposed++);});
+ disposeFurnitureGhost(overlay);assert.equal(disposed,4);assert.equal(overlay.parent,null);
+ assert.equal(createClearanceOverlay({error:'Invalid settings'}).children.length,0);
+});
