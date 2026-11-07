@@ -578,3 +578,22 @@ cancels without a model edit. Model/selection/grid changes also invalidate the
 preview. Pointer capture and camera controls are released after each gesture.
 Numeric previews still support switching between Plan and 3D; pointer mode is
 Plan-only. Each confirmed insertion uses normal one-step undo and persistence.
+
+### Placement rotation and alignment guides
+
+Active numeric/pointer previews accept an angle or ±15° controls. Outside text
+fields, R rotates +15° and Shift+R rotates −15°. Angles wrap into 0–359° and the
+rotated footprint is revalidated before confirmation. Rotation is a preview-only
+override until commit and does not modify the source cabinet or preset.
+
+Yellow guides identify the nearest rotated minimum/centre/maximum bound within
+0.08 m on each world axis, with deterministic reference selection. They are visual
+only unless **Snap furniture to alignment guides** is enabled. Guide snapping
+applies after grid snapping and may produce off-grid coordinates; the actual
+preview position is shown explicitly. Snapped candidates still need to pass
+containment and overlap validation. Guides are non-pickable and transient.
+
+Use keyboard rotation during pointer placement; leaving the canvas to use sidebar
+controls cancels that mode. Numeric previews keep the sidebar rotation controls
+and can be viewed in Plan or 3D. Guide alignment uses projected body bounds and
+does not imply door-swing, handle or shortest-distance clearance.

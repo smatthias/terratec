@@ -40,6 +40,7 @@ export function previewFurnitureInsertion(room,request,spacing,snap=true){
       [template]=validateFurniturePresets([request.preset]);name=template.name;template={...template,rotation:0};
     }else throw Error('Unknown furniture preview');
     candidate={...template,type:'cabinet',id:request.id,name,...snapPoint(request.point,spacing,snap)};
+    if(request.rotation!==undefined){if(typeof request.rotation!=='number'||!Number.isFinite(request.rotation))throw Error('Invalid placement rotation');candidate.rotation=((request.rotation%360)+360)%360;}
     const furniture=validateFurniture([...room.furniture,candidate],room.outline,room.height);
     return {candidate:furniture.at(-1),valid:true,error:''};
   }catch(error){

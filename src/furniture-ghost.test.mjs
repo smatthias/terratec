@@ -12,3 +12,10 @@ test('preview ghosts are view-aware, non-pickable and dispose their resources',(
   let disposed=0;meshes[0].geometry.addEventListener('dispose',()=>disposed++);disposeFurnitureGhost(group);assert.equal(disposed,1);assert.equal(group.parent,null);
  }
 });
+
+test('alignment guide lines are non-pickable and dispose with the preview',()=>{
+ const group=createFurnitureGhost(item,true,'Plan',[{from:{x:0,z:-1},to:{x:0,z:1}}]);
+ const line=group.children.find(c=>c.userData.guide);assert.ok(line?.isLine);assert.equal(line.material.depthWrite,false);
+ const ray=new THREE.Raycaster(new THREE.Vector3(0,4,0),new THREE.Vector3(0,-1,0));assert.equal(ray.intersectObject(group,true).length,0);
+ let disposed=0;line.geometry.addEventListener('dispose',()=>disposed++);disposeFurnitureGhost(group);assert.equal(disposed,1);
+});

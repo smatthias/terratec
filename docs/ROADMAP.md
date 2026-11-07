@@ -1,16 +1,16 @@
 # TerraTec progress
 
-Overall: **67%** of the planned functional scope, estimated by effort and verified
+Overall: **69%** of the planned functional scope, estimated by effort and verified
 capabilities. Percentages are planning estimates, not test coverage. This first
 foundation is not equivalent to a finished CAD application.
 
 | Milestone | Done | Improved in this iteration | Next step |
 | --- | ---: | --- | --- |
 | Project foundation | 90% | C++ core, Node API, Vue/Three.js application, schema 6 furniture/presets with older-project migration, UUID-backed project collection, atomic save/load, CI configuration | Configuration checks and installation |
-| Design workspace | 92% | Pointer-driven Plan insertion with snapping, gesture discrimination and cancellation | Placement rotation and guides |
-| Parametric geometry | 27% | Validated reusable cabinet designs without instance identity/pose | Persistent constraints and arbitrary outlines |
+| Design workspace | 94% | Preview rotation, R/Shift+R controls and optional alignment-guide snapping | Wall-clearance feedback |
+| Parametric geometry | 30% | Rotated placement guides and exact post-grid alignment | Persistent constraints and arbitrary outlines |
 | Building design | 27% | A/B hinge and inward/outward swing, consistent in Plan/3D, undo and saves | Swing clearance checks and multiple rooms |
-| Interiors and furniture | 58% | Click-to-place copies/presets, live ghosts, invalid-click rejection and undo | Placement rotation and more furniture types |
+| Interiors and furniture | 62% | Rotated copy/preset placement with guide feedback and revalidation | Opening-aware clearance checks |
 | Drawings and exchange | 43% | A4/A3 sheets, orientation, margins, fit feedback and blocked oversized exports | Pagination and more exchange formats |
 | Manufacturing | 58% | Snapshot manifests, derived layout verification and blocking handoff checks | Costing and workshop cutting constraints |
 | Distributed production | 55% | Searchable job register, workflow filters, due-date sorting and latest-revision summaries | Workshop contacts and assignment presets |
@@ -19,9 +19,9 @@ foundation is not equivalent to a finished CAD application.
 | TerraFlux integration | 0% | — | Model exchange contract |
 | Release readiness | 12% | Recovery snapshots, storage-failure feedback and import validation | Installation and recovery |
 
-Next iteration: rotation controls and alignment guides during furniture placement.
+Next iteration: wall clearance and opening-aware furniture placement checks.
 
-Validation: seventy-nine Node test groups and the Vite production build pass locally.
+Validation: eighty-two Node test groups and the Vite production build pass locally.
 The preceding foundation passed CMake/CTest in GitHub Actions. Browser smoke checks
 cover save/load, native quantities, selection across views and edits, ray picking,
 pan versus click, deselection, keyboard interaction, and mobile overflow, snapped/unsnapped endpoint edits, invalid-shape rejection, edited-outline persistence, corner dragging, single-gesture undo, redo, cancellation keyboard history, opening CRUD/undo/persistence and opening-aware wall/height validation. Local

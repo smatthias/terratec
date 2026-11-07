@@ -944,6 +944,12 @@ try {
   await page.getByRole('button',{name:'Preview cabinet copy',exact:true}).click();
   await page.getByTestId('furniture-library-preview').filter({hasText:'Cabinets cannot overlap'}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Confirm furniture placement',exact:true}).isDisabled(),true);
+  await page.getByLabel('Placement rotation degrees',{exact:true}).fill('90');
+  assert.match(await page.getByTestId('placement-guide-count').textContent(),/rotation 90°/);
+  await page.getByRole('button',{name:'Rotate placement −15°',exact:true}).click();
+  assert.match(await page.getByTestId('placement-guide-count').textContent(),/rotation 75°/);
+  await page.getByLabel('Placement rotation degrees',{exact:true}).fill('0');
+
   assert.equal(await page.getByLabel('Furniture item',{exact:true}).locator('option').count(),4);
 
   await page.getByLabel('New furniture X',{exact:true}).fill('2.13');
@@ -1009,6 +1015,11 @@ try {
   assert.equal(await page.getByLabel('Furniture item',{exact:true}).locator('option').count(),6);
   await page.mouse.move(validInsertion.x,validInsertion.y);
   await page.getByTestId('furniture-library-preview').filter({hasText:'Preview valid'}).waitFor();
+  await page.keyboard.press('r');
+  assert.match(await page.getByTestId('placement-guide-count').textContent(),/rotation 15°/);
+  await page.keyboard.press('Shift+r');
+  assert.match(await page.getByTestId('placement-guide-count').textContent(),/rotation 0°/);
+
   await page.mouse.down();await page.mouse.move(validInsertion.x+25,validInsertion.y,{steps:5});await page.mouse.up();
   assert.equal(await page.getByLabel('Furniture item',{exact:true}).locator('option').count(),6,'drag must not insert');
   await page.mouse.click(validInsertion.x,validInsertion.y);
@@ -1036,6 +1047,19 @@ try {
   await page.getByRole('button',{name:'Place copy in Plan',exact:true}).click();
   await page.mouse.move(validInsertion.x,validInsertion.y);await page.mouse.move(0,0);
   assert.equal(await page.getByTestId('furniture-insertion-preview').count(),0,'leaving canvas cancels pointer placement');
+  await page.getByLabel('Snap endpoints to grid',{exact:true}).uncheck();
+  await page.getByLabel('New furniture X',{exact:true}).fill('-2.96');
+  await page.getByLabel('New furniture Z',{exact:true}).fill('0');
+  await page.getByRole('button',{name:'Preview cabinet copy',exact:true}).click();
+  assert.match(await page.getByTestId('placement-coordinates').textContent(),/X -2.960/);
+  await page.getByLabel('Snap furniture to alignment guides',{exact:true}).check();
+  assert.match(await page.getByTestId('placement-coordinates').textContent(),/X -3.000/);
+  await page.getByLabel('Placement rotation degrees',{exact:true}).fill('90');
+  await page.getByRole('button',{name:'Confirm furniture placement',exact:true}).click();
+  await page.getByText('Furniture preview committed',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Cabinet rotation',{exact:true}).inputValue(),'90');
+  assert.equal(await page.getByLabel('Cabinet x',{exact:true}).inputValue(),'-3');
+
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});
