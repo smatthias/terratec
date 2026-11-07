@@ -563,5 +563,18 @@ selectable and do not enter project geometry, quantities, exports or history.
 Confirm revalidates the current room and inserts once; Escape or Cancel discards
 the preview. Model, selection or grid changes cancel it, and preview ghosts dispose
 their geometry/materials when replaced. View switching retains the preview.
-Existing direct copy/preset commands remain available. These previews use numeric
-coordinates; pointer-driven placement is a later step.
+Existing direct copy/preset commands remain available. Numeric coordinate previews remain available alongside pointer placement.
+
+### Pointer placement of copies and presets
+
+Choose **Place copy in Plan** or **Place preset in Plan** to enter pointer placement.
+The ghost follows the ground-plane pointer position, respecting grid settings.
+A primary click at a valid position commits exactly once; an invalid click keeps
+the mode active and reports the issue. Dragging does not insert or move cabinets.
+Existing cabinet bodies cannot capture the left gesture while placement is active.
+
+Escape, leaving the canvas, focus loss, pointer cancellation or switching to 3D
+cancels without a model edit. Model/selection/grid changes also invalidate the
+preview. Pointer capture and camera controls are released after each gesture.
+Numeric previews still support switching between Plan and 3D; pointer mode is
+Plan-only. Each confirmed insertion uses normal one-step undo and persistence.

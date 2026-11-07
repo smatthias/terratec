@@ -1,16 +1,16 @@
 # TerraTec progress
 
-Overall: **65%** of the planned functional scope, estimated by effort and verified
+Overall: **67%** of the planned functional scope, estimated by effort and verified
 capabilities. Percentages are planning estimates, not test coverage. This first
 foundation is not equivalent to a finished CAD application.
 
 | Milestone | Done | Improved in this iteration | Next step |
 | --- | ---: | --- | --- |
 | Project foundation | 90% | C++ core, Node API, Vue/Three.js application, schema 6 furniture/presets with older-project migration, UUID-backed project collection, atomic save/load, CI configuration | Configuration checks and installation |
-| Design workspace | 90% | Valid/invalid copy/preset ghosts, confirmation and non-mutating cancellation | Pointer-driven placement and guides |
+| Design workspace | 92% | Pointer-driven Plan insertion with snapping, gesture discrimination and cancellation | Placement rotation and guides |
 | Parametric geometry | 27% | Validated reusable cabinet designs without instance identity/pose | Persistent constraints and arbitrary outlines |
 | Building design | 27% | A/B hinge and inward/outward swing, consistent in Plan/3D, undo and saves | Swing clearance checks and multiple rooms |
-| Interiors and furniture | 53% | Previewed copy/preset insertion with live numeric coordinates and view switching | Pointer placement and more furniture types |
+| Interiors and furniture | 58% | Click-to-place copies/presets, live ghosts, invalid-click rejection and undo | Placement rotation and more furniture types |
 | Drawings and exchange | 43% | A4/A3 sheets, orientation, margins, fit feedback and blocked oversized exports | Pagination and more exchange formats |
 | Manufacturing | 58% | Snapshot manifests, derived layout verification and blocking handoff checks | Costing and workshop cutting constraints |
 | Distributed production | 55% | Searchable job register, workflow filters, due-date sorting and latest-revision summaries | Workshop contacts and assignment presets |
@@ -19,7 +19,7 @@ foundation is not equivalent to a finished CAD application.
 | TerraFlux integration | 0% | — | Model exchange contract |
 | Release readiness | 12% | Recovery snapshots, storage-failure feedback and import validation | Installation and recovery |
 
-Next iteration: pointer-driven placement for copies and preset instances.
+Next iteration: rotation controls and alignment guides during furniture placement.
 
 Validation: seventy-nine Node test groups and the Vite production build pass locally.
 The preceding foundation passed CMake/CTest in GitHub Actions. Browser smoke checks
