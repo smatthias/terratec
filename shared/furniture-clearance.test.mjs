@@ -25,3 +25,30 @@ test('preview clearances are advisory unless explicitly enforced and do not muta
  const advisory=evaluateFurniturePlacement(room,request,.1,true,false);assert.equal(advisory.valid,true);assert.ok(advisory.clearance.issues.length);
  const strict=evaluateFurniturePlacement(room,request,.1,true,false,{enforce:true,minWall:.05,doorDepth:.6});assert.equal(strict.valid,false);assert.match(strict.error,/Clearance/);assert.equal(JSON.stringify(room),before);
 });
+test('door sweep follows hinge and excludes the unused corner of its bounding rectangle',()=>{
+ const small={...item,width:.2,depth:.2,x:.35,z:-1.15};
+ const report=hinge=>furnitureClearance({...room,openings:[{...door,hinge}]},small,{doorDepth:0,minWall:0});
+ assert.equal(report('A').issues.length,0);
+ assert.ok(report('B').zones.some(z=>z.kind==='sweep'&&z.polygon.length===66));
+ assert.ok(!report('B').zones.some(z=>z.kind==='access'));
+ const access=furnitureClearance(room,{...small,z:-1.7},{doorDepth:.6,minWall:0});
+ assert.ok(access.zones.some(z=>z.kind==='access'));
+});
+test('sweep collision follows rotated walls and all hinge/swing combinations',()=>{
+ for(const hinge of ['A','B'])for(const swing of ['in','out']){
+  const sign=swing==='in'?1:-1;
+  const cabinet={...item,width:.2,depth:.2,x:hinge==='A'?-.35:.35,z:-2+sign*.5};
+  const opening={...door,hinge,swing};
+  assert.ok(furnitureClearance({...room,openings:[opening]},cabinet,{doorDepth:0,minWall:0}).zones.some(z=>z.kind==='sweep'));
+  const angle=.63,rotate=p=>({x:p.x*Math.cos(angle)+p.z*Math.sin(angle),z:-p.x*Math.sin(angle)+p.z*Math.cos(angle)});
+  const rotated={...room,outline:room.outline.map(rotate),openings:[opening]};
+  assert.ok(furnitureClearance(rotated,{...cabinet,...rotate(cabinet),rotation:angle*180/Math.PI},{doorDepth:0,minWall:0}).zones.some(z=>z.kind==='sweep'));
+ }
+});
+test('analytic sweep catches edge crossings and permits circle tangency',()=>{
+ const options={doorDepth:0,minWall:0};
+ const crossing={...item,width:2,depth:.2,x:-.5,z:-1.05};
+ assert.ok(furnitureClearance(room,crossing,options).zones.some(z=>z.kind==='sweep'));
+ const tangent={...item,width:.2,depth:.2,x:-.5,z:-.9};
+ assert.equal(furnitureClearance(room,tangent,options).zones.length,0);
+});

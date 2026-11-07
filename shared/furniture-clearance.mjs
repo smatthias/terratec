@@ -1,5 +1,6 @@
 import {cabinetFootprint} from './furniture.mjs';
 import {edgeIds} from './geometry.mjs';
+import {doorPose} from './openings.mjs';
 export function clearanceSettings(input={}){
   const minWall=input.minWall??.05,doorDepth=input.doorDepth??.6,enforce=input.enforce??false;
   if(![minWall,doorDepth].every(v=>typeof v==='number'&&Number.isFinite(v))||minWall<0||minWall>2||doorDepth<0||doorDepth>3||typeof enforce!=='boolean')throw Error('Clearance settings need wall gap 0–2 m and door depth 0–3 m');
@@ -20,6 +21,24 @@ function intersects(a,b){
   if(Math.max(...pa)<=Math.min(...pb)+1e-9||Math.max(...pb)<=Math.min(...pa)+1e-9)return false;
  }return true;
 }
+// Clip to the sweep quadrant, then test distance to its circular boundary.
+// The sampled polygon is only for drawing; collision uses the analytic radius.
+function sweepIntersects(body,local,radius){
+ let polygon=body.map(local);
+ for(const axis of ['x','z']){
+  const clipped=[];
+  for(let i=0;i<polygon.length;i++){
+   const a=polygon[i],b=polygon[(i+1)%polygon.length],insideA=a[axis]>=0,insideB=b[axis]>=0;
+   if(insideA)clipped.push(a);
+   if(insideA!==insideB){const t=a[axis]/(a[axis]-b[axis]);clipped.push({x:a.x+t*(b.x-a.x),z:a.z+t*(b.z-a.z)});}
+  }polygon=clipped;
+ }
+ if(polygon.length<3||Math.abs(polygon.reduce((sum,p,i)=>sum+cross(p,polygon[(i+1)%polygon.length]),0))<1e-12)return false;
+ const origin={x:0,z:0};
+ const signs=polygon.map((p,i)=>cross(sub(polygon[(i+1)%polygon.length],p),sub(origin,p)));
+ if(signs.every(v=>v>=-1e-12)||signs.every(v=>v<=1e-12))return true;
+ return polygon.some((p,i)=>{const q=closest(origin,p,polygon[(i+1)%polygon.length]);return q.x*q.x+q.z*q.z<radius*radius-1e-10;});
+}
 export function furnitureClearance(room,item,options){
  const settings=clearanceSettings(options),body=cabinetFootprint(item),walls=[];
  for(let i=0;i<room.outline.length;i++){
@@ -32,14 +51,20 @@ export function furnitureClearance(room,item,options){
  for(const opening of room.openings??[]){
   if(item.height<=opening.sill+1e-9)continue;
   const index=edgeIds.indexOf(opening.wall),a=room.outline[index],b=room.outline[(index+1)%room.outline.length],length=Math.hypot(b.x-a.x,b.z-a.z),tx=(b.x-a.x)/length,tz=(b.z-a.z)/length,nx=-tz,nz=tx;
-  const depth=opening.type==='door'?Math.max(settings.doorDepth,opening.swing==='out'?0:opening.width):.15;
-  if(depth<=0)continue;
+  const depth=opening.type==='door'?settings.doorDepth:.15;
   const point=(along,inward)=>({x:a.x+along*tx+inward*nx,z:a.z+along*tz+inward*nz});
   const polygon=[point(opening.offset,0),point(opening.offset+opening.width,0),point(opening.offset+opening.width,depth),point(opening.offset,depth)];
-  if(intersects(body,polygon)){
-   zones.push({openingId:opening.id,polygon});
-   issues.push({code:opening.type==='door'?'DOOR_ZONE':'WINDOW_ZONE',openingId:opening.id,wall:opening.wall,message:opening.type==='door'?`Cabinet enters ${opening.wall} door access/swing planning zone`:`Cabinet enters ${opening.wall} window service planning zone`});
+  let conflict=depth>0&&intersects(body,polygon);
+  if(conflict)zones.push({openingId:opening.id,kind:opening.type==='door'?'access':'window',polygon});
+  if(opening.type==='door'){
+   const pose=doorPose(opening),hinge=point(pose.hingeAlong,0);
+   const local=p=>({x:((p.x-hinge.x)*tx+(p.z-hinge.z)*tz)*pose.hingeSign,z:((p.x-hinge.x)*nx+(p.z-hinge.z)*nz)*pose.swingSign});
+   if(sweepIntersects(body,local,opening.width)){
+    const arc=Array.from({length:65},(_,n)=>{const angle=n*Math.PI/128;return point(pose.hingeAlong+pose.hingeSign*opening.width*Math.cos(angle),pose.swingSign*opening.width*Math.sin(angle));});
+    zones.push({openingId:opening.id,kind:'sweep',polygon:[hinge,...arc]});conflict=true;
+   }
   }
+  if(conflict)issues.push({code:opening.type==='door'?'DOOR_ZONE':'WINDOW_ZONE',openingId:opening.id,wall:opening.wall,message:opening.type==='door'?`Cabinet enters ${opening.wall} door access/swing planning zone`:`Cabinet enters ${opening.wall} window service planning zone`});
  }
  return {nearestWall,walls,issues,zones,settings};
 }
