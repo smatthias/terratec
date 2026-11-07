@@ -501,3 +501,18 @@ local quote status. Open navigates to that exact job, revision and quote snapsho
 without replacing the design model. Refresh retrieves local service changes.
 `GET /api/quotes` provides compact register rows; currency amounts stay separate
 and are never combined into a misleading mixed-currency total.
+
+### Cabinet alignment and spacing
+
+Select a cabinet and choose a different reference in **Alignment and spacing**.
+Align minimum edge, centre or maximum edge along world X/Z, or position it before
+or after the reference with an exact 0–10 m gap. Rotated footprint bounds define
+the edges; the tool moves only the selected cabinet along one world axis and
+retains rotation/dimensions. Projected gap feedback is signed along that axis,
+not a shortest-distance measurement between rotated surfaces.
+
+These one-off arrangement commands bypass grid snapping. Every resulting body
+footprint must remain inside the room and avoid other cabinets. Rejected edits
+leave geometry/history unchanged; a valid change is one undo step and follows
+normal save/recovery/JSON behaviour. Handles and door-swing clearances are not
+included. These are placement operations, not persistent relational constraints.

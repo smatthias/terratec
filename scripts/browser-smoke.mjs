@@ -874,6 +874,34 @@ try {
   await page.getByText('Workshop profile removed · cabinet settings retained',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Stock kerf mm',{exact:true}).inputValue(),'4');
   assert.equal(await page.getByRole('button',{name:'Apply workshop profile',exact:true}).isDisabled(),true);
+  await page.getByLabel('Arrangement axis',{exact:true}).selectOption('z');
+  await page.getByLabel('Alignment edge',{exact:true}).selectOption('min');
+  await page.getByRole('button',{name:'Align cabinet to reference',exact:true}).click();
+  await page.getByText('Cabinet aligned',{exact:true}).waitFor();
+  assert.notEqual(await page.getByLabel('Cabinet z',{exact:true}).inputValue(),'0');
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  assert.equal(await page.getByLabel('Cabinet z',{exact:true}).inputValue(),'0');
+  await page.getByRole('button',{name:'Redo',exact:true}).click();
+  assert.notEqual(await page.getByLabel('Cabinet z',{exact:true}).inputValue(),'0');
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  await page.getByLabel('Arrangement axis',{exact:true}).selectOption('x');
+  await page.getByLabel('Cabinet gap metres',{exact:true}).fill('0.123');
+  await page.getByRole('button',{name:'Set cabinet gap',exact:true}).click();
+  await page.getByText('Cabinet gap applied',{exact:true}).waitFor();
+  assert.match(await page.getByTestId('projected-cabinet-gap').textContent(),/0.123 m/);
+  const arrangedX=Number(await page.getByLabel('Cabinet x',{exact:true}).inputValue());
+  assert.ok(Math.abs(arrangedX/.25-Math.round(arrangedX/.25))>.01,'exact gap must bypass grid snapping');
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  assert.equal(await page.getByLabel('Cabinet x',{exact:true}).inputValue(),'2');
+  await page.getByLabel('Alignment edge',{exact:true}).selectOption('center');
+  await page.getByRole('button',{name:'Align cabinet to reference',exact:true}).click();
+  await page.getByText('Cabinets cannot overlap',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Cabinet x',{exact:true}).inputValue(),'2');
+  await page.getByLabel('Cabinet gap metres',{exact:true}).fill('10');
+  await page.getByRole('button',{name:'Set cabinet gap',exact:true}).click();
+  await page.getByText('Cabinet must fit inside the room',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Cabinet x',{exact:true}).inputValue(),'2');
+
 
 
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
