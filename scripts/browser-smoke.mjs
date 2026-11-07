@@ -683,6 +683,18 @@ try {
   await page.getByRole('button',{name:'Save customer record',exact:true}).click();
   await page.getByTestId('customer-message').filter({hasText:'Customer record saved'}).waitFor();
   assert.match(await page.getByTestId('saved-quote-details').textContent(),/Example customer/);
+  await page.getByLabel('Search customers',{exact:true}).fill('no matching contact');
+  assert.match(await page.getByTestId('customer-filter-count').textContent(),/0 of 1/);
+  await page.getByLabel('Search customers',{exact:true}).fill('example.com');
+  assert.match(await page.getByTestId('customer-filter-count').textContent(),/1 of 1/);
+  const customerBackupPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export selected customer backup',exact:true}).click();
+  const customerBackupDownload=await customerBackupPromise,customerBackupStream=await customerBackupDownload.createReadStream();let customerBackupJson='';
+  for await(const chunk of customerBackupStream)customerBackupJson+=chunk.toString();
+  await page.getByLabel('Restore customer backup file',{exact:true}).setInputFiles({name:'customer.json',mimeType:'application/json',buffer:Buffer.from(customerBackupJson)});
+  await page.getByTestId('customer-message').filter({hasText:'Customer restored as a new record'}).waitFor();
+  assert.match(await page.getByTestId('customer-filter-count').textContent(),/2 of 2/);
+
   await page.getByLabel('Quote customer',{exact:true}).fill('Unsaved customer');
   const quotePrintPromise=page.waitForEvent('download');
   await page.getByRole('button',{name:'Export printable quote',exact:true}).click();
@@ -706,6 +718,18 @@ try {
   await page.getByRole('button',{name:'Record quote as accepted',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Quote status recorded: accepted'}).waitFor();
   assert.match(await page.getByTestId('quote-status').textContent(),/accepted/);
+  await page.getByTestId('quote-register-row').filter({hasText:'accepted'}).waitFor();
+  await page.getByLabel('Search all quotes',{exact:true}).fill('Example Q-TEST');
+  await page.getByLabel('Quote register status',{exact:true}).selectOption('draft');
+  assert.equal(await page.getByTestId('quote-register-row').count(),0);
+  await page.getByLabel('Quote register status',{exact:true}).selectOption('accepted');
+  assert.equal(await page.getByTestId('quote-register-row').count(),1);
+  await page.getByRole('button',{name:'Open quote snapshot',exact:true}).click();
+  await page.getByTestId('job-record-message').filter({hasText:'Quote snapshot opened from register'}).waitFor();
+  assert.equal(await page.getByLabel('Saved quote',{exact:true}).inputValue(),quote.id);
+  await page.getByLabel('Search all quotes',{exact:true}).fill('');
+  await page.getByLabel('Quote register status',{exact:true}).selectOption('all');
+
 
 
   assert.match(await page.getByTestId('saved-quote').textContent(),new RegExp((quote.costing.totalCents/100).toFixed(2)));

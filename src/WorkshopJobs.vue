@@ -1,4 +1,5 @@
 <script setup>
+import QuoteRegister from './QuoteRegister.vue';
 import JobQuotes from './JobQuotes.vue';
 import {ref,computed,onMounted,watch} from 'vue';
 import {exportJobBackup,MAX_JOB_BACKUP_BYTES} from '../shared/job-backup.mjs';
@@ -6,6 +7,8 @@ import {filterJobs,jobRollup} from '../shared/job-register.mjs';
 import {verifyJobManifest} from '../shared/job-manifest.mjs';
 const props=defineProps({project:{type:Object,required:true}}),emit=defineEmits(['export','record','quote','quotePrint']);
 const jobs=ref([]),choice=ref(''),record=ref(null),revision=ref(1),name=ref(''),reviewer=ref(''),note=ref(''),message=ref(''),busy=ref(false),comparison=ref('');
+const quoteFocus=ref(''),registerVersion=ref(0);
+function openQuote(q){return run(async()=>{record.value=await request('/api/jobs/'+q.jobId);choice.value=q.jobId;revision.value=q.revision;quoteFocus.value=q.quoteId;comparison.value='';message.value='Quote snapshot opened from register';});}
 const query=ref(''),statusFilter=ref('all'),sortOrder=ref('updated');
 const visibleJobs=computed(()=>filterJobs(jobs.value,{query:query.value,status:statusFilter.value,sort:sortOrder.value}));
 const totals=computed(()=>jobRollup(jobs.value));
@@ -20,9 +23,9 @@ function quoteStatus(input){return run(async()=>{record.value=await request('/ap
 const selected=()=>record.value?.revisions.find(r=>r.number===revision.value);
 watch(()=>props.project,()=>comparison.value='',{deep:true});
 async function request(path,body){const response=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const result=await response.json();if(!response.ok)throw Error(result.error);return result;}
-async function refresh(){jobs.value=await request('/api/jobs');}
-async function run(action){busy.value=true;try{await action();}catch(e){message.value=e.message;}finally{busy.value=false;}}
-function load(){return run(async()=>{record.value=await request('/api/jobs/'+choice.value);revision.value=record.value.revisions.length;comparison.value='';message.value='Workshop job opened';});}
+async function refresh(){jobs.value=await request('/api/jobs');registerVersion.value++;}
+async function run(action){if(busy.value)return;busy.value=true;try{await action();}catch(e){message.value=e.message;}finally{busy.value=false;}}
+function load(){return run(async()=>{record.value=await request('/api/jobs/'+choice.value);revision.value=record.value.revisions.length;quoteFocus.value='';comparison.value='';message.value='Workshop job opened';});}
 function create(){return run(async()=>{record.value=await request('/api/jobs',{name:name.value,project:props.project});choice.value=record.value.id;revision.value=1;await refresh();message.value='Workshop job created';});}
 function revise(){return run(async()=>{record.value=await request('/api/jobs/'+record.value.id+'/revisions',{project:props.project,expectedRevision:record.value.revisions.length});revision.value=record.value.revisions.length;comparison.value='';await refresh();message.value='Workshop job revision saved';});}
 function review(){return run(async()=>{record.value=await request('/api/jobs/'+record.value.id+'/review',{revision:revision.value,expectedRevision:record.value.revisions.length,reviewer:reviewer.value,note:note.value});await refresh();message.value='Workshop revision marked reviewed';});}
@@ -32,7 +35,7 @@ onMounted(()=>run(refresh));
 <template>
   <section aria-label="Workshop job records" class="workshop-jobs">
     <h3>Workshop job records</h3><p class="hint">Stored by this local service, independently of project saves. Revisions keep immutable model snapshots. Reviewed records document a local review, not production approval.</p>
-    <fieldset :disabled="busy"><label>Workshop job name<input v-model="name" maxlength="80"></label><button :disabled="!name.trim()" @click="create">Create workshop job</button>
+    <QuoteRegister :refresh-key="registerVersion" :busy="busy" @open="openQuote"/><fieldset :disabled="busy"><label>Workshop job name<input v-model="name" maxlength="80"></label><button :disabled="!name.trim()" @click="create">Create workshop job</button>
     <label>Restore workshop job backup<input type="file" accept=".json,application/json" aria-label="Restore workshop job backup file" @change="restoreFile"></label><p class="hint">Restore verifies all snapshots and history, creates a new job ID and renames name conflicts. Existing jobs stay intact. Restored review/tracking claims are not authenticated.</p><button @click="run(refresh)">Refresh workshop jobs</button>
     <section aria-label="Workshop job register">
       <p data-testid="job-rollup">{{ totals.total }} jobs · {{ totals.planned||0 }} planned · {{ totals.reviewed||0 }} reviewed · {{ (totals.assigned||0)+(totals['in-production']||0) }} active · {{ totals.completed||0 }} completed · {{ totals.cancelled||0 }} cancelled · {{ totals.blocked||0 }} blocked</p>
@@ -64,7 +67,7 @@ onMounted(()=>run(refresh));
         <template v-if="!selected().fulfilment"><label>Assigned workshop<input v-model="workshop" maxlength="80"></label><label>Workshop due date<input v-model="dueDate" type="date"></label><button :disabled="!actor.trim()||!trackingNote.trim()||!workshop.trim()" @click="fulfil('assigned')">Assign workshop</button></template>
         <template v-else><button v-if="selected().fulfilment.status==='assigned'" :disabled="!actor.trim()||!trackingNote.trim()" @click="fulfil('in-production')">Start production tracking</button><button v-if="selected().fulfilment.status==='in-production'" :disabled="!actor.trim()||!trackingNote.trim()" @click="fulfil('completed')">Mark workshop completed</button><button :disabled="!actor.trim()||!trackingNote.trim()" @click="fulfil('cancelled')">Cancel workshop assignment</button></template>
       </template>
-      <JobQuotes :key="record.id+':'+revision" :revision="selected()" :busy="busy" :job-name="record.name" @save="saveQuote" @status="quoteStatus" @export="emit('quote',$event)" @print="emit('quotePrint',$event)"/>
+      <JobQuotes :key="record.id+':'+revision" :revision="selected()" :busy="busy" :job-name="record.name" :focus-id="quoteFocus" @save="saveQuote" @status="quoteStatus" @export="emit('quote',$event)" @print="emit('quotePrint',$event)"/>
     </template></fieldset><p role="status" data-testid="job-record-message">{{ message }}</p>
   </section>
 </template>

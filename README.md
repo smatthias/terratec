@@ -484,3 +484,20 @@ uses revision/event checks to prevent stale updates. Job backups include and
 validate the event history. The printable estimate shows its recorded status.
 No emails or other communications are sent, and accepted status is a local
 observation rather than authenticated customer acceptance or a legal approval.
+
+### Customer search, backups and quote register
+
+Search customer records by name, email, phone or address. Every search word must
+match; the selected record remains available outside the filtered results. Export
+the selected customer as a versioned JSON backup, then restore it as a new ID.
+Name conflicts gain `(restore N)`; existing records and saved quote recipient IDs
+are never rewritten. Backups validate contact fields, accept up to 8 KiB and
+contain no credentials or automatic messaging instructions. This is one-contact
+backup, not a full-directory backup; retain the data directory for all contacts.
+
+**All job quotes** lists saved snapshots from every local job/revision, including
+restored copies. Search saved customer, reference, job name or IDs and filter by
+local quote status. Open navigates to that exact job, revision and quote snapshot
+without replacing the design model. Refresh retrieves local service changes.
+`GET /api/quotes` provides compact register rows; currency amounts stay separate
+and are never combined into a misleading mixed-currency total.

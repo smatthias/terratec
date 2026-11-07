@@ -3,7 +3,7 @@ import CustomerRecords from './CustomerRecords.vue';
 import {ref,computed,watch} from 'vue';
 import {printableQuote} from '../shared/quote-print.mjs';
 import {quoteCosting,moneyToCents,validateQuoteDetails} from '../shared/quote.mjs';
-const props=defineProps({revision:{type:Object,required:true},busy:Boolean,jobName:{type:String,default:''}}),emit=defineEmits(['save','export','print','status']);
+const props=defineProps({revision:{type:Object,required:true},busy:Boolean,jobName:{type:String,default:''},focusId:{type:String,default:''}}),emit=defineEmits(['save','export','print','status']);
 const statusActor=ref(''),statusNote=ref('');
 function setStatus(status){emit('status',{quoteId:saved.value.id,status,expectedEvent:saved.value.lifecycle?.events.length??0,actor:statusActor.value,note:statusNote.value});}
 const details=ref({customer:'',reference:'',notes:''});
@@ -12,6 +12,7 @@ const pricing=()=>{if(typeof markup.value!=='number'||!Number.isFinite(markup.va
 const preview=computed(()=>{try{validateQuoteDetails(details.value);return {cost:quoteCosting(props.revision.manifest,props.revision.number,pricing())};}catch(e){return {error:e.message};}});
 const saved=computed(()=>props.revision.quotes?.find(q=>q.id===choice.value));
 watch(()=>props.revision.quotes,(quotes,previous)=>{if(quotes?.length&&(previous?.length!==quotes.length||!quotes.some(q=>q.id===choice.value)))choice.value=quotes.at(-1).id;},{deep:true,immediate:true});
+watch(()=>props.focusId,id=>{if(props.revision.quotes?.some(q=>q.id===id))choice.value=id;},{immediate:true});
 const amount=(cents,code=currency.value)=>(cents/100).toFixed(2)+' '+code;
 </script>
 <template>

@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **55%** of the planned functional scope, estimated by effort and verified
+Overall: **57%** of the planned functional scope, estimated by effort and verified
 capabilities. Percentages are planning estimates, not test coverage. This first
 foundation is not equivalent to a finished CAD application.
 
@@ -14,14 +14,14 @@ foundation is not equivalent to a finished CAD application.
 | Drawings and exchange | 43% | A4/A3 sheets, orientation, margins, fit feedback and blocked oversized exports | Pagination and more exchange formats |
 | Manufacturing | 58% | Snapshot manifests, derived layout verification and blocking handoff checks | Costing and workshop cutting constraints |
 | Distributed production | 55% | Searchable job register, workflow filters, due-date sorting and latest-revision summaries | Workshop contacts and assignment presets |
-| Customer and business tools | 36% | Persistent customer records, recipient snapshots and audited local quote lifecycle | Customer search/backup and quote register |
+| Customer and business tools | 44% | Customer search and copy-safe backups; cross-job quote register with snapshot navigation | Quote CSV exchange and customer archiving |
 | Assisted design | 0% | — | Structured design commands |
 | TerraFlux integration | 0% | — | Model exchange contract |
 | Release readiness | 12% | Recovery snapshots, storage-failure feedback and import validation | Installation and recovery |
 
-Next iteration: customer search/backup and a cross-job quote register.
+Next iteration: cabinet alignment and spacing tools in the design workspace.
 
-Validation: sixty-nine Node test groups and the Vite production build pass locally.
+Validation: seventy-one Node test groups and the Vite production build pass locally.
 The preceding foundation passed CMake/CTest in GitHub Actions. Browser smoke checks
 cover save/load, native quantities, selection across views and edits, ray picking,
 pan versus click, deselection, keyboard interaction, and mobile overflow, snapped/unsnapped endpoint edits, invalid-shape rejection, edited-outline persistence, corner dragging, single-gesture undo, redo, cancellation keyboard history, opening CRUD/undo/persistence and opening-aware wall/height validation. Local

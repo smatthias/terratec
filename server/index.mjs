@@ -22,14 +22,16 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
     };
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
+      if(path==='/api/quotes'&&req.method==='GET')return send(200,await jobs.quotes());
+      const customerRestore=path==='/api/customers/restore';
       const customerMatch=path.match(/^\/api\/customers\/([^/]+)$/);
       if(path==='/api/customers'||customerMatch){
-        if(req.method==='GET')return send(200,customerMatch?await customers.read(customerMatch[1]):await customers.list());
-        if(req.method!==(customerMatch?'PUT':'POST'))return send(405,{error:'Method not allowed'});
+        if(req.method==='GET'&&!customerRestore)return send(200,customerMatch?await customers.read(customerMatch[1]):await customers.list());
+        if(req.method!==(customerMatch&&!customerRestore?'PUT':'POST'))return send(405,{error:'Method not allowed'});
         if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
         const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>8192)return send(413,{error:'Customer request exceeds 8 KiB'});chunks.push(chunk);}
         let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid customer JSON'});}
-        return send(customerMatch?200:201,await customers.save(input,customerMatch?.[1]));
+        return send(customerRestore?201:customerMatch?200:201,customerRestore?await customers.restore(input):await customers.save(input,customerMatch?.[1]));
       }
       const restoring=path==='/api/jobs/restore';
       const jobMatch=path.match(/^\/api\/jobs\/([^/]+)(?:\/(revisions|review|fulfilment|quotes|quote-status))?$/);

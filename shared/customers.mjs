@@ -6,3 +6,14 @@ export function validateCustomer(input){
   if(result.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result.email))throw Error('Invalid customer email');
   return result;
 }
+export function filterCustomers(customers,query=''){
+  const words=query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return customers.filter(c=>words.every(w=>[c.name,c.email,c.phone,c.address].join(' ').toLowerCase().includes(w)));
+}
+export function exportCustomerBackup(customer){
+  return JSON.stringify({format:'terratec-customer-backup',version:1,customer:validateCustomer(customer)},null,2)+'\n';
+}
+export function parseCustomerBackup(input){
+  if(input?.format!=='terratec-customer-backup'||input.version!==1)throw Error('Unsupported customer backup format');
+  return validateCustomer(input.customer);
+}

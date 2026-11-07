@@ -1,3 +1,4 @@
+import {quoteRegister} from '../shared/quote-register.mjs';
 import {nextQuoteLifecycle} from '../shared/quote-lifecycle.mjs';
 import {readFile,writeFile,mkdir,rename,rm,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
@@ -28,7 +29,7 @@ export function jobStore(dataDir){
   };
   const manifest=async project=>{try{return await createJobManifest(project);}catch(e){fail(e.message);}};
   const expected=(record,value)=>{if(!Number.isInteger(value)||value!==record.revisions.length)fail('Job changed; reload before editing',409);};
-  return {read,list,
+  return {read,list,quotes:async()=>quoteRegister(await Promise.all((await list()).map(j=>read(j.id)))),
     restore:input=>serial(async()=>{
       let imported;try{imported=await validateJobBackup(input);}catch(e){fail(e.message);}
       const existing=await list();if(existing.length>=50)fail('Maximum 50 local workshop jobs');

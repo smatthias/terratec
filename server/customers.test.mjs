@@ -1,3 +1,4 @@
+import {exportCustomerBackup} from '../shared/customers.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
@@ -16,4 +17,7 @@ test('customer API validates contacts, persists edits and rejects stale versions
  assert.equal((await fetch(base+'/api/customers/not-an-id')).status,400);
  assert.equal((await (await fetch(base+'/api/customers')).json()).length,1);
  assert.equal((await customerStore(dataDir).read(c.id)).name,'Renamed');
+ const backup=JSON.parse(exportCustomerBackup(await customerStore(dataDir).read(c.id)));
+ const restoredResponse=await send('/api/customers/restore','POST',backup);assert.equal(restoredResponse.status,201);const restored=await restoredResponse.json();assert.notEqual(restored.id,c.id);assert.equal(restored.name,'Renamed (restore 1)');
+ assert.equal((await send('/api/customers/restore','POST',{format:'wrong'})).status,400);assert.equal((await customerStore(dataDir).list()).length,2);assert.equal((await customerStore(dataDir).read(c.id)).name,'Renamed');
 });

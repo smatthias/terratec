@@ -23,5 +23,6 @@ test('quote snapshots persist against exact revisions and backup verifies all de
   await assert.rejects(async()=>validateJobBackup(JSON.parse(await exportJobBackup(altered))),/quote/);
   const restored=await store.restore(JSON.parse(await exportJobBackup(again)));assert.deepEqual(restored.revisions[0].quotes,again.revisions[0].quotes);
   assert.equal((await jobStore(directory).read(job.id)).revisions[0].quotes.length,2);
+  const register=await store.quotes();assert.equal(register.length,4);assert.equal(register.filter(q=>q.jobId===job.id).length,2);assert.equal(register[0].currency,'EUR');
   const blocked=await store.create({name:'Empty',project:base});await assert.rejects(()=>store.quote(blocked.id,request),/blockers/);
 });
