@@ -551,3 +551,17 @@ undo, like opening presets, and persists via project save/recovery/JSON/duplicat
 
 The optional furniturePresets field is validated when present; older project and
 manifest snapshots keep their existing shape and continue to verify unchanged.
+
+### Furniture insertion previews
+
+Furniture library can preview a cabinet copy or selected preset at the target X/Z.
+Coordinate edits update the snapped preview. Green ghosts indicate a valid
+insertion; red ghosts retain the candidate footprint/body and explain why it is
+invalid. Plan shows its footprint; 3D shows translucent panels. Ghosts are not
+selectable and do not enter project geometry, quantities, exports or history.
+
+Confirm revalidates the current room and inserts once; Escape or Cancel discards
+the preview. Model, selection or grid changes cancel it, and preview ghosts dispose
+their geometry/materials when replaced. View switching retains the preview.
+Existing direct copy/preset commands remain available. These previews use numeric
+coordinates; pointer-driven placement is a later step.

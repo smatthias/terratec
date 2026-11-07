@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {rectangle} from './geometry.mjs';
-import {duplicateCabinet,saveFurniturePreset,validateFurniturePresets,instantiateFurniturePreset} from './furniture-library.mjs';
+import {duplicateCabinet,saveFurniturePreset,validateFurniturePresets,instantiateFurniturePreset,previewFurnitureInsertion} from './furniture-library.mjs';
 import {validateProject} from './project.mjs';
 import {serializeProjectJson,parseProjectJson} from './project-json.mjs';
 import {createHistory,commitHistory,undoHistory} from './history.mjs';
@@ -21,4 +21,12 @@ test('furniture presets validate and persist independently of instance identity,
  assert.throws(()=>validateFurniturePresets([{...presets[0],thickness:1}]));assert.throws(()=>validateFurniturePresets([presets[0],presets[0]]),/unique/);
  const project={schemaVersion:6,units:'m',name:'Project',presets:[],room,furniturePresets:presets};assert.deepEqual(parseProjectJson(serializeProjectJson(project)).furniturePresets,presets);
  assert.equal(Object.hasOwn(validateProject({schemaVersion:6,units:'m',name:'Legacy',presets:[],room}),'furniturePresets'),false,'legacy manifest snapshot shape remains unchanged');
+});
+
+test('insertion preview is mutation-free, retains invalid candidates and agrees with committed placement',()=>{
+ const before=JSON.stringify(room),request={kind:'copy',sourceId:'a',id:'b',point:{x:.63,z:.37}};
+ const good=previewFurnitureInsertion(room,request,.25);assert.equal(good.valid,true);assert.equal(good.candidate.x,.75);
+ assert.deepEqual(good.candidate,duplicateCabinet(room,'a','b',request.point,.25).furniture.at(-1));
+ const bad=previewFurnitureInsertion(room,{...request,point:{x:-2,z:0}},.25);assert.equal(bad.valid,false);assert.match(bad.error,/overlap/);assert.equal(bad.candidate.x,-2);
+ assert.equal(previewFurnitureInsertion(room,{...request,point:{x:NaN,z:0}},.25).candidate,null);assert.equal(JSON.stringify(room),before);
 });

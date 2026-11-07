@@ -30,3 +30,20 @@ export function instantiateFurniturePreset(room,preset,id,point,spacing,snap=tru
   const [validated]=validateFurniturePresets([preset]);
   return addInstance(room,{...validated,rotation:0},id,validated.name,point,spacing,snap);
 }
+export function previewFurnitureInsertion(room,request,spacing,snap=true){
+  let candidate=null;
+  try{
+    let template,name;
+    if(request.kind==='copy'){
+      template=room.furniture.find(c=>c.id===request.sourceId);if(!template)throw Error('Select a cabinet to preview');name=template.name.slice(0,53)+' (copy)';
+    }else if(request.kind==='preset'){
+      [template]=validateFurniturePresets([request.preset]);name=template.name;template={...template,rotation:0};
+    }else throw Error('Unknown furniture preview');
+    candidate={...template,type:'cabinet',id:request.id,name,...snapPoint(request.point,spacing,snap)};
+    const furniture=validateFurniture([...room.furniture,candidate],room.outline,room.height);
+    return {candidate:furniture.at(-1),valid:true,error:''};
+  }catch(error){
+    if(candidate&&!['x','z','width','depth','height','rotation'].every(k=>Number.isFinite(candidate[k])))candidate=null;
+    return {candidate,valid:false,error:error.message};
+  }
+}
