@@ -904,6 +904,40 @@ try {
 
 
 
+  const groupCabinet=(id,name,x,z,width)=>({id,name,type:'cabinet',x,z,width,depth:.5,height:1.2,rotation:0,thickness:.018,shelves:1});
+  const groupProject={...exportedProject,name:'Group layout test',room:{width:10,depth:8,height:3,outline:[{x:-5,z:-4},{x:5,z:-4},{x:5,z:4},{x:-5,z:4}],openings:[],furniture:[groupCabinet('left','Left',-3,-2,.8),groupCabinet('middle','Middle',-1,0,1.2),groupCabinet('right','Right',3,2,1.4)]}};
+  await page.getByLabel('Import project JSON',{exact:true}).setInputFiles({name:'group.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(groupProject))});
+  await page.getByText('Project JSON imported as an unsaved copy',{exact:true}).waitFor();
+  await page.getByLabel('Furniture item',{exact:true}).selectOption({label:'Middle'});
+  await page.getByRole('button',{name:'Select all layout cabinets',exact:true}).click();
+  assert.match(await page.getByTestId('layout-selection-count').textContent(),/3 layout/);
+  await page.getByLabel('Arrangement axis',{exact:true}).selectOption('z');
+  await page.getByLabel('Alignment edge',{exact:true}).selectOption('center');
+  await page.getByRole('button',{name:'Align cabinet group',exact:true}).click();
+  await page.getByText('Cabinet group aligned',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  assert.equal(await page.getByRole('button',{name:'Undo',exact:true}).isDisabled(),true,'one group operation is one history entry');
+  await page.getByRole('button',{name:'Redo',exact:true}).click();
+  await page.getByLabel('Furniture item',{exact:true}).selectOption({label:'Left'});
+  assert.equal(await page.getByLabel('Cabinet z',{exact:true}).inputValue(),'0');
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  assert.equal(await page.getByLabel('Cabinet z',{exact:true}).inputValue(),'-2');
+  await page.getByLabel('Furniture item',{exact:true}).selectOption({label:'Middle'});
+  await page.getByRole('button',{name:'Select all layout cabinets',exact:true}).click();
+  await page.getByLabel('Arrangement axis',{exact:true}).selectOption('x');
+  await page.getByRole('button',{name:'Distribute equal cabinet gaps',exact:true}).click();
+  await page.getByText('Cabinet gaps distributed',{exact:true}).waitFor();
+  assert.ok(Math.abs(Number(await page.getByLabel('Cabinet x',{exact:true}).inputValue())+.15)<1e-9);
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  assert.equal(await page.getByLabel('Cabinet x',{exact:true}).inputValue(),'-1');
+  await page.getByRole('button',{name:'Redo',exact:true}).click();
+  await page.getByRole('button',{name:'Save project',exact:true}).click();
+  await page.getByText('Project saved',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Open saved',exact:true}).click();
+  await page.getByText('Saved project opened',{exact:true}).waitFor();
+  await page.getByLabel('Furniture item',{exact:true}).selectOption({label:'Middle'});
+  assert.ok(Math.abs(Number(await page.getByLabel('Cabinet x',{exact:true}).inputValue())+.15)<1e-9);
+  assert.equal(await page.getByRole('button',{name:'Distribute equal cabinet gaps',exact:true}).isDisabled(),true);
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});

@@ -516,3 +516,21 @@ footprint must remain inside the room and avoid other cabinets. Rejected edits
 leave geometry/history unchanged; a valid change is one undo step and follows
 normal save/recovery/JSON behaviour. Handles and door-swing clearances are not
 included. These are placement operations, not persistent relational constraints.
+
+### Group alignment and equal-gap distribution
+
+In Group layout, select cabinets using the checkboxes or Select all. The active
+cabinet stays selected and acts as the fixed anchor for group alignment; all other
+selected cabinets align the chosen minimum/centre/maximum edge along world X/Z.
+Changing the active cabinet resets the group selection to that cabinet.
+
+Equal-gap distribution requires at least three cabinets. Cabinets are ordered by
+projected minimum edge (ID breaks ties), with the first/last held fixed. Interior
+cabinets move to equal projected edge gaps, accounting for rotated body widths.
+Insufficient span for non-negative gaps is rejected. Other-axis positions and
+all dimensions/rotations remain unchanged. Unselected cabinets stay fixed.
+
+All final placements are validated together for containment and collision before
+one history commit. Invalid operations leave all positions unchanged. These are
+exact, one-off layout commands rather than persistent constraints; normal saved
+project, recovery and JSON handling applies to the resulting geometry.
