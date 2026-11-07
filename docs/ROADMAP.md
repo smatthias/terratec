@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **61%** of the planned functional scope, estimated by effort and verified
+Overall: **63%** of the planned functional scope, estimated by effort and verified
 capabilities. Percentages are planning estimates, not test coverage. This first
 foundation is not equivalent to a finished CAD application.
 
@@ -8,9 +8,9 @@ foundation is not equivalent to a finished CAD application.
 | --- | ---: | --- | --- |
 | Project foundation | 90% | C++ core, Node API, Vue/Three.js application, schema 6 furniture/presets with older-project migration, UUID-backed project collection, atomic save/load, CI configuration | Configuration checks and installation |
 | Design workspace | 87% | Group selection, anchor alignment and equal-gap distribution with one-step undo | Layout preview and placement guides |
-| Parametric geometry | 23% | Atomic group placement and rotated-width equal-gap distribution | Persistent constraints and arbitrary outlines |
+| Parametric geometry | 27% | Validated reusable cabinet designs without instance identity/pose | Persistent constraints and arbitrary outlines |
 | Building design | 27% | A/B hinge and inward/outward swing, consistent in Plan/3D, undo and saves | Swing clearance checks and multiple rooms |
-| Interiors and furniture | 40% | Validated multi-cabinet arrangement with fixed anchors/endpoints | Furniture duplication and grouping |
+| Interiors and furniture | 48% | Validated duplication and project furniture presets with independent instances | Previewed placement and more furniture types |
 | Drawings and exchange | 43% | A4/A3 sheets, orientation, margins, fit feedback and blocked oversized exports | Pagination and more exchange formats |
 | Manufacturing | 58% | Snapshot manifests, derived layout verification and blocking handoff checks | Costing and workshop cutting constraints |
 | Distributed production | 55% | Searchable job register, workflow filters, due-date sorting and latest-revision summaries | Workshop contacts and assignment presets |
@@ -19,9 +19,9 @@ foundation is not equivalent to a finished CAD application.
 | TerraFlux integration | 0% | — | Model exchange contract |
 | Release readiness | 12% | Recovery snapshots, storage-failure feedback and import validation | Installation and recovery |
 
-Next iteration: cabinet duplication with validated placement and reusable furniture presets.
+Next iteration: preset/copy placement preview before committing new instances.
 
-Validation: seventy-five Node test groups and the Vite production build pass locally.
+Validation: seventy-seven Node test groups and the Vite production build pass locally.
 The preceding foundation passed CMake/CTest in GitHub Actions. Browser smoke checks
 cover save/load, native quantities, selection across views and edits, ray picking,
 pan versus click, deselection, keyboard interaction, and mobile overflow, snapped/unsnapped endpoint edits, invalid-shape rejection, edited-outline persistence, corner dragging, single-gesture undo, redo, cancellation keyboard history, opening CRUD/undo/persistence and opening-aware wall/height validation. Local

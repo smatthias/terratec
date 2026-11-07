@@ -534,3 +534,20 @@ All final placements are validated together for containment and collision before
 one history commit. Invalid operations leave all positions unchanged. These are
 exact, one-off layout commands rather than persistent constraints; normal saved
 project, recovery and JSON handling applies to the resulting geometry.
+
+### Cabinet copies and furniture presets
+
+Furniture library provides a target X/Z position for duplicating the active
+cabinet or creating an instance from a saved preset. Current grid settings snap
+that position. Copies retain dimensions, rotation, material and manufacturing
+settings, receive a fresh ID and a copy name, and are placed in one undo step.
+Overlap, room boundaries and the 64-cabinet cap reject the entire insertion.
+
+Save applied cabinet parameters as a named project preset (maximum 32). Matching
+names update that preset while preserving its ID. Presets omit instance position
+and rotation; new instances start at rotation 0° with fresh IDs. Updating/deleting
+a preset leaves existing cabinets independent. Preset metadata is outside geometry
+undo, like opening presets, and persists via project save/recovery/JSON/duplication.
+
+The optional furniturePresets field is validated when present; older project and
+manifest snapshots keep their existing shape and continue to verify unchanged.

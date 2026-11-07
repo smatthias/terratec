@@ -1,3 +1,4 @@
+import {validateFurniturePresets} from './furniture-library.mjs';
 import {validateWorkshopProfiles} from './workshop-profiles.mjs';
 import { rectangle, bounds, validateOutline } from './geometry.mjs';
 import { validateOpenings } from './openings.mjs';
@@ -17,5 +18,5 @@ export function validateProject(value) {
   const openings=validateOpenings(value.schemaVersion>=3?value.room.openings:[],outline,value.room.height);
   const presets=validatePresets(value.schemaVersion>=5?value.presets:[]);
   const furniture=validateFurniture(value.schemaVersion===6?value.room.furniture:[],outline,value.room.height);
-  return {schemaVersion:6,presets,workshopProfiles:validateWorkshopProfiles(value.workshopProfiles??[]),units:'m',name:value.name.trim(),room:{width,depth,height:value.room.height,outline,openings,furniture}};
+  return {...(value.furniturePresets!==undefined?{furniturePresets:validateFurniturePresets(value.furniturePresets)}:{}),schemaVersion:6,presets,workshopProfiles:validateWorkshopProfiles(value.workshopProfiles??[]),units:'m',name:value.name.trim(),room:{width,depth,height:value.room.height,outline,openings,furniture}};
 }
