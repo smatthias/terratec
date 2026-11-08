@@ -62,3 +62,19 @@ test('invalid width weights and undersized weighted bays are rejected',()=>{
  for(const columnWeights of [null,[],[1,2],[1,0,1],[1,-1,1],[1,NaN,1],[1,'2',1],[1,1001,1],Array(3)])assert.throws(()=>validateFurniture([{...item,columns:3,columnWeights}],room.outline,3));
  assert.throws(()=>validateFurniture([{...item,columns:3,columnWeights:[.01,100,1]}],room.outline,3),/clear width/);
 });
+test('per-bay fronts generate open/single/double panels and matching hardware without duplicate IDs',()=>{
+ const cabinet={...item,columns:3,columnWeights:[1,2,1],columnFronts:['open','single','double']},parts=cabinetParts(cabinet),layout=cabinetCompartments(cabinet),bom=cabinetBom(cabinet);
+ const fronts=parts.filter(p=>p.part.startsWith('front'));assert.equal(fronts.length,3);assert.equal(parts.filter(p=>p.part==='handle').length,3);assert.equal(bom.handles,3);
+ assert.equal(bom.rows.find(r=>r.part==='front-column-2').quantity,1);assert.equal(bom.rows.find(r=>r.part==='front-column-3').quantity,2);
+ for(const front of fronts){const bay=layout.bays[Number(front.part.split('-').at(-1))-1];assert.ok(front.position[0]-front.size[0]/2>bay.x-bay.width/2);assert.ok(front.position[0]+front.size[0]/2<bay.x+bay.width/2);}
+ const panels=manufacturingBatches([cabinet])[0].layout.sheets.flatMap(s=>s.panels);assert.equal(new Set(panels.map(p=>p.id)).size,panels.length);
+ assert.equal(cabinetBom({...cabinet,columnFronts:['open','open','open']}).handles,0);
+ assert.equal(cabinetParts(item).filter(p=>p.part==='front').length,2);
+});
+test('front configurations validate and survive project copies and presets',()=>{
+ for(const columnFronts of [null,[],['open'],['open','bad','single'],Array(3)])assert.throws(()=>validateFurniture([{...item,columns:3,columnFronts}],room.outline,3));
+ const cabinet={...item,columns:3,columnFronts:['open','single','double']},source={...room,furniture:[cabinet]};
+ const project=validateProject({schemaVersion:6,presets:[],name:'Test',units:'m',room:source});assert.deepEqual(validateProject(JSON.parse(JSON.stringify(project))).room.furniture[0].columnFronts,cabinet.columnFronts);
+ const copy=duplicateCabinet(source,'a','b',{x:2,z:0},.1).furniture[1];copy.columnFronts[0]='double';assert.equal(cabinet.columnFronts[0],'open');
+ const [preset]=saveFurniturePreset([],{...cabinet,id:'fronts',name:'Mixed fronts'});assert.deepEqual(instantiateFurniturePreset(source,preset,'c',{x:-2,z:0},.1).furniture[1].columnFronts,cabinet.columnFronts);
+});

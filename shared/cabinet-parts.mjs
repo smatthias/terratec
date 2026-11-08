@@ -10,9 +10,21 @@ export function cabinetParts(item) {
   const layout=cabinetCompartments(item);
   for(const x of layout.dividers)add('divider','Divider',[t,h-2*t,d-2*t],[x,h/2,0],[h-2*t,d-2*t]);
   for(const [index,bay] of layout.bays.entries())for(let n=1;n<=bay.shelves;n++)add(item.columnWeights?'shelf-column-'+(index+1):'shelf',item.columnWeights?'Shelf column '+(index+1):'Shelf',[bay.width,t,d-2*t],[bay.x,t+(h-2*t)*n/(bay.shelves+1),0],[bay.width,d-2*t]);
+  if(item.columnFronts){
+    for(const [index,bay] of layout.bays.entries()){
+      if(bay.front==='open')continue;
+      const count=bay.front==='double'?2:1,leafWidth=count===2?bay.width/2-.003:bay.width-.006;
+      for(let leaf=0;leaf<count;leaf++){
+        const x=bay.x+(count===2?(leaf===0?-1:1)*bay.width/4:0),sign=count===2?(leaf===0?1:-1):1;
+        add('front-column-'+(index+1),'Front column '+(index+1),[leafWidth,h-2*t,t],[x,h/2,d/2-t/2],[h-2*t,leafWidth],0xd8b788);
+        add('handle','Handle',[.015,.12,.025],[x+sign*(leafWidth/2-Math.min(.04,leafWidth/3)),h*.55,d/2+.012],null,0x3e463d);
+      }
+    }
+  }else{
   for(const sign of [-1,1]) {
     add('front','Front',[(w-2*t)/2-.003,h-2*t,t],[sign*(w-2*t)/4,h/2,d/2-t/2],[h-2*t,(w-2*t)/2-.003],0xd8b788);
     add('handle','Handle',[.015,.12,.025],[sign*.04,h*.55,d/2+.012],null,0x3e463d);
+  }
   }
   const material=cabinetMaterials[item.material??'oak'];
   for(const part of parts) if(part.cut) part.color=material.color;
