@@ -1173,6 +1173,24 @@ try {
   const compartmentDownloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON',exact:true}).click();
   const compartmentDownload=await compartmentDownloadPromise,compartmentStream=await compartmentDownload.createReadStream();let compartmentText='';for await(const chunk of compartmentStream)compartmentText+=chunk.toString();
   assert.equal(JSON.parse(compartmentText).room.furniture.find(c=>c.id==='clearance-source').columns,3);
+  await page.getByLabel('Independent shelf counts per column',{exact:true}).check();
+  for(const [n,count] of [[1,0],[2,2],[3,4]])await page.getByLabel('Column '+n+' shelves',{exact:true}).fill(String(count));
+  await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByTestId('cabinet-compartment-summary').filter({hasText:'3 columns · shelves 0 / 2 / 4 · 9 compartments'}).waitFor();
+  await page.getByText('Shelf × 6',{exact:true}).waitFor();
+  await page.getByLabel('Column 3 shelves',{exact:true}).fill('11');await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByText('Column shelf counts must match columns and contain integers from 0 to 10',{exact:true}).waitFor();
+  assert.match(await page.getByTestId('cabinet-compartment-summary').textContent(),/0 \/ 2 \/ 4/);
+  await page.getByLabel('Column 3 shelves',{exact:true}).fill('4');
+  await page.getByLabel('Cabinet columns',{exact:true}).fill('4');assert.equal(await page.getByLabel('Column 4 shelves',{exact:true}).inputValue(),'1');
+  await page.getByLabel('Cabinet columns',{exact:true}).fill('3');assert.equal(await page.getByLabel('Column 4 shelves',{exact:true}).count(),0);
+  await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  const shelfDownloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON',exact:true}).click();
+  const shelfDownload=await shelfDownloadPromise,shelfStream=await shelfDownload.createReadStream();let shelfText='';for await(const chunk of shelfStream)shelfText+=chunk.toString();
+  assert.deepEqual(JSON.parse(shelfText).room.furniture.find(c=>c.id==='clearance-source').columnShelves,[0,2,4]);
+  await page.getByLabel('Independent shelf counts per column',{exact:true}).uncheck();await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByTestId('cabinet-compartment-summary').filter({hasText:'3 columns · 1 shelves per column · 6 compartments'}).waitFor();
+
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});

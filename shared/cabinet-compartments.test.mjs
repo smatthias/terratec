@@ -29,3 +29,20 @@ test('compartments survive project roundtrip, copies and saved presets',()=>{
  const [preset]=saveFurniturePreset([],{...room.furniture[0],id:'preset',name:'Three bays'});
  assert.equal(instantiateFurniturePreset(room,preset,'c',{x:-2,z:0},.1).furniture[1].columns,3);
 });
+test('independent shelf counts drive parts, BOM, manufacturing and saved designs',()=>{
+ const cabinet={...item,columns:3,columnShelves:[0,2,4]},layout=cabinetCompartments(cabinet);
+ assert.deepEqual(layout.bays.map(b=>b.shelves),[0,2,4]);
+ const shelves=cabinetParts(cabinet).filter(p=>p.part==='shelf');assert.equal(shelves.length,6);
+ for(const bay of layout.bays)assert.equal(shelves.filter(p=>p.position[0]===bay.x).length,bay.shelves);
+ assert.equal(cabinetBom(cabinet).rows.find(r=>r.part==='shelf').quantity,6);assert.equal(manufacturingBatches([cabinet])[0].panelCount,15);
+ const space={...room,furniture:[cabinet]};
+ const project=validateProject({schemaVersion:6,presets:[],name:'Test',units:'m',room:space});
+ assert.deepEqual(validateProject(JSON.parse(JSON.stringify(project))).room.furniture[0].columnShelves,[0,2,4]);
+ const copy=duplicateCabinet(space,'a','b',{x:2,z:0},.1).furniture[1];assert.deepEqual(copy.columnShelves,[0,2,4]);copy.columnShelves[0]=7;assert.equal(cabinet.columnShelves[0],0);
+ const [preset]=saveFurniturePreset([],{...cabinet,id:'preset',name:'Mixed shelves'});assert.deepEqual(instantiateFurniturePreset(space,preset,'c',{x:-2,z:0},.1).furniture[1].columnShelves,[0,2,4]);
+});
+test('column shelf overrides reject invalid arrays and physically crowded shelves',()=>{
+ for(const columnShelves of [[],[1],[0,1,11],[0,1,-1],[0,1,1.5],[0,1,null],null,'1,2,3',Array(3)])assert.throws(()=>validateFurniture([{...item,columns:3,columnShelves}],room.outline,3));
+ assert.throws(()=>validateFurniture([{...item,height:.2,thickness:.018,columns:3,columnShelves:[0,10,0]}],room.outline,3),/height/);
+ const [valid]=validateFurniture([{...item,height:.2,thickness:.018,shelves:10,columns:3,columnShelves:[0,0,0]}],room.outline,3);assert.equal(cabinetParts(valid).filter(p=>p.part==='shelf').length,0);
+});
