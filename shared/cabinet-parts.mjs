@@ -1,3 +1,4 @@
+import {cabinetCompartments} from './cabinet-compartments.mjs';
 import {validateStock,panelStockFit} from './stock.mjs';
 export const cabinetMaterials={oak:{label:'Oak board',color:0xb88c59},birch:{label:'Birch plywood',color:0xdec49a},white:{label:'White board',color:0xe8e8e2}};
 export function cabinetParts(item) {
@@ -6,7 +7,9 @@ export function cabinetParts(item) {
   for(const sign of [-1,1]) add('side','Side',[t,h,d],[sign*(w/2-t/2),h/2,0],[h,d]);
   for(const y of [t/2,h-t/2]) add('horizontal','Top/bottom',[w-2*t,t,d],[0,y,0],[w-2*t,d]);
   add('back','Back',[w-2*t,h-2*t,t],[0,h/2,-d/2+t/2],[h-2*t,w-2*t]);
-  for(let n=1;n<=item.shelves;n++)add('shelf','Shelf',[w-2*t,t,d-2*t],[0,t+(h-2*t)*n/(item.shelves+1),0],[w-2*t,d-2*t]);
+  const layout=cabinetCompartments(item);
+  for(const x of layout.dividers)add('divider','Divider',[t,h-2*t,d-2*t],[x,h/2,0],[h-2*t,d-2*t]);
+  for(const bay of layout.bays)for(let n=1;n<=item.shelves;n++)add('shelf','Shelf',[bay.width,t,d-2*t],[bay.x,t+(h-2*t)*n/(item.shelves+1),0],[bay.width,d-2*t]);
   for(const sign of [-1,1]) {
     add('front','Front',[(w-2*t)/2-.003,h-2*t,t],[sign*(w-2*t)/4,h/2,d/2-t/2],[h-2*t,(w-2*t)/2-.003],0xd8b788);
     add('handle','Handle',[.015,.12,.025],[sign*.04,h*.55,d/2+.012],null,0x3e463d);

@@ -1161,6 +1161,18 @@ try {
   assert.ok(JSON.parse(boundaryText).review.issues.some(issue=>issue.code==='SERVICE_WALL'&&issue.wall==='south'));
   await page.getByLabel('Cabinet z',{exact:true}).fill('0');await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
   await page.getByLabel('Cabinet front service depth metres',{exact:true}).fill('0');
+  await page.getByLabel('Cabinet columns',{exact:true}).fill('3');
+  await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByTestId('cabinet-compartment-summary').filter({hasText:'3 columns · 1 shelves per column · 6 compartments'}).waitFor();
+  assert.equal(await page.getByRole('img',{name:'Cabinet compartment elevation',exact:true}).count(),1);
+  await page.getByText('Divider × 2',{exact:true}).waitFor();
+  await page.getByLabel('Cabinet columns',{exact:true}).fill('9');await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByText('Cabinet columns must be an integer from 1 to 8',{exact:true}).waitFor();
+  assert.match(await page.getByTestId('cabinet-compartment-summary').textContent(),/3 columns/);
+  await page.getByLabel('Cabinet columns',{exact:true}).fill('3');
+  const compartmentDownloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON',exact:true}).click();
+  const compartmentDownload=await compartmentDownloadPromise,compartmentStream=await compartmentDownload.createReadStream();let compartmentText='';for await(const chunk of compartmentStream)compartmentText+=chunk.toString();
+  assert.equal(JSON.parse(compartmentText).room.furniture.find(c=>c.id==='clearance-source').columns,3);
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});
