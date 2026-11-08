@@ -1191,6 +1191,20 @@ try {
   await page.getByLabel('Independent shelf counts per column',{exact:true}).uncheck();await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
   await page.getByTestId('cabinet-compartment-summary').filter({hasText:'3 columns · 1 shelves per column · 6 compartments'}).waitFor();
 
+  await page.getByLabel('Unequal cabinet bay widths',{exact:true}).check();
+  await page.getByLabel('Column 2 width weight',{exact:true}).fill('2');await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByText(/Clear bay widths \(mm\): 132.0 \/ 264.0 \/ 132.0/).waitFor();
+  await page.getByText('Shelf column 2 × 1',{exact:true}).waitFor();
+  await page.getByLabel('Column 2 width weight',{exact:true}).fill('0');await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByText('Column width weights must match columns and be numbers from 0.01 to 1000',{exact:true}).waitFor();
+  await page.getByLabel('Column 2 width weight',{exact:true}).fill('2');
+  await page.getByLabel('Cabinet columns',{exact:true}).fill('4');assert.equal(await page.getByLabel('Column 4 width weight',{exact:true}).inputValue(),'1');
+  await page.getByLabel('Cabinet columns',{exact:true}).fill('3');await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  const widthDownloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON',exact:true}).click();
+  const widthDownload=await widthDownloadPromise,widthStream=await widthDownload.createReadStream();let widthText='';for await(const chunk of widthStream)widthText+=chunk.toString();
+  assert.deepEqual(JSON.parse(widthText).room.furniture.find(c=>c.id==='clearance-source').columnWeights,[1,2,1]);
+  await page.getByLabel('Unequal cabinet bay widths',{exact:true}).uncheck();await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByText(/Clear bay widths \(mm\): 176.0 \/ 176.0 \/ 176.0/).waitFor();
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});

@@ -34,7 +34,7 @@ export function validateFurniture(value,outline,roomHeight) {
     }
     if(footprints.some(other=>overlaps(footprint,other))) throw Error('Cabinets cannot overlap');
     ids.add(item.id);footprints.push(footprint);
-    return {...(item.columnShelves!==undefined?{columnShelves:[...item.columnShelves]}:{}),...(item.columns!==undefined?{columns:item.columns}:{}),id:item.id,type:'cabinet',name:item.name.trim(),width:item.width,depth:item.depth,height:item.height,x:item.x,z:item.z,rotation:item.rotation,thickness:item.thickness,shelves:item.shelves,material,lengthAllowanceMm,widthAllowanceMm,...stock};
+    return {...(item.columnWeights!==undefined?{columnWeights:[...item.columnWeights]}:{}),...(item.columnShelves!==undefined?{columnShelves:[...item.columnShelves]}:{}),...(item.columns!==undefined?{columns:item.columns}:{}),id:item.id,type:'cabinet',name:item.name.trim(),width:item.width,depth:item.depth,height:item.height,x:item.x,z:item.z,rotation:item.rotation,thickness:item.thickness,shelves:item.shelves,material,lengthAllowanceMm,widthAllowanceMm,...stock};
   });
 }
 

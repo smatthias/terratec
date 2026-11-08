@@ -46,3 +46,19 @@ test('column shelf overrides reject invalid arrays and physically crowded shelve
  assert.throws(()=>validateFurniture([{...item,height:.2,thickness:.018,columns:3,columnShelves:[0,10,0]}],room.outline,3),/height/);
  const [valid]=validateFurniture([{...item,height:.2,thickness:.018,shelves:10,columns:3,columnShelves:[0,0,0]}],room.outline,3);assert.equal(cabinetParts(valid).filter(p=>p.part==='shelf').length,0);
 });
+test('weighted bays use available width and yield unique manufacturing shelf identities',()=>{
+ const cabinet={...item,columns:3,columnWeights:[1,2,1],columnShelves:[1,2,3]},layout=cabinetCompartments(cabinet);
+ assert.ok(Math.abs(layout.bays[1].width-2*layout.bays[0].width)<1e-12);
+ assert.ok(Math.abs(layout.bays.reduce((n,b)=>n+b.width,0)+4*item.thickness-item.width)<1e-12);
+ for(let n=0;n<2;n++)assert.ok(Math.abs(layout.dividers[n]-(layout.bays[n].x+layout.bays[n].width/2+item.thickness/2))<1e-12);
+ const bom=cabinetBom(cabinet),shelves=bom.rows.filter(r=>r.part.startsWith('shelf-column-'));assert.equal(shelves.length,3);assert.deepEqual(shelves.map(r=>r.quantity),[1,2,3]);
+ assert.ok(Math.abs(shelves[1].length-2*shelves[0].length)<1e-12);
+ const batches=manufacturingBatches([cabinet]);const panels=batches[0].layout.sheets.flatMap(s=>s.panels);assert.equal(new Set(panels.map(p=>p.id)).size,panels.length);
+ const source={...room,furniture:[cabinet]},copy=duplicateCabinet(source,'a','b',{x:2,z:0},.1).furniture[1];assert.deepEqual(copy.columnWeights,[1,2,1]);copy.columnWeights[0]=9;assert.equal(cabinet.columnWeights[0],1);
+ const [preset]=saveFurniturePreset([],{...cabinet,id:'weighted',name:'Weighted'});assert.deepEqual(instantiateFurniturePreset(source,preset,'c',{x:-2,z:0},.1).furniture[1].columnWeights,[1,2,1]);
+ const project=validateProject({schemaVersion:6,presets:[],name:'Test',units:'m',room:source});assert.deepEqual(validateProject(JSON.parse(JSON.stringify(project))).room.furniture[0].columnWeights,[1,2,1]);
+});
+test('invalid width weights and undersized weighted bays are rejected',()=>{
+ for(const columnWeights of [null,[],[1,2],[1,0,1],[1,-1,1],[1,NaN,1],[1,'2',1],[1,1001,1],Array(3)])assert.throws(()=>validateFurniture([{...item,columns:3,columnWeights}],room.outline,3));
+ assert.throws(()=>validateFurniture([{...item,columns:3,columnWeights:[.01,100,1]}],room.outline,3),/clear width/);
+});
