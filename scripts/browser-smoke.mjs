@@ -1112,6 +1112,17 @@ try {
   await page.getByRole('button',{name:'Export clearance CSV',exact:true}).click();
   const clearanceCsvDownload=await clearanceCsvPromise,clearanceCsvStream=await clearanceCsvDownload.createReadStream();let clearanceCsvText='';for await(const chunk of clearanceCsvStream)clearanceCsvText+=chunk.toString();
   assert.match(clearanceCsvText,/DOOR_ZONE/);assert.match(clearanceCsvText,/clearance-source/);
+  const clearancePrintPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export printable clearance handoff',exact:true}).click();
+  const clearancePrintDownload=await clearancePrintPromise,clearancePrintStream=await clearancePrintDownload.createReadStream();let clearanceHtml='';for await(const chunk of clearancePrintStream)clearanceHtml+=chunk.toString();
+  assert.ok(clearancePrintDownload.suggestedFilename().endsWith('_clearance.html'));
+  const clearancePage=await browser.newPage({viewport:{width:1100,height:800}});await clearancePage.setContent(clearanceHtml);await clearancePage.emulateMedia({media:'print'});
+  assert.equal(await clearancePage.locator('[data-cabinet-ref="C1"]').count(),1);
+  assert.match(await clearancePage.locator('table').textContent(),/I1.*C1 · Source unit/);
+  assert.equal(await clearancePage.locator('script').count(),0);
+  const clearanceHeights=await clearancePage.locator('.page').evaluateAll(pages=>pages.map(p=>p.getBoundingClientRect().height));assert.ok(clearanceHeights.every(h=>h<=700),'clearance pages fit printable A4 landscape height');
+  await mkdir('test-results',{recursive:true});await clearancePage.pdf({path:'test-results/clearance-handoff.pdf',preferCSSPageSize:true,printBackground:true});await clearancePage.locator('.page').first().screenshot({path:'test-results/clearance-plan.png'});await clearancePage.close();
+
 
   await page.getByLabel('Furniture item',{exact:true}).selectOption('');
   await page.getByLabel('Show selected furniture clearance overlay',{exact:true}).uncheck();

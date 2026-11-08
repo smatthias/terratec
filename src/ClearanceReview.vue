@@ -7,7 +7,7 @@ const emit=defineEmits(['select','export']);
   <h3>Project clearance review</h3>
   <p v-if="review.error" role="status">{{ review.error }}</p>
   <template v-else>
-   <button @click="emit('export','json')">Export clearance JSON</button><button @click="emit('export','csv')">Export clearance CSV</button>
+   <button @click="emit('export','print')">Export printable clearance handoff</button><button @click="emit('export','json')">Export clearance JSON</button><button @click="emit('export','csv')">Export clearance CSV</button>
    <p data-testid="clearance-review-summary" role="status">{{ review.issues.length }} issues · {{ review.affectedCount }} of {{ review.cabinetCount }} cabinets affected</p>
    <p v-if="!review.cabinetCount" class="hint">Add a cabinet to review its clearances.</p>
    <p v-else-if="!review.issues.length" class="hint">No clearance issues under the current planning settings.</p>

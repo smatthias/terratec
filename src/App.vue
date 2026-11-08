@@ -7,8 +7,9 @@ import { createRoom, updateSurfaces, fitCamera, pickSurface, surfaces, createGri
 import {createFurnitureGhost,disposeFurnitureGhost,createClearanceOverlay} from './furniture-ghost.js';
 import FurnitureClearance from './FurnitureClearance.vue';
 import ClearanceReview from './ClearanceReview.vue';
+import {clearancePrint} from '../shared/clearance-print.mjs';
 import {clearanceJson,clearanceCsv} from '../shared/clearance-export.mjs';
-function exportClearance(format){try{const csv=format==='csv';downloadText((csv?clearanceCsv:clearanceJson)(project.value,clearanceOptions.value),csv?'text/csv;charset=utf-8':'application/json',csv?'_clearance.csv':'_clearance.json');message.value='Clearance review exported';}catch(error){message.value=error.message;}}
+function exportClearance(format){try{const csv=format==='csv',print=format==='print';downloadText((print?clearancePrint:csv?clearanceCsv:clearanceJson)(project.value,clearanceOptions.value),print?'text/html;charset=utf-8':csv?'text/csv;charset=utf-8':'application/json',print?'_clearance.html':csv?'_clearance.csv':'_clearance.json');message.value='Clearance review exported';}catch(error){message.value=error.message;}}
 import {furnitureClearance,reviewFurnitureClearance} from '../shared/furniture-clearance.mjs';
 const showClearanceOverlay=ref(true);
 const clearanceOptions=ref({minWall:.05,doorDepth:.6,enforce:false});
