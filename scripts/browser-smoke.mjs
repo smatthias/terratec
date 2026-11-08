@@ -1104,6 +1104,15 @@ try {
   await page.getByLabel('Cabinet z',{exact:true}).fill('-1.5');
   await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
   await page.getByTestId('clearance-review-summary').filter({hasText:'1 issues · 1 of 2 cabinets affected'}).waitFor();
+  const clearanceDownloadPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export clearance JSON',exact:true}).click();
+  const clearanceDownload=await clearanceDownloadPromise,clearanceStream=await clearanceDownload.createReadStream();let clearanceText='';for await(const chunk of clearanceStream)clearanceText+=chunk.toString();
+  const clearanceSnapshot=JSON.parse(clearanceText);assert.equal(clearanceSnapshot.kind,'terratec-clearance-review');assert.equal(clearanceSnapshot.review.issues[0].cabinetId,'clearance-source');assert.equal(clearanceSnapshot.settings.minWall,0);assert.equal(clearanceSnapshot.room.furniture.length,2);
+  const clearanceCsvPromise=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export clearance CSV',exact:true}).click();
+  const clearanceCsvDownload=await clearanceCsvPromise,clearanceCsvStream=await clearanceCsvDownload.createReadStream();let clearanceCsvText='';for await(const chunk of clearanceCsvStream)clearanceCsvText+=chunk.toString();
+  assert.match(clearanceCsvText,/DOOR_ZONE/);assert.match(clearanceCsvText,/clearance-source/);
+
   await page.getByLabel('Furniture item',{exact:true}).selectOption('');
   await page.getByLabel('Show selected furniture clearance overlay',{exact:true}).uncheck();
   await page.getByTestId('clearance-review-issues').getByRole('button',{name:/Source unit · Cabinet enters north door/}).click();
