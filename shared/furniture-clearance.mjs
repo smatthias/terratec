@@ -72,6 +72,15 @@ export function furnitureClearance(room,item,options){
  }
  if(settings.serviceDepth>0){
   const service=cabinetServiceZone(item,settings.serviceDepth);
+  for(let i=0;i<room.outline.length;i++){
+   const a=room.outline[i],b=room.outline[(i+1)%room.outline.length],edge=sub(b,a),length=Math.hypot(edge.x,edge.z);
+   const beyond=Math.max(0,...service.map(p=>-cross(edge,sub(p,a))/length));
+   if(beyond>1e-8){
+    zones.push({kind:'service-wall',wall:edgeIds[i],polygon:service});
+    issues.push({code:'SERVICE_WALL',wall:edgeIds[i],message:`Cabinet front service zone crosses ${edgeIds[i]} room boundary by ${beyond.toFixed(3)} m`});
+   }
+  }
+
   for(const other of room.furniture??[]){
    if(other.id===item.id)continue;
    if(intersects(service,cabinetFootprint(other))){

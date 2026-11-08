@@ -1144,6 +1144,23 @@ try {
   await page.getByTestId('furniture-library-preview').filter({hasText:'Preview valid'}).waitFor();
   await page.getByRole('button',{name:'Cancel furniture preview',exact:true}).click();
 
+  await page.getByLabel('Cabinet front service depth metres',{exact:true}).fill('0.6');
+  await page.getByLabel('New furniture X',{exact:true}).fill('0');
+  await page.getByLabel('New furniture Z',{exact:true}).fill('1.5');
+  await page.getByRole('button',{name:'Preview cabinet copy',exact:true}).click();
+  await page.getByTestId('preview-clearance-issues').filter({hasText:'crosses south room boundary'}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Confirm furniture placement',exact:true}).isDisabled(),true);
+  await page.getByLabel('New furniture Z',{exact:true}).fill('1');
+  await page.getByTestId('furniture-library-preview').filter({hasText:'Preview valid'}).waitFor();
+  await page.getByRole('button',{name:'Cancel furniture preview',exact:true}).click();
+  await page.getByLabel('Cabinet z',{exact:true}).fill('1.5');
+  await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByTestId('clearance-review-issues').filter({hasText:'crosses south room boundary'}).waitFor();
+  const boundaryDownloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export clearance JSON',exact:true}).click();
+  const boundaryDownload=await boundaryDownloadPromise,boundaryStream=await boundaryDownload.createReadStream();let boundaryText='';for await(const chunk of boundaryStream)boundaryText+=chunk.toString();
+  assert.ok(JSON.parse(boundaryText).review.issues.some(issue=>issue.code==='SERVICE_WALL'&&issue.wall==='south'));
+  await page.getByLabel('Cabinet z',{exact:true}).fill('0');await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByLabel('Cabinet front service depth metres',{exact:true}).fill('0');
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});

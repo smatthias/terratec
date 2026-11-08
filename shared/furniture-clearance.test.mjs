@@ -88,3 +88,35 @@ test('insertion catches blocking an existing cabinet service zone and can enforc
  assert.equal(preview.valid,true);assert.ok(preview.clearance.issues.some(i=>i.code==='BLOCKS_SERVICE'));
  assert.equal(evaluateFurniturePlacement(space,request,.1,false,false,{serviceDepth:.6,enforce:true}).valid,false);
 });
+
+test('service zones check each room boundary and allow exact contact',()=>{
+ const options={serviceDepth:.6,minWall:0};
+ for(const [wall,rotation,x,z] of [['south',0,0,1.5],['east',90,2.5,0],['north',180,0,-1.5],['west',270,-2.5,0]]){
+  const cabinet={...item,width:.4,depth:.4,rotation,x,z};
+  const report=furnitureClearance({...room,openings:[],furniture:[cabinet]},cabinet,options);
+  assert.ok(report.issues.some(i=>i.code==='SERVICE_WALL'&&i.wall===wall));
+  assert.ok(report.zones.some(zone=>zone.kind==='service-wall'));
+ }
+ const tangent={...item,width:.4,depth:.4,z:1.2};
+ assert.equal(furnitureClearance({...room,openings:[]},tangent,options).issues.length,0);
+ assert.equal(furnitureClearance({...room,openings:[]},{...tangent,z:1.200001},options).issues[0].code,'SERVICE_WALL');
+ const angled={...item,width:1,depth:.4,x:2.5,z:1.5,rotation:45};
+ const corner=furnitureClearance({...room,openings:[]},angled,options);
+ assert.deepEqual(corner.issues.filter(i=>i.code==='SERVICE_WALL').map(i=>i.wall).sort(),['east','south']);
+});
+test('service boundary checks follow rotated and skewed walls and stay conservative at openings',()=>{
+ const cabinet={...item,width:.4,depth:.4,z:1.5},angle=.5,rotate=p=>({x:p.x*Math.cos(angle)+p.z*Math.sin(angle),z:-p.x*Math.sin(angle)+p.z*Math.cos(angle)});
+ const rotated={...room,outline:room.outline.map(rotate),openings:[]};
+ assert.ok(furnitureClearance(rotated,{...cabinet,...rotate(cabinet),rotation:angle*180/Math.PI},{serviceDepth:.6}).issues.some(i=>i.code==='SERVICE_WALL'&&i.wall==='south'));
+ const skewed={...room,outline:[{x:-3,z:-2},{x:3,z:-2},{x:2,z:2},{x:-3,z:2}],openings:[]};
+ assert.ok(furnitureClearance(skewed,{...cabinet,x:2.15,z:0,rotation:90},{serviceDepth:.6}).issues.some(i=>i.code==='SERVICE_WALL'&&i.wall==='east'));
+ const frontAtDoor={...cabinet,z:-1.5,rotation:180};
+ assert.ok(furnitureClearance(room,frontAtDoor,{serviceDepth:.6}).issues.some(i=>i.code==='SERVICE_WALL'&&i.wall==='north'));
+});
+test('preview enforces service boundary issues and updates after correction',()=>{
+ const space={...room,openings:[],furniture:[{...item,x:2,z:0}]},request={kind:'copy',sourceId:'a',id:'new',point:{x:0,z:1.5}};
+ const options={serviceDepth:.6,enforce:true};
+ assert.equal(evaluateFurniturePlacement(space,request,.1,false,false,options).valid,false);
+ assert.equal(evaluateFurniturePlacement(space,{...request,point:{x:0,z:1}},.1,false,false,options).valid,true);
+ assert.equal(evaluateFurniturePlacement(space,request,.1,false,false,{...options,serviceDepth:0}).valid,true);
+});
