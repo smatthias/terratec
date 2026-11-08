@@ -52,3 +52,19 @@ test('analytic sweep catches edge crossings and permits circle tangency',()=>{
  const tangent={...item,width:.2,depth:.2,x:-.5,z:-.9};
  assert.equal(furnitureClearance(room,tangent,options).zones.length,0);
 });
+
+test('project review aggregates cabinet issues without mutation and reacts to settings and fixes',async()=>{
+ const {reviewFurnitureClearance}=await import('./furniture-clearance.mjs');
+ const problem={...item,id:'problem',name:'Door unit',x:-.35,z:-1.5,width:.2,depth:.2};
+ const projectRoom={...room,furniture:[{...item,x:2},problem]},before=JSON.stringify(projectRoom);
+ const review=reviewFurnitureClearance(projectRoom);
+ assert.equal(review.cabinetCount,2);assert.equal(review.affectedCount,1);
+ assert.equal(review.issues[0].cabinetId,'problem');assert.equal(review.issues[0].cabinetName,'Door unit');assert.equal(review.issues[0].code,'DOOR_ZONE');
+ assert.equal(JSON.stringify(projectRoom),before);
+ assert.equal(reviewFurnitureClearance({...projectRoom,furniture:[{...problem,z:0}]}).issues.length,0);
+ const close={...item,z:-1.78};
+ assert.ok(reviewFurnitureClearance({...room,openings:[],furniture:[close]}).issues.length);
+ assert.equal(reviewFurnitureClearance({...room,openings:[],furniture:[close]},{minWall:0}).issues.length,0);
+ assert.deepEqual(reviewFurnitureClearance({...room,furniture:[]}),{cabinetCount:0,affectedCount:0,issues:[]});
+ assert.throws(()=>reviewFurnitureClearance({...room,furniture:[]},{minWall:NaN}));
+});

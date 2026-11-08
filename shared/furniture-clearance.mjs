@@ -68,3 +68,10 @@ export function furnitureClearance(room,item,options){
  }
  return {nearestWall,walls,issues,zones,settings};
 }
+
+export function reviewFurnitureClearance(room,options){
+ const settings=clearanceSettings(options);
+ const cabinets=(room.furniture??[]).map(item=>({id:item.id,name:item.name,report:furnitureClearance(room,item,settings)}));
+ const issues=cabinets.flatMap(item=>item.report.issues.map(issue=>({...issue,cabinetId:item.id,cabinetName:item.name})));
+ return {cabinetCount:cabinets.length,affectedCount:cabinets.filter(item=>item.report.issues.length).length,issues};
+}
