@@ -1216,6 +1216,16 @@ try {
   const frontDownloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON',exact:true}).click();
   const frontDownload=await frontDownloadPromise,frontStream=await frontDownload.createReadStream();let frontText='';for await(const chunk of frontStream)frontText+=chunk.toString();
   assert.deepEqual(JSON.parse(frontText).room.furniture.find(c=>c.id==='clearance-source').columnFronts,['open','single','double']);
+  const elevationPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export cabinet elevation SVG',exact:true}).click();
+  const elevationDownload=await elevationPromise,elevationStream=await elevationDownload.createReadStream();let elevationSvg='';for await(const chunk of elevationStream)elevationSvg+=chunk.toString();
+  assert.ok(elevationDownload.suggestedFilename().endsWith('_cabinet-elevation.svg'));
+  const elevationParsed=await page.evaluate(svg=>{const doc=new DOMParser().parseFromString(svg,'image/svg+xml');return {errors:doc.querySelectorAll('parsererror').length,views:doc.querySelectorAll('[data-view]').length,register:doc.querySelectorAll('[data-bay-register]').length};},elevationSvg);
+  assert.deepEqual(elevationParsed,{errors:0,views:2,register:3});assert.match(elevationSvg,/Front|front/);assert.match(elevationSvg,/600.0 mm/);assert.match(elevationSvg,/1200.0 mm/);
+  const elevationPage=await browser.newPage({viewport:{width:1600,height:1100}});await elevationPage.setContent(elevationSvg.replace(/<\?xml[^>]*>/,''));
+  assert.equal(await elevationPage.locator('[data-view="front"] [data-part^="front"]').count(),3);
+  const drawingBounds=await elevationPage.locator('svg').evaluate(svg=>{const b=svg.getBBox(),v=svg.viewBox.baseVal;return b.x>=v.x-1&&b.y>=v.y-1&&b.x+b.width<=v.x+v.width+1&&b.y+b.height<=v.y+v.height+1;});assert.equal(drawingBounds,true,'elevation annotations fit SVG bounds');
+  await mkdir('test-results',{recursive:true});await elevationPage.screenshot({path:'test-results/cabinet-elevation.png',fullPage:true});await elevationPage.close();
+
   await page.getByLabel('Independent fronts per column',{exact:true}).uncheck();await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
   assert.equal(await page.getByTestId('cabinet-front-summary').count(),0);assert.equal(await page.locator('[data-front-panel="true"]').count(),2);
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
