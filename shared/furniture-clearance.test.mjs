@@ -68,3 +68,23 @@ test('project review aggregates cabinet issues without mutation and reacts to se
  assert.deepEqual(reviewFurnitureClearance({...room,furniture:[]}),{cabinetCount:0,affectedCount:0,issues:[]});
  assert.throws(()=>reviewFurnitureClearance({...room,furniture:[]},{minWall:NaN}));
 });
+
+test('front service zones follow rotation, ignore self and permit boundary contact',()=>{
+ const a={...item,id:'a',width:1,depth:.4},b={...item,id:'b',name:'Blocker',width:.4,depth:.4,z:.7};
+ const space={...room,openings:[],furniture:[a,b]},options={serviceDepth:.6,minWall:0};
+ assert.equal(furnitureClearance(space,a).issues.length,0);
+ assert.equal(furnitureClearance(space,a,options).issues[0].code,'SERVICE_ZONE');
+ assert.equal(furnitureClearance(space,b,options).issues[0].code,'BLOCKS_SERVICE');
+ assert.equal(furnitureClearance({...space,furniture:[a]},a,options).issues.length,0);
+ assert.equal(furnitureClearance({...space,furniture:[a,{...b,z:1}]},a,options).issues.length,0);
+ const rotated={...space,furniture:[{...a,rotation:90},{...b,x:.7,z:0}]};
+ assert.equal(furnitureClearance(rotated,rotated.furniture[0],options).issues[0].otherCabinetId,'b');
+ assert.throws(()=>clearanceSettings({serviceDepth:4}));
+});
+test('insertion catches blocking an existing cabinet service zone and can enforce it',()=>{
+ const source={...item,id:'a',width:1,depth:.4,x:0,z:0};
+ const space={...room,openings:[],furniture:[source]},request={kind:'copy',sourceId:'a',id:'new',point:{x:0,z:.7}};
+ const preview=evaluateFurniturePlacement(space,request,.1,false,false,{serviceDepth:.6});
+ assert.equal(preview.valid,true);assert.ok(preview.clearance.issues.some(i=>i.code==='BLOCKS_SERVICE'));
+ assert.equal(evaluateFurniturePlacement(space,request,.1,false,false,{serviceDepth:.6,enforce:true}).valid,false);
+});

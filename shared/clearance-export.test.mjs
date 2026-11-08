@@ -16,3 +16,9 @@ test('CSV includes metadata, escapes names and neutralizes spreadsheet formulas'
  assert.ok(csv.includes('"\'=Workshop, ""North"""'));assert.ok(csv.includes('"\'=Unit, ""A"""'));assert.match(csv,/WALL_GAP/);assert.match(csv,/Minimum wall gap/);
  const empty=clearanceCsv({...project,room:{...project.room,furniture:[]}},{});assert.match(empty,/"Issues","0"/);assert.match(empty,/"Cabinet ID","Cabinet name"/);
 });
+test('service conflicts and related cabinet identities survive exports',()=>{
+ const a={...project.room.furniture[0],name:'A',x:0,z:0},b={...a,id:'b',name:'B',z:.7};
+ const input={...project,room:{...project.room,furniture:[a,b]}};
+ const snapshot=clearanceSnapshot(input,{serviceDepth:.6});assert.equal(snapshot.settings.serviceDepth,.6);assert.equal(snapshot.review.affectedCount,2);assert.equal(snapshot.review.issues[0].otherCabinetId,'b');
+ assert.match(clearanceCsv(input,{serviceDepth:.6}),/Other cabinet ID/);assert.match(clearanceCsv(input,{serviceDepth:.6}),/SERVICE_ZONE/);
+});

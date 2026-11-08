@@ -2,9 +2,9 @@ import {cabinetFootprint} from './furniture.mjs';
 import {edgeIds} from './geometry.mjs';
 import {doorPose} from './openings.mjs';
 export function clearanceSettings(input={}){
-  const minWall=input.minWall??.05,doorDepth=input.doorDepth??.6,enforce=input.enforce??false;
-  if(![minWall,doorDepth].every(v=>typeof v==='number'&&Number.isFinite(v))||minWall<0||minWall>2||doorDepth<0||doorDepth>3||typeof enforce!=='boolean')throw Error('Clearance settings need wall gap 0–2 m and door depth 0–3 m');
-  return {minWall,doorDepth,enforce};
+  const minWall=input.minWall??.05,doorDepth=input.doorDepth??.6,enforce=input.enforce??false,serviceDepth=input.serviceDepth??0;
+  if(![minWall,doorDepth,serviceDepth].every(v=>typeof v==='number'&&Number.isFinite(v))||minWall<0||minWall>2||doorDepth<0||doorDepth>3||serviceDepth<0||serviceDepth>3||typeof enforce!=='boolean')throw Error('Clearance settings need wall gap 0–2 m and door/service depth 0–3 m');
+  return {minWall,doorDepth,enforce,serviceDepth};
 }
 const cross=(a,b)=>a.x*b.z-a.z*b.x;
 const sub=(a,b)=>({x:a.x-b.x,z:a.z-b.z});
@@ -39,6 +39,10 @@ function sweepIntersects(body,local,radius){
  if(signs.every(v=>v>=-1e-12)||signs.every(v=>v<=1e-12))return true;
  return polygon.some((p,i)=>{const q=closest(origin,p,polygon[(i+1)%polygon.length]);return q.x*q.x+q.z*q.z<radius*radius-1e-10;});
 }
+export function cabinetServiceZone(item,depth){
+ const angle=item.rotation*Math.PI/180;
+ return cabinetFootprint({...item,depth,x:item.x+Math.sin(angle)*(item.depth+depth)/2,z:item.z+Math.cos(angle)*(item.depth+depth)/2});
+}
 export function furnitureClearance(room,item,options){
  const settings=clearanceSettings(options),body=cabinetFootprint(item),walls=[];
  for(let i=0;i<room.outline.length;i++){
@@ -65,6 +69,21 @@ export function furnitureClearance(room,item,options){
    }
   }
   if(conflict)issues.push({code:opening.type==='door'?'DOOR_ZONE':'WINDOW_ZONE',openingId:opening.id,wall:opening.wall,message:opening.type==='door'?`Cabinet enters ${opening.wall} door access/swing planning zone`:`Cabinet enters ${opening.wall} window service planning zone`});
+ }
+ if(settings.serviceDepth>0){
+  const service=cabinetServiceZone(item,settings.serviceDepth);
+  for(const other of room.furniture??[]){
+   if(other.id===item.id)continue;
+   if(intersects(service,cabinetFootprint(other))){
+    zones.push({kind:'service',otherCabinetId:other.id,polygon:service});
+    issues.push({code:'SERVICE_ZONE',otherCabinetId:other.id,message:`Cabinet front service zone is blocked by ${other.name}`});
+   }
+   const otherService=cabinetServiceZone(other,settings.serviceDepth);
+   if(intersects(body,otherService)){
+    zones.push({kind:'service',otherCabinetId:other.id,polygon:otherService});
+    issues.push({code:'BLOCKS_SERVICE',otherCabinetId:other.id,message:`Cabinet blocks the front service zone of ${other.name}`});
+   }
+  }
  }
  return {nearestWall,walls,issues,zones,settings};
 }

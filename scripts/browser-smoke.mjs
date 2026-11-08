@@ -1134,6 +1134,16 @@ try {
   await page.getByLabel('Cabinet z',{exact:true}).fill('0');
   await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
   await page.getByTestId('clearance-review-summary').filter({hasText:'0 issues · 0 of 2 cabinets affected'}).waitFor();
+  await page.getByLabel('Cabinet front service depth metres',{exact:true}).fill('0.6');
+  await page.getByLabel('New furniture X',{exact:true}).fill('2');
+  await page.getByLabel('New furniture Z',{exact:true}).fill('0.7');
+  await page.getByRole('button',{name:'Preview cabinet copy',exact:true}).click();
+  await page.getByTestId('preview-clearance-issues').filter({hasText:'blocks the front service zone of Source unit'}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Confirm furniture placement',exact:true}).isDisabled(),true);
+  await page.getByLabel('Cabinet front service depth metres',{exact:true}).fill('0');
+  await page.getByTestId('furniture-library-preview').filter({hasText:'Preview valid'}).waitFor();
+  await page.getByRole('button',{name:'Cancel furniture preview',exact:true}).click();
+
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});
