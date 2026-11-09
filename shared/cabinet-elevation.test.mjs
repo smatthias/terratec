@@ -14,3 +14,13 @@ test('elevations support legacy and empty bays and reject invalid designs',()=>{
  assert.match(cabinetElevationSvg({...item,columnShelves:[0,0,0]}),/centres above cabinet bottom \(mm\): none/);
  assert.throws(()=>cabinetElevationSvg({...item,columnWeights:[0,1,1]}));
 });
+test('per-bay side cutaways show depth intervals and respect open fronts and shelf counts',()=>{
+ const svg=cabinetElevationSvg(item);
+ assert.equal((svg.match(/data-view="side"/g)||[]).length,3);
+ assert.equal((svg.match(/data-side-part="front"/g)||[]).length,2);
+ assert.equal((svg.match(/data-side-part="shelf"/g)||[]).length,6);
+ assert.match(svg,/back panel 0–18.0 mm/);assert.match(svg,/shelf\/divider 18.0–482.0 mm/);assert.match(svg,/closed front 482.0–500.0 mm/);assert.match(svg,/Shelf\/divider depth 464.0 mm/);
+ assert.match(svg,/sides\/dividers and handles omitted/);
+ const changed=cabinetElevationSvg({...item,depth:.8,thickness:.02});assert.match(changed,/Shelf\/divider depth 760.0 mm/);assert.match(changed,/closed front 780.0–800.0 mm/);
+ const open=cabinetElevationSvg({...item,columnFronts:['open','open','open'],columnShelves:[0,0,0]});assert.doesNotMatch(open,/data-side-part="front"|data-side-part="shelf"/);
+});

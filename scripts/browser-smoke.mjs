@@ -1220,9 +1220,13 @@ try {
   const elevationDownload=await elevationPromise,elevationStream=await elevationDownload.createReadStream();let elevationSvg='';for await(const chunk of elevationStream)elevationSvg+=chunk.toString();
   assert.ok(elevationDownload.suggestedFilename().endsWith('_cabinet-elevation.svg'));
   const elevationParsed=await page.evaluate(svg=>{const doc=new DOMParser().parseFromString(svg,'image/svg+xml');return {errors:doc.querySelectorAll('parsererror').length,views:doc.querySelectorAll('[data-view]').length,register:doc.querySelectorAll('[data-bay-register]').length};},elevationSvg);
-  assert.deepEqual(elevationParsed,{errors:0,views:2,register:3});assert.match(elevationSvg,/Front|front/);assert.match(elevationSvg,/600.0 mm/);assert.match(elevationSvg,/1200.0 mm/);
+  assert.deepEqual(elevationParsed,{errors:0,views:5,register:3});assert.match(elevationSvg,/Front|front/);assert.match(elevationSvg,/600.0 mm/);assert.match(elevationSvg,/1200.0 mm/);
   const elevationPage=await browser.newPage({viewport:{width:1600,height:1100}});await elevationPage.setContent(elevationSvg.replace(/<\?xml[^>]*>/,''));
   assert.equal(await elevationPage.locator('[data-view="front"] [data-part^="front"]').count(),3);
+  assert.equal(await elevationPage.locator('[data-view="side"]').count(),3);
+  assert.equal(await elevationPage.locator('[data-side-bay="1"] [data-side-part="front"]').count(),0);
+  assert.equal(await elevationPage.locator('[data-side-bay="2"] [data-side-part="front"]').count(),1);
+  assert.match(await elevationPage.locator('svg').textContent(),/Shelf\/divider depth 364.0 mm/);
   const drawingBounds=await elevationPage.locator('svg').evaluate(svg=>{const b=svg.getBBox(),v=svg.viewBox.baseVal;return b.x>=v.x-1&&b.y>=v.y-1&&b.x+b.width<=v.x+v.width+1&&b.y+b.height<=v.y+v.height+1;});assert.equal(drawingBounds,true,'elevation annotations fit SVG bounds');
   await mkdir('test-results',{recursive:true});await elevationPage.screenshot({path:'test-results/cabinet-elevation.png',fullPage:true});await elevationPage.close();
 
