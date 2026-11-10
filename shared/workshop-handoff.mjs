@@ -1,3 +1,4 @@
+import {shelfJoineryNote} from './shelf-joinery.mjs';
 import {manufacturingBatches} from './manufacturing.mjs';
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mm=value=>Number(value).toFixed(1);
@@ -10,6 +11,8 @@ export function workshopHandoff(project,generatedAt=new Date().toISOString()) {
   const stockText=b=>{const s=b.layout.stock;return `${escape(b.materialLabel)} · ${mm(b.thickness*1000)} mm · stock ${mm(s.stockLengthMm)} × ${mm(s.stockWidthMm)} mm · trim ${mm(s.stockTrimMm)} mm per edge · kerf ${mm(s.stockKerfMm)} mm · rotation ${s.stockAllowRotation?'allowed':'disabled'}`;};
   const summaryRows=batches.map(b=>[b.number,b.materialLabel,mm(b.thickness*1000),b.cabinets.length,b.panelCount,b.layout.sheets.length,b.layout.unplaced.length]);
   for(const rows of chunks(summaryRows,8).length?chunks(summaryRows,8):[[]])pages.push(`<h1>Workshop handoff</h1><p><strong>${escape(project.name)}</strong></p><p>Snapshot ${escape(generatedAt)} · ${batches.length} batches · ${sheetCount} sheets · ${unplaced} unplaced panels</p>${unplaced?'<p class="notice">UNRESOLVED: oversize panels remain unplaced. See the unplaced register.</p>':''}${note}${table(['Batch','Material','Thickness mm','Cabinets','Panels','Sheets','Unplaced'],rows)}<p>Coordinates are millimetres from the top-left of the physical sheet. Panel dimensions include blank allowances. Kerf separates blanks; edge trim bounds usable stock. Utilisation uses gross sheet area. Batch and sheet numbers belong to this snapshot.</p><p>Open this file in a browser and print or save as PDF using A4 landscape. Diagrams are scaled to fit; use the dimension register for measurements.</p>`);
+  const joineryCabinets=project.room.furniture.filter(item=>item.shelfJoinery?.type==='dado');
+  for(const rows of chunks(joineryCabinets,6))pages.push(`<h2>Shelf joinery planning register</h2>${table(['Cabinet','Source ID','Planning note'],rows.map(item=>[item.name,item.id,shelfJoineryNote(item)]))}${note}`);
   for(const b of batches){
     for(const rows of chunks(b.cabinets,12))pages.push(`<h2>Batch ${b.number} · cabinet references</h2><p>${stockText(b)}</p>${table(['Code','Cabinet','Source ID'],rows.map(c=>[c.code,c.name,c.id]))}${note}`);
     for(const sheet of b.layout.sheets){

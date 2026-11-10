@@ -1243,6 +1243,19 @@ try {
 
   await page.getByLabel('Independent fronts per column',{exact:true}).uncheck();await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
   assert.equal(await page.getByTestId('cabinet-front-summary').count(),0);assert.equal(await page.locator('[data-front-panel="true"]').count(),2);
+  await page.getByLabel('Shelf joint',{exact:true}).selectOption('dado');
+  await page.getByLabel('Shelf end engagement mm',{exact:true}).fill('3');await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByTestId('shelf-joinery-summary').filter({hasText:'+6 mm shelf blank length'}).waitFor();
+  const jointCsvPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export panel CSV',exact:true}).click();
+  const jointCsvDownload=await jointCsvPromise,jointCsvStream=await jointCsvDownload.createReadStream();let jointCsv='';for await(const chunk of jointCsvStream)jointCsv+=chunk.toString();assert.match(jointCsv,/182.000/);assert.match(jointCsv,/joinery_length_mm/);assert.match(jointCsv,/"dado","6"/);
+  await page.getByLabel('Shelf end engagement mm',{exact:true}).fill('9');await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByText('Dado engagement must be positive, at most 10 mm and less than half the panel thickness',{exact:true}).waitFor();
+  assert.match(await page.getByTestId('shelf-joinery-summary').textContent(),/3 mm engagement/);
+  await page.getByLabel('Shelf end engagement mm',{exact:true}).fill('3');
+  const jointJsonPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON',exact:true}).click();
+  const jointJsonDownload=await jointJsonPromise,jointJsonStream=await jointJsonDownload.createReadStream();let jointJson='';for await(const chunk of jointJsonStream)jointJson+=chunk.toString();assert.deepEqual(JSON.parse(jointJson).room.furniture.find(c=>c.id==='clearance-source').shelfJoinery,{type:'dado',engagementMm:3});
+  await page.getByLabel('Shelf joint',{exact:true}).selectOption('butt');await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
+  await page.getByTestId('shelf-joinery-summary').filter({hasText:'no engagement allowance'}).waitFor();
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});
