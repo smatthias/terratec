@@ -1229,6 +1229,17 @@ try {
   assert.match(await elevationPage.locator('svg').textContent(),/Shelf\/divider depth 364.0 mm/);
   const drawingBounds=await elevationPage.locator('svg').evaluate(svg=>{const b=svg.getBBox(),v=svg.viewBox.baseVal;return b.x>=v.x-1&&b.y>=v.y-1&&b.x+b.width<=v.x+v.width+1&&b.y+b.height<=v.y+v.height+1;});assert.equal(drawingBounds,true,'elevation annotations fit SVG bounds');
   await mkdir('test-results',{recursive:true});await elevationPage.screenshot({path:'test-results/cabinet-elevation.png',fullPage:true});await elevationPage.close();
+  for(const [paper,orientation] of [['A4','landscape'],['A3','portrait']]){
+    await page.getByLabel('Cabinet sheet paper',{exact:true}).selectOption(paper);await page.getByLabel('Cabinet sheet orientation',{exact:true}).selectOption(orientation);
+    const sheetsPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export printable cabinet sheets',exact:true}).click();
+    const sheetsDownload=await sheetsPromise,sheetsStream=await sheetsDownload.createReadStream();let sheetsHtml='';for await(const chunk of sheetsStream)sheetsHtml+=chunk.toString();assert.ok(sheetsDownload.suggestedFilename().endsWith('_cabinet-sheets.html'));
+    const sheetsPage=await browser.newPage({viewport:{width:1200,height:900}});await sheetsPage.setContent(sheetsHtml);await sheetsPage.emulateMedia({media:'print'});
+    assert.equal(await sheetsPage.locator('.page').count(),5);assert.equal(await sheetsPage.locator('svg').count(),5);
+    const sheetsFit=await sheetsPage.locator('.page').evaluateAll(pages=>pages.every(p=>p.scrollHeight<=p.clientHeight+1&&p.scrollWidth<=p.clientWidth+1));assert.equal(sheetsFit,true,'cabinet sheet content fits '+paper+' '+orientation);
+    const sheetDimensions=await sheetsPage.locator('.page').first().evaluate(p=>({width:p.getBoundingClientRect().width,height:p.getBoundingClientRect().height}));assert.ok(Math.abs(sheetDimensions.width-273*96/25.4)<1);assert.ok(Math.abs(sheetDimensions.height-(paper==='A4'?186:396)*96/25.4)<1);
+    await sheetsPage.pdf({path:'test-results/cabinet-sheets-'+paper+'.pdf',preferCSSPageSize:true,printBackground:true});await sheetsPage.locator('.page').first().screenshot({path:'test-results/cabinet-sheet-'+paper+'.png'});await sheetsPage.close();
+  }
+
 
   await page.getByLabel('Independent fronts per column',{exact:true}).uncheck();await page.getByRole('button',{name:'Apply cabinet',exact:true}).click();
   assert.equal(await page.getByTestId('cabinet-front-summary').count(),0);assert.equal(await page.locator('[data-front-panel="true"]').count(),2);
