@@ -2,6 +2,8 @@
 import CustomerRecords from './CustomerRecords.vue';
 import PricingPresets from './PricingPresets.vue';
 import StockPriceOverrides from './StockPriceOverrides.vue';
+import PricingCoverage from './PricingCoverage.vue';
+import {stockPricingCoverage,addCoverageOverrides} from '../shared/stock-pricing.mjs';
 import {ref,computed,watch} from 'vue';
 import {printableQuote} from '../shared/quote-print.mjs';
 import {quoteCosting,moneyToCents,validateQuoteDetails,validatePricing} from '../shared/quote.mjs';
@@ -22,6 +24,9 @@ function applyPricingPreset(input){
  edgeMaterial.value=money(p.edging?.materialCentsPerMetre??0);edgeLabour.value=money(p.edging?.labourCentsPerMetre??0);edgeWaste.value=(p.edging?.wasteBps??0)/100;
 }
 const preview=computed(()=>{try{validateQuoteDetails(details.value);return {cost:quoteCosting(props.revision.manifest,props.revision.number,pricing())};}catch(e){return {error:e.message};}});
+const coverage=computed(()=>preview.value.cost?stockPricingCoverage(preview.value.cost.lines,preview.value.cost.pricing.stockRates??[]):null);
+const coverageMessage=ref('');
+function createCoverageOverrides(stocks){try{const values=addCoverageOverrides(validatePricing(pricing()).stockRates??[],stocks);stockRates.value=values.map(row=>({...row,price:(row.unitCents/100).toFixed(2)}));coverageMessage.value='Stock overrides created from effective prices';}catch(e){coverageMessage.value=e.message;}}
 const saved=computed(()=>props.revision.quotes?.find(q=>q.id===choice.value));
 watch(()=>props.revision.quotes,(quotes,previous)=>{if(quotes?.length&&(previous?.length!==quotes.length||!quotes.some(q=>q.id===choice.value)))choice.value=quotes.at(-1).id;},{deep:true,immediate:true});
 watch(()=>props.focusId,id=>{if(props.revision.quotes?.some(q=>q.id===id))choice.value=id;},{immediate:true});
@@ -36,7 +41,7 @@ const amount=(cents,code=currency.value)=>(cents/100).toFixed(2)+' '+code;
       <label>Handle unit price<input v-model="rates.handles" inputmode="decimal"></label><label>Labour hourly price<input v-model="rates.labour" inputmode="decimal"></label>
       <label>Labour minutes per panel<input v-model.number="minutes" type="number" min="0" max="600" step="1"></label><label>Quote markup percent<input v-model.number="markup" type="number" min="0" max="100" step="0.01"></label>
       <label class="snap-toggle"><input v-model="includeEdging" type="checkbox" aria-label="Include edging costs">Include edging costs</label><template v-if="includeEdging"><label>Edging material price per metre<input v-model="edgeMaterial" inputmode="decimal"></label><label>Edging labour price per metre<input v-model="edgeLabour" inputmode="decimal"></label><label>Edging material waste percent<input v-model.number="edgeWaste" type="number" min="0" max="100" step="0.01"></label><p class="hint">Net band length comes from the saved revision. Material waste increases purchased length; labour uses net length. Prices are additional to estimated panel labour. Lengths round once to mm; each cost rounds once to cents.</p></template>
-      <p v-if="preview.error" role="status">{{ preview.error }}</p>
+      <PricingCoverage v-if="coverage" :coverage="coverage" @create="createCoverageOverrides"/><p v-if="coverageMessage" data-testid="pricing-coverage-message" role="status">{{ coverageMessage }}</p><p v-if="preview.error" role="status">{{ preview.error }}</p>
       <template v-if="preview.cost"><p v-if="preview.cost.edging" data-testid="edging-cost-preview">Edging net {{ (preview.cost.edging.netLengthMm/1000).toFixed(3) }} m · purchase {{ (preview.cost.edging.purchaseLengthMm/1000).toFixed(3) }} m · material {{ amount(preview.cost.edging.materialCents) }} · labour {{ amount(preview.cost.edging.labourCents) }}</p><p>Materials {{ amount(preview.cost.materialCents) }} · handles {{ preview.cost.handles }} · labour {{ preview.cost.labourMinutes }} minutes</p><ul v-if="preview.cost.pricing.stockRates" data-testid="stock-rate-breakdown"><li v-for="line in preview.cost.lines" :key="line.batch">Batch {{ line.batch }} · {{ line.material }} {{ line.thicknessMm.toFixed(3) }} mm · {{ line.stockLengthMm }} × {{ line.stockWidthMm }} mm · {{ line.rateSource==='stock'?'stock override':'material fallback' }} · {{ amount(line.unitCents) }} / sheet</li></ul><p data-testid="quote-preview">Subtotal {{ amount(preview.cost.subtotalCents) }} · markup {{ amount(preview.cost.markupCents) }} · total {{ amount(preview.cost.totalCents) }} (tax excluded)</p></template>
       <button :disabled="!preview.cost" @click="emit('save',{pricing:pricing(),details:validateQuoteDetails(details)})">Save revision quote snapshot</button>
       <label v-if="revision.quotes?.length">Saved quote<select v-model="choice" aria-label="Saved quote"><option v-for="(q,index) in revision.quotes" :key="q.id" :value="q.id">Quote {{ index+1 }} · {{ amount(q.costing.totalCents,q.costing.pricing.currency) }}</option></select></label>
