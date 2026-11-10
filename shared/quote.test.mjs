@@ -19,3 +19,11 @@ test('optional edging costs use saved geometry, material waste and net-length la
  const empty=quoteCosting(manifest,1,rates);assert.equal(empty.edging.totalCents,0);
  for(const edging of [null,{materialCentsPerMetre:-1,labourCentsPerMetre:0,wasteBps:0},{materialCentsPerMetre:1,labourCentsPerMetre:0,wasteBps:10001},{materialCentsPerMetre:1.5,labourCentsPerMetre:0,wasteBps:0}])assert.throws(()=>validatePricing({...pricing,edging}));
 });
+test('stock-specific prices override exact keys, support zero and retain material fallbacks',()=>{
+ const override={material:'oak',thicknessMm:18,stockLengthMm:2440,stockWidthMm:1220,unitCents:12345};
+ const rates={...pricing,stockRates:[override]},c=quoteCosting(manifest,1,rates);assert.equal(c.lines[0].unitCents,12345);assert.equal(c.lines[0].rateSource,'stock');assert.equal(c.materialCents,24690);
+ assert.equal(quoteCosting(manifest,1,{...rates,stockRates:[{...override,unitCents:0}]}).materialCents,0);
+ for(const change of [{thicknessMm:19},{material:'birch'},{stockLengthMm:1220,stockWidthMm:2440}]){const fallback=quoteCosting(manifest,1,{...rates,stockRates:[{...override,...change}]});assert.equal(fallback.materialCents,20000);assert.equal(fallback.lines[0].rateSource,'material');}
+ assert.equal('rateSource' in quoteCosting(manifest,1,pricing).lines[0],false);
+ for(const stockRates of [null,[override,override],[{...override,thicknessMm:0}],[{...override,unitCents:-1}],[{...override,stockLengthMm:2440.0001}]])assert.throws(()=>validatePricing({...pricing,stockRates}));
+});

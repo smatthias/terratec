@@ -13,3 +13,7 @@ test('pricing backups merge atomically, rename conflicts and reject invalid or o
  assert.throws(()=>importPricingPresets(existing,'x'.repeat(131073)));assert.throws(()=>importPricingPresets(existing,'{}'));assert.throws(()=>importPricingPresets(existing,JSON.stringify({format:'terratec-pricing-presets',version:1,presets:[{id:'b',name:'Bad',pricing:{}}]})));assert.equal(JSON.stringify(existing),before);
  const noEdge={...pricing};delete noEdge.edging;assert.equal('edging' in savePricingPreset([],{id:'a',name:'Legacy',pricing:noEdge})[0].pricing,false);
 });
+test('stock prices survive preset backup and remain detached from input',()=>{
+ const value={...pricing,stockRates:[{material:'oak',thicknessMm:18,stockLengthMm:2440,stockWidthMm:1220,unitCents:7777}]};
+ const saved=savePricingPreset([],{id:'stock',name:'Stock sizes',pricing:value}),restored=importPricingPresets([],exportPricingPresets(saved),()=> 'restored');assert.deepEqual(restored[0].pricing.stockRates,value.stockRates);restored[0].pricing.stockRates[0].unitCents=1;assert.equal(saved[0].pricing.stockRates[0].unitCents,7777);
+});

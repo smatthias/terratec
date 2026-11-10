@@ -1,3 +1,4 @@
+import {stockRateKey,validateStockRates} from './stock-pricing.mjs';
 import {cabinetBom} from './cabinet-parts.mjs';
 export function validatePricing(input){
   if(!input||!['EUR','USD','GBP'].includes(input.currency))throw Error('Choose EUR, USD or GBP');
@@ -9,12 +10,16 @@ export function validatePricing(input){
     if(!value||typeof value!=='object'||Array.isArray(value)||!integer(value.materialCentsPerMetre,1000000)||!integer(value.labourCentsPerMetre,1000000)||!integer(value.wasteBps,10000))throw Error('Invalid edging rates: use non-negative integer cents and waste basis points from 0 to 10000');
     edging={materialCentsPerMetre:value.materialCentsPerMetre,labourCentsPerMetre:value.labourCentsPerMetre,wasteBps:value.wasteBps};
   }
-  return {...(edging?{edging}:{}),currency:input.currency,sheetRates:{oak:input.sheetRates.oak,birch:input.sheetRates.birch,white:input.sheetRates.white},handleUnitCents:input.handleUnitCents,labourHourlyCents:input.labourHourlyCents,labourMinutesPerPanel:input.labourMinutesPerPanel,markupBps:input.markupBps};
+  return {...(input.stockRates!==undefined?{stockRates:validateStockRates(input.stockRates)}:{}),...(edging?{edging}:{}),currency:input.currency,sheetRates:{oak:input.sheetRates.oak,birch:input.sheetRates.birch,white:input.sheetRates.white},handleUnitCents:input.handleUnitCents,labourHourlyCents:input.labourHourlyCents,labourMinutesPerPanel:input.labourMinutesPerPanel,markupBps:input.markupBps};
 }
 export function quoteCosting(manifest,revision,input){
   const pricing=validatePricing(input);
   if(manifest.validation.status==='blocked')throw Error('Resolve handoff blockers before costing a quote');
-  const lines=manifest.batches.map(b=>({batch:b.number,material:b.material,thicknessMm:b.thickness*1000,stockLengthMm:b.layout.stock.stockLengthMm,stockWidthMm:b.layout.stock.stockWidthMm,quantity:b.layout.sheets.length,unitCents:pricing.sheetRates[b.material],amountCents:b.layout.sheets.length*pricing.sheetRates[b.material]}));
+  const lines=manifest.batches.map(b=>{
+    const dimensions={material:b.material,thicknessMm:b.thickness*1000,stockLengthMm:b.layout.stock.stockLengthMm,stockWidthMm:b.layout.stock.stockWidthMm};
+    const override=pricing.stockRates?.find(row=>stockRateKey(row)===stockRateKey(dimensions)),unitCents=override?.unitCents??pricing.sheetRates[b.material];
+    return {batch:b.number,...dimensions,quantity:b.layout.sheets.length,unitCents,amountCents:b.layout.sheets.length*unitCents,...(pricing.stockRates!==undefined?{rateSource:override?'stock':'material'}:{})};
+  });
   const materialCents=lines.reduce((n,l)=>n+l.amountCents,0);
   const handles=manifest.source.room.furniture.reduce((n,c)=>n+cabinetBom(c).handles,0),hardwareCents=handles*pricing.handleUnitCents;
   const labourMinutes=manifest.summary.panels*pricing.labourMinutesPerPanel,labourCents=Math.round(labourMinutes*pricing.labourHourlyCents/60);
