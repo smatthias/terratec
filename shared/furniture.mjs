@@ -1,3 +1,4 @@
+import {edgeBanding} from './edge-banding.mjs';
 import {shelfJoinery} from './shelf-joinery.mjs';
 import {cabinetCompartments} from './cabinet-compartments.mjs';
 import {validateStock} from './stock.mjs';
@@ -27,7 +28,7 @@ export function validateFurniture(value,outline,roomHeight) {
     const material=item.material??'oak',lengthAllowanceMm=item.lengthAllowanceMm??0,widthAllowanceMm=item.widthAllowanceMm??0;
     if(!['oak','birch','white'].includes(material) || ![lengthAllowanceMm,widthAllowanceMm].every(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=50)) throw Error('Choose a supported material and allowances from 0 to 50 mm');
     cabinetCompartments(item);
-    const joint=shelfJoinery(item);
+    const joint=shelfJoinery(item),banding=edgeBanding(item);
     const stock=validateStock(item);
     const footprint=cabinetFootprint(item);
     for(const p of footprint)for(let i=0;i<outline.length;i++) {
@@ -36,7 +37,7 @@ export function validateFurniture(value,outline,roomHeight) {
     }
     if(footprints.some(other=>overlaps(footprint,other))) throw Error('Cabinets cannot overlap');
     ids.add(item.id);footprints.push(footprint);
-    return {...(item.shelfJoinery!==undefined?{shelfJoinery:joint}:{}),...(item.columnFronts!==undefined?{columnFronts:[...item.columnFronts]}:{}),...(item.columnWeights!==undefined?{columnWeights:[...item.columnWeights]}:{}),...(item.columnShelves!==undefined?{columnShelves:[...item.columnShelves]}:{}),...(item.columns!==undefined?{columns:item.columns}:{}),id:item.id,type:'cabinet',name:item.name.trim(),width:item.width,depth:item.depth,height:item.height,x:item.x,z:item.z,rotation:item.rotation,thickness:item.thickness,shelves:item.shelves,material,lengthAllowanceMm,widthAllowanceMm,...stock};
+    return {...(item.edgeBanding!==undefined?{edgeBanding:banding}:{}),...(item.shelfJoinery!==undefined?{shelfJoinery:joint}:{}),...(item.columnFronts!==undefined?{columnFronts:[...item.columnFronts]}:{}),...(item.columnWeights!==undefined?{columnWeights:[...item.columnWeights]}:{}),...(item.columnShelves!==undefined?{columnShelves:[...item.columnShelves]}:{}),...(item.columns!==undefined?{columns:item.columns}:{}),id:item.id,type:'cabinet',name:item.name.trim(),width:item.width,depth:item.depth,height:item.height,x:item.x,z:item.z,rotation:item.rotation,thickness:item.thickness,shelves:item.shelves,material,lengthAllowanceMm,widthAllowanceMm,...stock};
   });
 }
 

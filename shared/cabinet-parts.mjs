@@ -1,3 +1,4 @@
+import {panelEdgeBanding} from './edge-banding.mjs';
 import {shelfJoinery} from './shelf-joinery.mjs';
 import {cabinetCompartments} from './cabinet-compartments.mjs';
 import {validateStock,panelStockFit} from './stock.mjs';
@@ -40,14 +41,14 @@ export function cabinetBom(item) {
     if(existing) existing.quantity++;
     else rows.push({part:piece.part,label:piece.label,quantity:1,length,width,thickness:item.thickness});
   }
-  for(const row of rows) {row.area=row.quantity*row.length*row.width;row.volume=row.area*row.thickness;row.joineryLengthMm=row.part.startsWith('shelf')?2*joint.engagementMm:0;row.blankLength=row.length+((item.lengthAllowanceMm??0)+row.joineryLengthMm)/1000;row.blankWidth=row.width+(item.widthAllowanceMm??0)/1000;row.blankArea=row.quantity*row.blankLength*row.blankWidth;row.material=cabinetMaterials[item.material??'oak'].label;row.stockFit=panelStockFit(row.blankLength,row.blankWidth,stock);}
+  for(const row of rows) {row.area=row.quantity*row.length*row.width;row.volume=row.area*row.thickness;row.joineryLengthMm=row.part.startsWith('shelf')?2*joint.engagementMm:0;Object.assign(row,panelEdgeBanding(item,row));if(row.coreLength<=0||row.coreWidth<=0)throw Error('Edge banding leaves no usable panel core');row.blankLength=row.coreLength+(item.lengthAllowanceMm??0)/1000;row.blankWidth=row.coreWidth+(item.widthAllowanceMm??0)/1000;row.blankArea=row.quantity*row.blankLength*row.blankWidth;row.material=cabinetMaterials[item.material??'oak'].label;row.stockFit=panelStockFit(row.blankLength,row.blankWidth,stock);}
   return {stock,allFit:rows.every(r=>r.stockFit!=='oversize'),oversizeCount:rows.filter(r=>r.stockFit==='oversize').reduce((n,r)=>n+r.quantity,0),blankArea:rows.reduce((n,r)=>n+r.blankArea,0),rows,handles,panelCount:rows.reduce((n,r)=>n+r.quantity,0),area:rows.reduce((n,r)=>n+r.area,0),volume:rows.reduce((n,r)=>n+r.volume,0)};
 }
 const csvCell=value=>{const text=String(value),safe=/^[=+\-@\t\r]/.test(text)?"'"+text:text;return '"'+safe.replace(/"/g,'""')+'"';};
 export function cabinetBomCsv(item) {
   const bom=cabinetBom(item);
-  const rows=[['cabinet','part','quantity','length_mm','width_mm','thickness_mm','area_m2','volume_m3','material','blank_length_mm','blank_width_mm','blank_area_m2','stock_length_mm','stock_width_mm','edge_trim_mm','rotation_allowed','stock_fit','shelf_joint','joinery_length_mm']];
-  for(const row of bom.rows) rows.push([item.name,row.label,row.quantity,(row.length*1000).toFixed(3),(row.width*1000).toFixed(3),(row.thickness*1000).toFixed(3),row.area.toFixed(6),row.volume.toFixed(9),row.material,(row.blankLength*1000).toFixed(3),(row.blankWidth*1000).toFixed(3),row.blankArea.toFixed(6),bom.stock.stockLengthMm,bom.stock.stockWidthMm,bom.stock.stockTrimMm,bom.stock.stockAllowRotation,row.stockFit,shelfJoinery(item).type,row.joineryLengthMm]);
-  rows.push([item.name,'Handle',bom.handles,...Array(16).fill('')]);
+  const rows=[['cabinet','part','quantity','length_mm','width_mm','thickness_mm','area_m2','volume_m3','material','blank_length_mm','blank_width_mm','blank_area_m2','stock_length_mm','stock_width_mm','edge_trim_mm','rotation_allowed','stock_fit','shelf_joint','joinery_length_mm','core_length_mm','core_width_mm','edge_thickness_mm','edge_length_edges','edge_width_edges','band_length_m','finished_length_mm','finished_width_mm']];
+  for(const row of bom.rows) rows.push([item.name,row.label,row.quantity,(row.length*1000).toFixed(3),(row.width*1000).toFixed(3),(row.thickness*1000).toFixed(3),row.area.toFixed(6),row.volume.toFixed(9),row.material,(row.blankLength*1000).toFixed(3),(row.blankWidth*1000).toFixed(3),row.blankArea.toFixed(6),bom.stock.stockLengthMm,bom.stock.stockWidthMm,bom.stock.stockTrimMm,bom.stock.stockAllowRotation,row.stockFit,shelfJoinery(item).type,row.joineryLengthMm,(row.coreLength*1000).toFixed(3),(row.coreWidth*1000).toFixed(3),row.edgeThicknessMm,row.edgeLengthEdges,row.edgeWidthEdges,row.bandLengthMetres.toFixed(3),(row.finishedLength*1000).toFixed(3),(row.finishedWidth*1000).toFixed(3)]);
+  rows.push([item.name,'Handle',bom.handles,...Array(24).fill('')]);
   return rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }
