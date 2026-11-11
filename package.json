@@ -10,7 +10,11 @@
     "api": "node server/index.mjs",
     "build": "vite build",
     "test": "node --test server/*.test.mjs src/*.test.mjs shared/*.test.mjs",
-    "test:browser": "node scripts/browser-smoke.mjs"
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "test:browser:production": "node scripts/browser-smoke.mjs --production",
+    "test:release": "npm run build && npm run check:bundle && npm run test:browser:production"
   },
   "dependencies": {
     "three": "0.187.0",

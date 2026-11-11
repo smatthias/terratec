@@ -7,6 +7,7 @@ import { chromium } from 'playwright';
 import * as THREE from 'three';
 import { fitCamera } from '../src/room-scene.js';
 
+const production=process.argv.includes('--production');
 const dataDir = await mkdtemp(join(tmpdir(),'terratec-browser-'));
 const children = [];
 let browser, page;
@@ -27,13 +28,16 @@ async function ready(url) {
 }
 try {
   start(['server/index.mjs'],{TERRATEC_DATA_DIR:dataDir});
-  start(['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5173','--strictPort']);
+  start(['node_modules/vite/bin/vite.js',...(production?['preview']:[]),'--host','127.0.0.1','--port','5173','--strictPort']);
   await Promise.all([ready('http://127.0.0.1:3001/api/health'),ready('http://127.0.0.1:5173')]);
   browser = await chromium.launch({args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
   page = await browser.newPage({viewport:{width:1440,height:1000}});
-  const errors = []; page.on('pageerror',error => errors.push(error.message));
+  const errors = [],assetRequests=[]; page.on('pageerror',error => errors.push(error.message));
+  page.on('request',request=>{if(request.url().includes('/assets/'))assetRequests.push(request.url());});
+  page.on('response',response=>{if(response.url().includes('/assets/')&&response.status()>=400)errors.push('Asset '+response.status()+': '+response.url());});
   await page.goto('http://127.0.0.1:5173');
   await page.locator('canvas').waitFor();
+  if(production){assert.ok(assetRequests.some(url=>/assets\/index-[^/]+\.js/.test(url)),'loads built entry');assert.ok(!assetRequests.some(url=>/WorkshopJobs-|ManufacturingPanel-/.test(url)),'workshop modules are not loaded initially');}
   const canvas = page.locator('canvas');
   await page.getByRole('button',{name:'Calculate geometry'}).click();
   await page.getByText('24.00 m²').waitFor();
@@ -619,6 +623,7 @@ try {
   assert.match(bomCsv,/Birch plywood/);assert.match(bomCsv,/1072.000/);assert.match(bomCsv,/stock_fit/);assert.match(bomCsv,/"2440","1220","5","true","direct"/);assert.match(bomCsv,/blank_length_mm/);assert.match(bomCsv,/Storage cabinet/);assert.match(bomCsv,/1064.000/);assert.match(bomCsv,/"Shelf","3"/);
   await page.getByRole('button',{name:'Project manufacturing',exact:true}).click();
   assert.match(await page.getByTestId('batch-summary').textContent(),/2 batches/);
+  if(production)assert.ok(assetRequests.some(url=>url.includes('ManufacturingPanel-'))&&assetRequests.some(url=>url.includes('WorkshopJobs-')),'workshop chunks load when opened');
   await page.getByLabel('Furniture item',{exact:true}).selectOption({label:'Cabinet'});
   await page.getByLabel('Cabinet material',{exact:true}).selectOption('birch');
   await page.getByLabel('Stock edge trim mm',{exact:true}).fill('5');
@@ -1326,7 +1331,7 @@ try {
   await page.screenshot({path:'test-results/workspace-mobile.png',fullPage:true});
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false,'mobile horizontal overflow');
   assert.deepEqual(errors,[]);
-  console.log('Browser smoke passed: project roundtrip, native metrics, selection across views and edits, wall picking, pan, deselection, keyboard, mobile.');
+  console.log((production?'Production ':'Development ')+'browser smoke passed: project roundtrip, native metrics, selection across views and edits, wall picking, pan, deselection, keyboard, mobile.');
 } catch (error) {
   await mkdir('test-results',{recursive:true});
   await page?.screenshot({path:'test-results/failure.png',fullPage:true}).catch(() => {});

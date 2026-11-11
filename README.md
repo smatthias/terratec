@@ -619,3 +619,25 @@ Checks exclude handles, passage accessibility rules and actual hinge-sweep secto
 Door rectangles intentionally overestimate inward sweep and do not model opening
 leaves as rigid collision bodies. The settings are planning aids, not regulatory
 or physical clearance certification.
+
+
+## Production bundle and release checks
+
+```sh
+npm run test:release
+```
+
+Build the native core first using the commands under Run locally. The release
+command builds the production assets, checks bundle budgets, and runs the full browser
+regression suite against Vite preview with the local API. Native CMake/CTest and
+Node tests remain separate CI checks. To inspect the build manually, run the API
+and `npm run preview` in separate terminals. Preview is a local verification
+server, not the production deployment setup.
+
+The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
+Manufacturing and workshop-record panels load when opened. Budgets are 180 kB for
+the entry, 400 kB for each JavaScript chunk, 850 kB for initial JavaScript and
+950 kB for all JavaScript, measured uncompressed; CSS is limited to 15 kB per file.
+`test-results/bundle-report.json` records raw/gzip sizes and initial versus lazy
+chunks. The default Vite size warning remains enabled. These checks do not claim
+that splitting alone reduces total downloads or guarantees faster rendering.

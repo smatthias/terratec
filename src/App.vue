@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createRoom, updateSurfaces, fitCamera, pickSurface, surfaces, createGrid, pickOpening } from './room-scene.js';
@@ -72,8 +72,8 @@ function arrangeGroup({ids,options}){try{applyRoom(arrangeCabinetGroup(project.v
 function arrangeSelected({referenceId,options}){try{applyRoom(arrangeCabinet(project.value.room,selectedFurniture.value?.id,referenceId,options));message.value=options.mode==='align'?'Cabinet aligned':'Cabinet gap applied';}catch(error){message.value=error.message;}}
 import {moveFurniture} from '../shared/furniture.mjs';
 import CabinetLayout from './CabinetLayout.vue';
-import ManufacturingPanel from './ManufacturingPanel.vue';
-import WorkshopJobs from './WorkshopJobs.vue';
+const ManufacturingPanel=defineAsyncComponent(()=>import('./ManufacturingPanel.vue'));
+const WorkshopJobs=defineAsyncComponent(()=>import('./WorkshopJobs.vue'));
 function exportJobRecord(text){downloadText(text,'application/json','_job-record.json');message.value='Workshop job record exported';}
 function exportQuotePrint(text){downloadText(text,'text/html;charset=utf-8','_quote.html');message.value='Printable quote exported';}
 function exportQuote(text){downloadText(text,'application/json','_quote.json');message.value='Quote snapshot exported';}
