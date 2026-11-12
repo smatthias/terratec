@@ -1,31 +1,95 @@
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,rm,readFile,cp,mkdir,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve,join} from 'node:path';
 import {execFileSync,spawn} from 'node:child_process';
 import {once} from 'node:events';
+import {createServer} from 'node:net';
+
 const temporary=await mkdtemp(join(tmpdir(),'terratec-install-'));
-let child;
-try {
-  const name=`terratec-${process.platform}-${process.arch}`;
-  execFileSync('tar',['-xzf',resolve('release',name+'.tar.gz'),'-C',temporary]);
-  const installation=join(temporary,name);
-  // Run outside the extracted folder, without node_modules or repository paths.
-  child=spawn(process.execPath,[join(installation,'start.mjs')],{cwd:tmpdir(),env:{...process.env,PORT:'3197',TERRATEC_DATA_DIR:join(temporary,'saved-data')},stdio:['ignore','pipe','pipe']});
-  let log='';child.stdout.on('data',chunk=>log+=chunk);child.stderr.on('data',chunk=>log+=chunk);
-  const base='http://127.0.0.1:3197';
+const name=`terratec-${process.platform}-${process.arch}`;
+const archive=resolve('release',name+'.tar.gz');
+const dataDir=join(temporary,'saved-data');
+const backupDir=join(temporary,'offline-backup');
+let child,base;
+const phases=[];
+async function stop(){
+  if(!child || !child.pid || child.exitCode!==null || child.signalCode!==null)return;
+  const exited=once(child,'exit');
+  const timeout=setTimeout(()=>child.kill('SIGKILL'),5000);
+  child.kill();
+  try{await exited;}finally{clearTimeout(timeout);}
+}
+async function start(installation,storage){
+  // Select an available local port rather than assuming a fixed port is unused.
+  const probe=createServer();await new Promise(r=>probe.listen(0,'127.0.0.1',r));
+  const port=probe.address().port;await new Promise(r=>probe.close(r));
+  base=`http://127.0.0.1:${port}`;
+  child=spawn(process.execPath,[join(installation,'start.mjs')],{cwd:tmpdir(),env:{...process.env,PORT:String(port),TERRATEC_DATA_DIR:storage},stdio:['ignore','pipe','pipe']});
+  let log='',spawnError;child.on('error',error=>{spawnError=error;});
+  child.stdout.on('data',chunk=>log+=chunk);child.stderr.on('data',chunk=>log+=chunk);
   let ready=false;
-  for(let i=0;i<100;i++) {if(child.exitCode!==null) throw new Error(log);try{ready=(await fetch(base+'/api/health')).ok;}catch{}if(ready)break;await new Promise(r=>setTimeout(r,50));}
+  for(let i=0;i<100;i++){
+    if(spawnError)throw spawnError;
+    if(child.exitCode!==null)throw new Error(log);
+    try{ready=log.includes('TerraTec:')&&(await fetch(base+'/api/health')).ok;}catch{}
+    if(ready)break;await new Promise(r=>setTimeout(r,50));
+  }
   assert.ok(ready,log);
+}
+async function json(path,body,method='POST',expected=200){
+  const response=await fetch(base+path,body===undefined?{}:{method,headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  assert.equal(response.status,expected,await response.clone().text());return response.json();
+}
+function extract(destination){execFileSync('tar',['-xzf',archive,'-C',destination]);return join(destination,name);}
+const fixture={schemaVersion:1,units:'m',name:'Installed studio',room:{width:6,depth:4,height:2.8}};
+let records;
+async function verify(phase){
   const html=await (await fetch(base)).text();assert.match(html,/<div id="app">/);
-  for(const asset of [...html.matchAll(/(?:src|href)="(\/assets\/[^" ]+)"/g)]) assert.equal((await fetch(base+asset[1])).status,200);
+  for(const asset of [...html.matchAll(/(?:src|href)="(\/assets\/[^" ]+)"/g)])assert.equal((await fetch(base+asset[1])).status,200);
   assert.equal((await fetch(base+'/missing.js')).status,404);
   assert.equal((await fetch(base+'/server/index.mjs')).status,404);
-  const fixture={schemaVersion:1,units:'m',name:'Installed studio',room:{width:6,depth:4,height:2.8}};
-  const request={method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(fixture)};
-  const geometry=await fetch(base+'/api/geometry',request);assert.equal(geometry.status,200,await geometry.clone().text());assert.equal((await geometry.json()).area,24);
-  const saved=await fetch(base+'/api/projects',request);assert.equal(saved.status,201);const record=await saved.json();
-  assert.equal((await fetch(base+'/api/projects/'+record.id)).status,200);
-  assert.ok((await readFile(join(temporary,'saved-data','projects',record.id+'.json'),'utf8')).includes('Installed studio'));
-  console.log('Extracted release: HTML/assets, native geometry and persistent project API passed.');
-} finally {if(child&&child.exitCode===null){child.kill();await once(child,'exit');}await rm(temporary,{recursive:true,force:true});}
+  assert.equal((await json('/api/geometry',fixture)).area,24);
+  for(const [collection,record] of Object.entries(records)){
+    assert.deepEqual(await json(`/api/${collection}/${record.id}`),record,`${phase}: ${collection} changed`);
+    assert.ok((await json('/api/'+collection)).some(item=>item.id===record.id),`${phase}: missing list entry`);
+  }
+  phases.push(phase);console.log('Extracted release passed: '+phase);
+}
+try{
+  const installation=extract(temporary);
+  await start(installation,dataDir);
+  const project=await json('/api/projects',fixture,'POST',201);
+  const customer=await json('/api/customers',{name:'Recovery customer',email:'recovery@example.test',notes:'Keep across upgrades'},'POST',201);
+  const cabinet={id:'recovery-cabinet',name:'Cabinet',type:'cabinet',width:.9,height:1.2,depth:.5,thickness:.018,shelves:1,x:0,z:0,rotation:0};
+  const source={...project.project,room:{...project.project.room,furniture:[cabinet]}};
+  const job=await json('/api/jobs',{name:'Recovery workshop job',project:source},'POST',201);
+  await json(`/api/jobs/${job.id}/review`,{revision:1,expectedRevision:1,reviewer:'Install smoke',note:'Verified before backup'});
+  records={projects:project,customers:customer,jobs:await json('/api/jobs/'+job.id)};
+  assert.ok(records.jobs.revisions[0].manifest.summary.panels>0);
+  await verify('fresh installation');
+  await stop();
+  await start(installation,dataDir);
+  await verify('process restart');
+  records.customers=await json('/api/customers/'+customer.id,{...customer,notes:'Updated after restart',expectedVersion:1},'PUT');
+  assert.equal(records.customers.version,2);
+  await json('/api/customers/'+customer.id,{...customer,expectedVersion:1},'PUT',409);
+  await stop();
+  // Copy only while stopped so the backup contains one consistent filesystem state.
+  await cp(dataDir,backupDir,{recursive:true});
+  // Reinstall the current archive into a new directory, remove the old application,
+  // then reuse external data. This is installation replacement, not schema migration.
+  const replacementRoot=join(temporary,'replacement');await mkdir(replacementRoot);
+  const replacement=extract(replacementRoot);await rm(installation,{recursive:true});
+  await start(replacement,dataDir);
+  await verify('replacement installation with external data');
+  await stop();
+  // Simulate loss of the working data directory; recover into a separate location.
+  await rm(dataDir,{recursive:true});
+  const restored=join(temporary,'restored-data');await cp(backupDir,restored,{recursive:true});
+  await start(replacement,restored);
+  await verify('offline backup recovery');
+  for(const [collection,record] of Object.entries(records))assert.deepEqual(JSON.parse(await readFile(join(restored,collection,record.id+'.json'),'utf8')),record);
+  await mkdir('test-results',{recursive:true});
+  await writeFile('test-results/package-recovery.json',JSON.stringify({platform:process.platform,architecture:process.arch,phases,collections:Object.keys(records),scope:'Current archive restart, replacement and offline data recovery; cross-version schema migration is not tested.'},null,2)+'\n');
+}finally{await stop();await rm(temporary,{recursive:true,force:true});}

@@ -649,3 +649,14 @@ After building the C++ core and running `npm run build`, run `npm run package:re
 Extract the archive and run `node /path/to/terratec-linux-x64/start.mjs` with Node.js >=22.12.0. Open http://127.0.0.1:3001. The same local server serves the production frontend and API; no npm install, Vite or compiler is needed on the target machine. `PORT` changes the port. Set `TERRATEC_DATA_DIR` to a writable external directory to retain projects, jobs and customers across upgrades; otherwise data is stored beside the extracted app. Back up that directory before upgrading.
 
 The native executable targets the build machine's OS/architecture and runtime libraries. The Linux CI archive is verified on the Ubuntu runner; other Linux distributions and macOS are not yet validated. This is a portable local archive, with no Windows installer or public-hosting configuration. The extraction smoke check starts outside the installation folder and checks HTML/assets, native geometry, and project saving.
+
+### Restart, replacement and recovery
+
+Use an external `TERRATEC_DATA_DIR` for data that must survive application replacement. For example, run `TERRATEC_DATA_DIR=/path/to/terratec-data node /path/to/terratec-linux-x64/start.mjs`. Use the same absolute directory every time. Browser-local pricing presets and unsaved edits are separate from the server data directory; export their backups separately.
+
+1. Stop TerraTec and wait for its process to exit before copying data.
+2. Copy the entire data directory to a separate backup location, including projects, jobs, customers and any legacy `project.json`. Keep the original backup unchanged.
+3. Extract the new application into a separate folder. Start it with the existing external data directory, then check projects, customers and workshop jobs.
+4. To recover, stop the app, copy the complete backup to a new writable data directory, and launch with `TERRATEC_DATA_DIR` pointing to that restored copy. Check the records before resuming work.
+
+`npm run test:package` now checks fresh installation, process restart, replacement with a fresh extraction of the same archive, and offline backup recovery after deleting the working data directory. It compares complete project/customer/job records, including customer versions and reviewed manufacturing manifests, and checks native geometry and frontend assets in each phase. Results are written to `test-results/package-recovery.json` and included in CI artifacts. This verifies current-format recovery and installation replacement; it does not establish compatibility between different release versions or implement a schema migration system.
