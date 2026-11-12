@@ -1,29 +1,24 @@
 # TerraTec progress
 
-Overall: **71%** of the planned functional scope, estimated by effort and verified
-capabilities. Percentages are planning estimates, not test coverage. This first
-foundation is not equivalent to a finished CAD application.
+Overall: **88%** of the current delivery plan, estimated by effort and verified capabilities. Percentages are planning estimates, not test coverage or a claim of a finished CAD product. The wider roadmap includes future assisted design and TerraFlux work.
 
-| Milestone | Done | Improved in this iteration | Next step |
+| Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
-| Project foundation | 90% | C++ core, Node API, Vue/Three.js application, schema 6 furniture/presets with older-project migration, UUID-backed project collection, atomic save/load, CI configuration | Configuration checks and installation |
-| Design workspace | 95% | Nearest-wall feedback and optional preview clearance enforcement | Clearance overlay controls |
-| Parametric geometry | 30% | Rotated placement guides and exact post-grid alignment | Persistent constraints and arbitrary outlines |
-| Building design | 34% | Door/window planning zones and height-aware furniture checks | True door sweep geometry and multiple rooms |
-| Interiors and furniture | 67% | Wall gaps, opening-zone warnings and optional insertion enforcement | More furniture types and room layout rules |
-| Drawings and exchange | 43% | A4/A3 sheets, orientation, margins, fit feedback and blocked oversized exports | Pagination and more exchange formats |
-| Manufacturing | 58% | Snapshot manifests, derived layout verification and blocking handoff checks | Costing and workshop cutting constraints |
-| Distributed production | 55% | Searchable job register, workflow filters, due-date sorting and latest-revision summaries | Workshop contacts and assignment presets |
-| Customer and business tools | 44% | Customer search and copy-safe backups; cross-job quote register with snapshot navigation | Quote CSV exchange and customer archiving |
-| Assisted design | 0% | — | Structured design commands |
-| TerraFlux integration | 0% | — | Model exchange contract |
-| Release readiness | 12% | Recovery snapshots, storage-failure feedback and import validation | Installation and recovery |
+| Project foundation | 93% | C++17 core, Node API, Vue/Three.js workspace, project persistence and CI | Configuration diagnostics |
+| Design workspace | 95% | Selection, snapping, editing, history and clearance feedback | Interaction refinements |
+| Parametric geometry | 63% | Editable room outlines and cabinet parameters | Persistent constraints |
+| Building design | 35% | Wall openings and door clearance checks | Multiple rooms |
+| Interiors and furniture | 84% | Cabinet bays, fronts, joinery and edge banding | More furniture types |
+| Drawings and exchange | 67% | Printable sheets and manufacturing exports | More exchange formats |
+| Manufacturing | 88% | Parts, nesting, stock pricing and handoff validation | Machine-specific constraints |
+| Distributed production | 75% | Workshop assignment and fulfilment tracking | Workshop capacity planning |
+| Customer and business tools | 70% | Customers, quotes, pricing presets and backups | Billing exchange |
+| Assisted design | 0% | Not implemented | Structured design commands |
+| TerraFlux integration | 0% | Not implemented | Model exchange contract |
+| Release readiness | 36% | Portable local archive, one-server launcher and extracted-installation checks | Upgrade and recovery verification |
 
-Next iteration: true hinge-aware door sweep checks and clearance overlays.
+This iteration adds a platform archive containing the production frontend, API and native executable. Node.js is required on the target; npm dependencies, Vite and a compiler are not. CI uploads a Linux x64 archive. Other operating systems and Linux distributions remain unverified.
 
-Validation: eighty-five Node test groups and the Vite production build pass locally.
-The preceding foundation passed CMake/CTest in GitHub Actions. Browser smoke checks
-cover save/load, native quantities, selection across views and edits, ray picking,
-pan versus click, deselection, keyboard interaction, and mobile overflow, snapped/unsnapped endpoint edits, invalid-shape rejection, edited-outline persistence, corner dragging, single-gesture undo, redo, cancellation keyboard history, opening CRUD/undo/persistence and opening-aware wall/height validation. Local
-browser installation failed because the browser archive download was invalid;
-the smoke workflow runs in GitHub Actions and uploads desktop/mobile screenshots.
+Validation: 125 Node tests, production build, bundle budgets and extracted-package smoke checks pass locally. The package check runs outside the installation directory and verifies frontend assets, native geometry and project data written to an external directory. CI also runs CMake/CTest and the production browser suite; see PR #1 for live results.
+
+Next iteration: verify restart and upgrade recovery using external project/job/customer data.
