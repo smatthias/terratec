@@ -14,7 +14,9 @@
     "preview": "vite preview --host 127.0.0.1",
     "check:bundle": "node scripts/check-bundle.mjs",
     "test:browser:production": "node scripts/browser-smoke.mjs --production",
-    "test:release": "npm run build && npm run check:bundle && npm run test:browser:production"
+    "test:release": "npm run build && npm run check:bundle && npm run test:browser:production",
+    "package:release": "node scripts/package-release.mjs",
+    "test:package": "node scripts/package-smoke.mjs"
   },
   "dependencies": {
     "three": "0.187.0",

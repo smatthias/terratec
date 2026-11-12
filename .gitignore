@@ -75,3 +75,4 @@ data/
 .env.*
 !.env.example
 test-results/
+release/

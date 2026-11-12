@@ -15,6 +15,12 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run check:bundle
+      - run: npm run package:release
+      - run: npm run test:package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terratec-linux-release
+          path: release/*.tar.gz
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser:production
       - uses: actions/upload-artifact@v4

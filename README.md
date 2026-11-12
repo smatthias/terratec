@@ -641,3 +641,11 @@ the entry, 400 kB for each JavaScript chunk, 850 kB for initial JavaScript and
 `test-results/bundle-report.json` records raw/gzip sizes and initial versus lazy
 chunks. The default Vite size warning remains enabled. These checks do not claim
 that splitting alone reduces total downloads or guarantees faster rendering.
+
+### Portable local release
+
+After building the C++ core and running `npm run build`, run `npm run package:release` and `npm run test:package`. The platform/architecture tar archive is written to `release/`. CI builds and checks a Linux x64 archive and uploads it as `terratec-linux-release`.
+
+Extract the archive and run `node /path/to/terratec-linux-x64/start.mjs` with Node.js >=22.12.0. Open http://127.0.0.1:3001. The same local server serves the production frontend and API; no npm install, Vite or compiler is needed on the target machine. `PORT` changes the port. Set `TERRATEC_DATA_DIR` to a writable external directory to retain projects, jobs and customers across upgrades; otherwise data is stored beside the extracted app. Back up that directory before upgrading.
+
+The native executable targets the build machine's OS/architecture and runtime libraries. The Linux CI archive is verified on the Ubuntu runner; other Linux distributions and macOS are not yet validated. This is a portable local archive, with no Windows installer or public-hosting configuration. The extraction smoke check starts outside the installation folder and checks HTML/assets, native geometry, and project saving.

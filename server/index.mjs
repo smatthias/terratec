@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { readFile, mkdir, rename, writeFile, rm } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { resolve, join, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -13,7 +13,7 @@ import { validateProject } from './project.mjs';
 
 const run = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
-export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve(root, 'build/terratec-core') } = {}) {
+export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve(root, 'build/terratec-core'), staticDir }  = {}) {
   const projects=projectStore(dataDir),jobs=jobStore(dataDir),customers=customerStore(dataDir);
   return createServer(async (req, res) => {
     const send = (status, value) => {
@@ -22,6 +22,17 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
     };
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
+      if (staticDir && !path.startsWith('/api/') && (req.method === 'GET' || req.method === 'HEAD')) {
+        const base = resolve(staticDir);
+        const target = resolve(base, '.' + decodeURIComponent(path === '/' ? '/index.html' : path));
+        if (!target.startsWith(base + sep)) return send(404, {error:'File not found'});
+        try {
+          const body = await readFile(target);
+          const types = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
+          res.writeHead(200, {'Content-Type':types[extname(target)] || 'application/octet-stream','Cache-Control': target.includes(sep+'assets'+sep) ? 'public, max-age=31536000, immutable' : 'no-cache'});
+          return res.end(req.method === 'HEAD' ? undefined : body);
+        } catch (error) { if (error.code === 'ENOENT' || error.code === 'EISDIR') return send(404,{error:'File not found'}); throw error; }
+      }
       if(path==='/api/quotes'&&req.method==='GET')return send(200,await jobs.quotes());
       const customerRestore=path==='/api/customers/restore';
       const customerMatch=path.match(/^\/api\/customers\/([^/]+)$/);
@@ -95,6 +106,6 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT || 3001);
-  makeServer({ dataDir: process.env.TERRATEC_DATA_DIR, corePath: process.env.TERRATEC_CORE })
+  makeServer({ dataDir: process.env.TERRATEC_DATA_DIR, corePath: process.env.TERRATEC_CORE, staticDir: process.env.TERRATEC_STATIC_DIR })
     .listen(port, '127.0.0.1', () => console.log(`TerraTec API: http://127.0.0.1:${port}`));
 }
