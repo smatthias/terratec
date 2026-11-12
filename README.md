@@ -660,3 +660,11 @@ Use an external `TERRATEC_DATA_DIR` for data that must survive application repla
 4. To recover, stop the app, copy the complete backup to a new writable data directory, and launch with `TERRATEC_DATA_DIR` pointing to that restored copy. Check the records before resuming work.
 
 `npm run test:package` now checks fresh installation, process restart, replacement with a fresh extraction of the same archive, and offline backup recovery after deleting the working data directory. It compares complete project/customer/job records, including customer versions and reviewed manufacturing manifests, and checks native geometry and frontend assets in each phase. Results are written to `test-results/package-recovery.json` and included in CI artifacts. This verifies current-format recovery and installation replacement; it does not establish compatibility between different release versions or implement a schema migration system.
+
+### Project compatibility policy
+
+Project schemas 1–6 are supported on read and normalized to schema 6 in memory. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
+
+`fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets and cabinet defaults. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
+
+These fixtures establish compatibility with the documented project formats. They are not exports from historical application releases; old release binaries, job/customer cross-version migration, rollback after newer-format writes and automatic bulk migration are not covered.

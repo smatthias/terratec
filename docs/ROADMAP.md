@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **89%** of the current delivery plan, estimated by effort and verified capabilities. Percentages are planning estimates, not test coverage or a claim of a finished CAD product. The wider roadmap includes future assisted design and TerraFlux work.
+Overall: **90%** of the current delivery plan, estimated by effort and verified capabilities. Percentages are planning estimates, not test coverage or a claim of a finished CAD product. The wider roadmap includes future assisted design and TerraFlux work.
 
 | Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
@@ -15,10 +15,10 @@ Overall: **89%** of the current delivery plan, estimated by effort and verified 
 | Customer and business tools | 70% | Customers, quotes, pricing presets and backups | Billing exchange |
 | Assisted design | 0% | Not implemented | Structured design commands |
 | TerraFlux integration | 0% | Not implemented | Model exchange contract |
-| Release readiness | 45% | Extracted archive restart, installation replacement and offline recovery checks for projects, customers and reviewed jobs | Cross-version migration fixtures |
+| Release readiness | 53% | Frozen schema 1–6 fixtures, non-destructive packaged reads and explicit-save upgrade checks | Storage diagnostics and unsupported-format feedback |
 
 This iteration adds a platform archive containing the production frontend, API and native executable. Node.js is required on the target; npm dependencies, Vite and a compiler are not. CI uploads a Linux x64 archive. Other operating systems and Linux distributions remain unverified.
 
-Validation: 125 Node tests, production build, bundle budgets and extracted-package smoke checks pass locally. The package check runs outside the installation directory and verifies frontend assets, native geometry and project data written to an external directory. CI also runs CMake/CTest and the production browser suite; see PR #1 for live results.
+Validation: 132 Node tests, production build, bundle budgets and extracted-package smoke checks pass locally. The package check runs outside the installation directory and verifies frontend assets, native geometry and project data written to an external directory. CI also runs CMake/CTest and the production browser suite; see PR #1 for live results.
 
-Next iteration: define cross-version compatibility fixtures and migration policy. Current checks use fresh extractions of the same archive and verify complete records, customer version conflict checks and reviewed manufacturing manifests; they do not test cross-version migrations.
+Next iteration: storage diagnostics and actionable unsupported-format feedback. Synthetic schema 1–6 fixtures now verify normalization without rewriting source files, explicit-save upgrade preserving IDs and rejected future-version overwrites. Historical release binaries and job/customer cross-version migrations remain unverified.

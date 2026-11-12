@@ -11,7 +11,9 @@ const name=`terratec-${process.platform}-${process.arch}`;
 const archive=resolve('release',name+'.tar.gz');
 const dataDir=join(temporary,'saved-data');
 const backupDir=join(temporary,'offline-backup');
-let child,base;
+const compatibility=JSON.parse(await readFile(new URL('../fixtures/project-compatibility.json',import.meta.url),'utf8')).cases;
+const frozenRecords=compatibility.map(fixture=>({fixture,bytes:JSON.stringify({id:fixture.id,updatedAt:'2026-01-01T00:00:00.000Z',project:fixture.project},null,2)+'\n'}));
+let child,base,currentStorage;
 const phases=[];
 async function stop(){
   if(!child || !child.pid || child.exitCode!==null || child.signalCode!==null)return;
@@ -24,6 +26,7 @@ async function start(installation,storage){
   // Select an available local port rather than assuming a fixed port is unused.
   const probe=createServer();await new Promise(r=>probe.listen(0,'127.0.0.1',r));
   const port=probe.address().port;await new Promise(r=>probe.close(r));
+  currentStorage=storage;
   base=`http://127.0.0.1:${port}`;
   child=spawn(process.execPath,[join(installation,'start.mjs')],{cwd:tmpdir(),env:{...process.env,PORT:String(port),TERRATEC_DATA_DIR:storage},stdio:['ignore','pipe','pipe']});
   let log='',spawnError;child.on('error',error=>{spawnError=error;});
@@ -54,10 +57,19 @@ async function verify(phase){
     assert.deepEqual(await json(`/api/${collection}/${record.id}`),record,`${phase}: ${collection} changed`);
     assert.ok((await json('/api/'+collection)).some(item=>item.id===record.id),`${phase}: missing list entry`);
   }
+  for(const {fixture,bytes} of frozenRecords){
+    assert.deepEqual(await json('/api/projects/'+fixture.id),{id:fixture.id,updatedAt:'2026-01-01T00:00:00.000Z',project:fixture.expected});
+    assert.equal(await readFile(join(currentStorage,'projects',fixture.id+'.json'),'utf8'),bytes,`${phase}: legacy source file rewritten`);
+  }
+  assert.deepEqual(await json('/api/project'),compatibility[0].expected);
+  assert.equal(await readFile(join(currentStorage,'project.json'),'utf8'),JSON.stringify(compatibility[0].project)+'\n');
   phases.push(phase);console.log('Extracted release passed: '+phase);
 }
 try{
   const installation=extract(temporary);
+  await mkdir(join(dataDir,'projects'),{recursive:true});
+  for(const {fixture,bytes} of frozenRecords)await writeFile(join(dataDir,'projects',fixture.id+'.json'),bytes);
+  await writeFile(join(dataDir,'project.json'),JSON.stringify(compatibility[0].project)+'\n');
   await start(installation,dataDir);
   const project=await json('/api/projects',fixture,'POST',201);
   const customer=await json('/api/customers',{name:'Recovery customer',email:'recovery@example.test',notes:'Keep across upgrades'},'POST',201);
@@ -90,6 +102,16 @@ try{
   await start(replacement,restored);
   await verify('offline backup recovery');
   for(const [collection,record] of Object.entries(records))assert.deepEqual(JSON.parse(await readFile(join(restored,collection,record.id+'.json'),'utf8')),record);
-  await mkdir('test-results',{recursive:true});
-  await writeFile('test-results/package-recovery.json',JSON.stringify({platform:process.platform,architecture:process.arch,phases,collections:Object.keys(records),scope:'Current archive restart, replacement and offline data recovery; cross-version schema migration is not tested.'},null,2)+'\n');
+  // Reading is non-destructive; only an explicit save upgrades the stored project.
+  const oldest=compatibility[0];
+  const upgraded=await json('/api/projects/'+oldest.id,oldest.expected,'PUT');
+  assert.equal(upgraded.id,oldest.id);
+  assert.deepEqual(upgraded.project,oldest.expected);
+  const upgradedBytes=await readFile(join(restored,'projects',oldest.id+'.json'),'utf8');
+  assert.equal(JSON.parse(upgradedBytes).project.schemaVersion,6);
+  await json('/api/projects/'+oldest.id,{...oldest.expected,schemaVersion:7},'PUT',400);
+  assert.equal(await readFile(join(restored,'projects',oldest.id+'.json'),'utf8'),upgradedBytes);
+  assert.equal(await readFile(join(backupDir,'projects',oldest.id+'.json'),'utf8'),frozenRecords[0].bytes);
+  await mkdir('test-results' ,{recursive:true});
+  await writeFile('test-results/package-recovery.json',JSON.stringify({platform:process.platform,architecture:process.arch,phases,collections:Object.keys(records),projectSchemaVersions:compatibility.map(f=>f.project.schemaVersion),explicitSaveUpgrade:true,scope:'Synthetic project schema 1–6 compatibility, non-destructive reads, explicit schema-6 save and current-archive recovery. Historical release binaries are not tested.'},null,2)+'\n');
 }finally{await stop();await rm(temporary,{recursive:true,force:true});}
