@@ -63,6 +63,7 @@ async function verify(phase){
   }
   assert.deepEqual(await json('/api/project'),compatibility[0].expected);
   assert.equal(await readFile(join(currentStorage,'project.json'),'utf8'),JSON.stringify(compatibility[0].project)+'\n');
+  const storage=await json('/api/storage/check',{});assert.equal(storage.status,'ok');assert.equal(storage.writable,true);assert.equal(storage.counts.projects,compatibility.length+1);
   phases.push(phase);console.log('Extracted release passed: '+phase);
 }
 try{
@@ -101,6 +102,7 @@ try{
   const restored=join(temporary,'restored-data');await cp(backupDir,restored,{recursive:true});
   await start(replacement,restored);
   await verify('offline backup recovery');
+  const offlineReport=JSON.parse(execFileSync(process.execPath,[join(replacement,'server/storage-check.mjs')],{cwd:tmpdir(),env:{...process.env,TERRATEC_DATA_DIR:restored},encoding:'utf8'}));assert.equal(offlineReport.status,'ok');
   for(const [collection,record] of Object.entries(records))assert.deepEqual(JSON.parse(await readFile(join(restored,collection,record.id+'.json'),'utf8')),record);
   // Reading is non-destructive; only an explicit save upgrades the stored project.
   const oldest=compatibility[0];

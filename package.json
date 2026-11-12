@@ -16,7 +16,8 @@
     "test:browser:production": "node scripts/browser-smoke.mjs --production",
     "test:release": "npm run build && npm run check:bundle && npm run test:browser:production",
     "package:release": "node scripts/package-release.mjs",
-    "test:package": "node scripts/package-smoke.mjs"
+    "test:package": "node scripts/package-smoke.mjs",
+    "check:storage": "node server/storage-check.mjs"
   },
   "dependencies": {
     "three": "0.187.0",

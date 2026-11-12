@@ -1,14 +1,15 @@
 import {readFile,writeFile,mkdir,rename,rm,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
+import {parseStoredProject} from './storage-check.mjs';
 import {validateProject} from '../shared/project.mjs';
 export const validProjectId=id=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id);
 export function projectStore(dataDir) {
   const directory=join(dataDir,'projects');
   const read=async id=>{
     if(!validProjectId(id)) throw Object.assign(Error('Invalid project ID'),{status:400});
-    try {const record=JSON.parse(await readFile(join(directory,id+'.json'),'utf8'));return {...record,project:validateProject(record.project)};}
-    catch(error) {if(error.code==='ENOENT') throw Object.assign(Error('Project not found'),{status:404});throw error;}
+    try {const record=JSON.parse(await readFile(join(directory,id+'.json'),'utf8'));return {...record,project:parseStoredProject(JSON.stringify(record.project),'Project '+id)};}
+    catch(error) {if(error.code==='ENOENT') throw Object.assign(Error('Project not found'),{status:404});if(error instanceof SyntaxError)throw Object.assign(Error('Project '+id+' contains invalid JSON. Restore a known-good backup; the original file has been kept.'),{status:422,code:'PROJECT_CORRUPT'});throw error;}
   };
   return {
     read,

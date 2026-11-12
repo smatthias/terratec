@@ -1,3 +1,4 @@
+import {checkStorage,parseStoredProject,storageError} from './storage-check.mjs';
 import { createServer } from 'node:http';
 import { readFile, mkdir, rename, writeFile, rm } from 'node:fs/promises';
 import { resolve, join, extname, sep } from 'node:path';
@@ -22,6 +23,7 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
     };
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
+      if(path==='/api/storage/check' && req.method==='POST')return send(200,await checkStorage(dataDir));
       if (staticDir && !path.startsWith('/api/') && (req.method === 'GET' || req.method === 'HEAD')) {
         const base = resolve(staticDir);
         const target = resolve(base, '.' + decodeURIComponent(path === '/' ? '/index.html' : path));
@@ -62,7 +64,7 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
       if(req.method==='GET' && projectMatch) return send(200,await projects.read(projectMatch[1]));
       if (req.method === 'GET' && path === '/api/health') return send(200, { status: 'ok' });
       if (req.method === 'GET' && path === '/api/project') {
-        try { return send(200, validateProject(JSON.parse(await readFile(join(dataDir, 'project.json'), 'utf8')))); }
+        try { return send(200, parseStoredProject(await readFile(join(dataDir, 'project.json'), 'utf8'),'Legacy project')); }
         catch (error) { if (error.code === 'ENOENT') return send(404, { error: 'No saved project yet' }); throw error; }
       }
       if (req.method !== 'PUT' && req.method !== 'POST') return send(404, { error: 'Route not found' });
@@ -97,9 +99,10 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
         await rename(temporary, join(dataDir, 'project.json'));
       } finally { await rm(temporary, { force: true }); }
       send(200, project);
-    } catch (error) {
+    } catch (cause) {
+      const error=storageError(cause);
       if(!error.status) console.error(error);
-      if (!res.headersSent) send(error.status||500, { error: error.status?error.message:'Project service failed' });
+      if (!res.headersSent) send(error.status||500, { error: error.status?error.message:'Project service failed',...(error.code&&error.status?{code:error.code}:{}) });
       else res.end();
     }
   });
