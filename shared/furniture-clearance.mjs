@@ -45,7 +45,7 @@ export function cabinetServiceZone(item,depth){
 }
 export function furnitureClearance(room,item,options){
  const settings=clearanceSettings(options),body=cabinetFootprint(item),walls=[];
- for(const {id,a,b} of roomWalls(room.outline)){
+ for(const {id,a,b} of roomWalls(room)){
   let nearest;
   for(let n=0;n<body.length;n++){const result=segmentDistance(body[n],body[(n+1)%body.length],a,b);if(!nearest||result.distance<nearest.distance)nearest=result;}
   walls.push({wall:id,...nearest});
@@ -54,7 +54,7 @@ export function furnitureClearance(room,item,options){
  for(const wall of walls)if(wall.distance<settings.minWall-1e-8)issues.push({code:'WALL_GAP',wall:wall.wall,message:`${wall.wall} wall gap ${wall.distance.toFixed(3)} m is below ${settings.minWall.toFixed(3)} m`});
  for(const opening of room.openings??[]){
   if(item.height<=opening.sill+1e-9)continue;
-  const {a,tx,tz,nx,nz}=wallSegment(room.outline,opening.wall);
+  const {a,tx,tz,nx,nz}=wallSegment(room,opening.wall);
   const depth=opening.type==='door'?settings.doorDepth:.15;
   const point=(along,inward)=>({x:a.x+along*tx+inward*nx,z:a.z+along*tz+inward*nz});
   const polygon=[point(opening.offset,0),point(opening.offset+opening.width,0),point(opening.offset+opening.width,depth),point(opening.offset,depth)];
@@ -72,7 +72,7 @@ export function furnitureClearance(room,item,options){
  }
  if(settings.serviceDepth>0){
   const service=cabinetServiceZone(item,settings.serviceDepth);
-  for(const {id,a,b,length} of roomWalls(room.outline)){
+  for(const {id,a,b,length} of roomWalls(room)){
    const edge=sub(b,a),beyond=Math.max(0,...service.map(p=>-cross(edge,sub(p,a))/length));
    if(beyond>1e-8){
     zones.push({kind:'service-wall',wall:id,polygon:service});

@@ -3,7 +3,7 @@ import { doorPose } from '../shared/openings.mjs';
 import { wallSegment } from '../shared/room-topology.mjs';
 export function addOpeningVisuals(group,room) {
   for(const o of room.openings||[]) {
-    const {a,tx,tz,nx,nz}=wallSegment(room.outline,o.wall);
+    const {a,tx,tz,nx,nz}=wallSegment(room,o.wall);
     const position=(along,y,inset=-.08)=>new THREE.Vector3(a.x+tx*along+nx*inset,y,a.z+tz*along+nz*inset);
     const tag=(object,role,kind,color)=>{
       object.userData={id:o.wall,openingId:o.id,role,kind,baseColor:color};group.add(object);return object;

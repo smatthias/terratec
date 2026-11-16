@@ -3,7 +3,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include <array>
+#include <vector>
 #include <algorithm>
 
 double number(const char* input) {
@@ -23,14 +23,18 @@ double dimension(const char* input) {
 struct Point { double x, z; };
 int main(int argc, char** argv) {
     try {
-        if (argc == 11 && std::string(argv[1]) == "--polygon") {
+        if (argc >= 3 && std::string(argv[1]) == "--polygon") {
+            // --polygon HEIGHT X1 Z1 ... Xn Zn: 3–32 clockwise corners of a convex room.
+            const int count = (argc-3)/2;
+            if ((argc-3)%2 != 0 || count < 3 || count > 32)
+                throw std::invalid_argument("Expected 3-32 corner coordinate pairs after the height");
             const double height = dimension(argv[2]);
-            std::array<Point,4> points;
-            for(int i=0;i<4;i++) points[i] = {number(argv[3+i*2]),number(argv[4+i*2])};
+            std::vector<Point> points(count);
+            for(int i=0;i<count;i++) points[i] = {number(argv[3+i*2]),number(argv[4+i*2])};
             double twiceArea=0, perimeter=0;
             double minX=1000,maxX=-1000,minZ=1000,maxZ=-1000;
-            for(int i=0;i<4;i++) {
-                const auto a=points[i], b=points[(i+1)%4], c=points[(i+2)%4];
+            for(int i=0;i<count;i++) {
+                const auto a=points[i], b=points[(i+1)%count], c=points[(i+2)%count];
                 const double length=std::hypot(b.x-a.x,b.z-a.z);
                 const double cross=(b.x-a.x)*(c.z-b.z)-(b.z-a.z)*(c.x-b.x);
                 if(length < .1-1e-9 || cross <= 1e-8) throw std::invalid_argument("Expected a convex clockwise plan outline");

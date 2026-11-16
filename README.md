@@ -24,8 +24,8 @@ npm run dev
 
 Open the local address printed by Vite (normally http://127.0.0.1:5173).
 Edit the room dimensions, calculate geometry, save, change dimensions, and reopen
-the saved project. Drag to orbit; right-drag to pan; scroll to zoom. Plan uses an orthographic camera with north up and all four walls visible. The 3D
-view uses a two-wall cutaway. Click a surface or use the surface list to select it.
+the saved project. Drag to orbit; right-drag to pan; scroll to zoom. Plan uses an orthographic camera with north up and all walls visible. The 3D
+view cuts away walls that face the camera (south and east in the original room). Click a surface or use the surface list to select it.
 Selection survives view switches and dimension edits; Escape or Clear selection
 clears it. In Plan, drag a round corner handle to edit the outline; drag empty space
 to pan. Fit room resets the camera. A drag makes one undo entry when released;
@@ -34,7 +34,8 @@ An invalid release restores the original shape. Grid snapping applies to handles
 and numeric coordinates alike.
 
 Undo/Redo buttons and Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y restore geometry
-edits, including dimensions, height and numeric endpoints. Shortcuts leave text-input
+edits, including dimensions, height and numeric endpoints, wall construction,
+furniture edits and locking or unlocking the walls. Shortcuts leave text-input
 undo alone. History is session-local, holds up to 100 edits, and resets on Open saved;
 saving does not clear it. Selection, camera position and project-name edits are not
 included in geometry history.
@@ -72,8 +73,9 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic core/main.cpp -o build/terratec-core
 ```
 
 Coordinates are right-handed, with Y up and the floor in X/Z. The outline stores
-four shared interior corners in clockwise plan order; wall IDs follow the initial
-north/east/south/west edges even after rotation. Select a wall and edit A/B coordinates,
+3–32 shared interior corners in clockwise plan order, one per wall (see Stable
+corner and wall IDs and Wall construction below). Wall IDs follow their walls
+even after rotation. Select a wall and edit A/B coordinates,
 then Apply endpoints. Adjoining walls update together. Optional grid snapping uses
 0.1, 0.25, 0.5 or 1 m increments; large rooms render a coarser grid for performance.
 Width and depth inputs scale the outline about its bounding-box center. Height is
@@ -82,28 +84,79 @@ and overall spans 0.1–1000 m. Crossing, concave and collapsed outlines are rej
 
 ### Stable corner and wall IDs
 
-The room's fixed sets have stable IDs defined in `shared/room-topology.mjs`:
-corners `north-west`, `north-east`, `south-east`, `south-west` and walls `north`,
-`east`, `south`, `west`. Wall *w* runs from its A corner to its B corner (`north`:
-`north-west` → `north-east`), so each corner joins an incoming and an outgoing wall
-(`north-west`: `west` → `north`). Door hinge ends A/B refer to the same corners.
-Like wall IDs, corner IDs are identities, not compass bearings: they stay with the
-corner through drags, endpoint edits, scaling and rotation. IDs are derived from
-the fixed clockwise order and are not stored, so project files, fixtures and job
-manifest hashes are unchanged.
+`shared/room-topology.mjs` defines room identity. A room is a closed clockwise ring
+of walls with stable IDs; a new room has `north`, `east`, `south` and `west`. Wall
+*w* runs from its A corner to its B corner, so each corner joins an incoming and an
+outgoing wall. Door hinge ends A/B refer to the same corners.
 
-Code addresses corners and walls by ID: `cornerPoint`, `wallSegment` (A/B points,
-length, direction and inward normal), `roomCorners` (joining walls and interior
-angle), `nextCorner`/`nextWall` (clockwise; negative steps go anticlockwise) and
-`oppositeCorner`/`oppositeWall`. `moveCorner`/`moveCorners` take corner IDs; numeric
+Corner IDs are derived from the two walls that meet there. Compass pairs keep
+readable names (`west` → `north` meet at `north-west`); any other pair is
+`incoming+outgoing`, for example `west+north-1`. A corner therefore keeps its ID
+as long as the same two walls meet, and is redefined when a wall is moved away,
+exchanged or removed. Wall and corner IDs are identities, not compass bearings:
+they stay with their wall or corner through drags, endpoint edits, scaling and
+rotation.
+
+Code addresses corners and walls by ID, passing the room (or a bare four-corner
+outline): `cornerPoint`, `wallSegment` (A/B points, length, direction and inward
+normal), `roomCorners` (joining walls and interior angle), `nextCorner`/`nextWall`
+(clockwise; negative steps go anticlockwise) and `oppositeCorner`/`oppositeWall`
+(even wall counts only). `moveCorner`/`moveCorners` take corner IDs; numeric
 indexes are rejected. Plan corner handles are labelled by corner (for example
 “North-west corner drag handle”), and the endpoint editor names the A/B corners.
 Cabinet footprints use `back-left`, `back-right`, `front-right`, `front-left`
 corners and `back`, `right`, `front`, `left` sides (`cabinetCorners`,
 `cabinetSides`). Left and right are as seen when facing the cabinet front.
 
+### Wall construction
+
+Rooms are built from their walls (`shared/room-construction.mjs`): every wall is
+a line, and each corner is where consecutive wall lines meet. Select a wall and use
+Wall construction:
+
+- **Move wall** shifts the wall parallel to itself (positive distances move it
+  outward). Neighbouring walls keep their direction and are extended or shortened.
+- **Remove wall** extends the two neighbouring walls until they meet at a new
+  corner. Parallel neighbours cannot meet, so a rectangle's walls cannot be removed;
+  angle a wall or exchange one first. A room keeps at least three walls.
+- **Replace wall** exchanges the wall for 1–8 wall lines, each through two points
+  A → B in clockwise order. The neighbours meet the replacement at redefined
+  corners. Add segment splits the last line into a shallow outward bay as a starting
+  point. One replacement keeps the wall ID; several replacements retire it and get
+  unused IDs such as `north-1` and `north-2`.
+
+Openings keep their world position: they are projected onto their wall, or for a
+replaced wall onto the nearest replacement. Openings on a removed wall are removed
+with it, and the status message says so. Other walls keep their lines exactly.
+Every result must be a closed, convex, clockwise room with walls of at least 0.1 m
+in which all openings and cabinets still fit; otherwise the whole edit is rejected
+with the reason and the room is unchanged. Walls are never removed implicitly: an
+edit that would shrink another wall to nothing is rejected instead. Each edit is one
+undo step. Corner dragging and endpoint edits keep opening offsets from end A, as before.
+
+### Locking the walls
+
+**Lock walls** (next to Undo/Redo) fixes the room shell and switches to interior
+editing; the badge beside it shows the current mode. While locked, the outline,
+walls, room height and the doors/windows in the walls cannot change: dimension
+inputs are disabled, corner handles are hidden and a selected wall shows a notice
+instead of its endpoint, construction and opening editors. Furniture remains fully
+editable, including placement, dragging, alignment, presets and workshop profiles.
+**Unlock walls** returns to wall editing.
+
+The lock is part of the room (`shared/room-lock.mjs`), so it is saved with the
+project and carried through recovery, JSON export and duplication. Locking and
+unlocking are each one undo step. History stays linear: undoing past a lock unlocks
+the walls first, so undo and redo never change walls while they are locked (the
+status message names lock changes, such as “Undo: walls unlocked · wall editing”).
+The rule is enforced for every room edit, not only in the UI: while locked the
+shell must stay identical, a lock change cannot carry any other edit, and the wall
+construction and corner functions refuse locked rooms. Locking changes the saved
+project, so a job manifest made before locking reports that its source no longer
+matches the current project.
+
 Schema 1 rectangles and schema 2 outlines migrate with empty opening lists. Schema 3
-openings migrate to schema 4, with A-end/inward defaults for doors. Schema 6 persists doors, named opening presets and furniture. Earlier projects migrate
+openings migrate to schema 4, with A-end/inward defaults for doors. Schema 6 persists doors, named opening presets and furniture; schema 7 adds stored wall IDs for rebuilt rooms and the wall lock. Earlier projects migrate
 with an empty furniture list. Older projects
 migrate with an empty preset list. Width/depth are derived from its bounds. Unsupported versions are rejected.
 The service validates before saving and atomically replaces its single project file.
@@ -155,7 +208,7 @@ build is not a production deployment; public hosting and authentication are futu
 
 ## Current limits
 
-Each project contains one convex four-corner room. Multiple named projects can be saved and selected. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
+Each project contains one convex room with 3–32 walls. Multiple named projects can be saved and selected. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
 BIM exchange, manufacturing, AI design or physics integration yet. Frames, glazing and door leaves are illustrative; there is no collision, hinge animation or door-swing clearance validation. Preview is a footprint marker rather than a full 3D opening. Geometry
 quantities come from the native core; Three.js constructs the preview from the same
 validated outline. The optional Google font falls back to the system sans-serif.
@@ -685,7 +738,7 @@ Use an external `TERRATEC_DATA_DIR` for data that must survive application repla
 
 ### Project compatibility policy
 
-Project schemas 1–6 are supported on read and normalized to schema 6 in memory. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
+Project schemas 1–7 are supported on read. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
 
 `fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets and cabinet defaults. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
 

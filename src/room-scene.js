@@ -7,36 +7,39 @@ import { wallPanels } from '../shared/openings.mjs';
 
 import { addFurnitureVisuals } from './furniture-scene.js';
 
-// Walls are listed north, west, south, east to match the visible cutaway walls first.
-export const surfaces = [
+const withOutline = room => ({ ...room, outline: room.outline || rectangle(room.width, room.depth) });
+export const roomSurfaces = room => [
   { id: 'floor', label: 'Floor' },
-  ...['north','west','south','east'].map(id => ({ id, label: wallLabel(id) }))
+  ...roomWalls(withOutline(room)).map(({ id }) => ({ id, label: wallLabel(id) }))
 ];
+// The 3D camera looks from the south-east (+x, +z); walls facing it are cut away.
+export const cutawayWalls = room => roomWalls(withOutline(room)).filter(w => -w.nx - w.nz > 1e-9).map(w => w.id);
 
-export function createRoom(room) {
-  const outline=room.outline || rectangle(room.width,room.depth);
+export function createRoom(input) {
+  const room=withOutline(input), outline=room.outline;
   const group = new THREE.Group();
+  group.userData.cutaway=cutawayWalls(room);
   const add = (id, geometry, position, color, angle=0) => {
     const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color,roughness:.85,side:THREE.DoubleSide}));
     mesh.position.set(...position); mesh.rotation.y=angle;
-    mesh.userData={id,baseColor:color}; mesh.name=surfaces.find(surface=>surface.id===id).label;
+    mesh.userData={id,baseColor:color}; mesh.name=id==='floor'?'Floor':wallLabel(id);
     group.add(mesh); return mesh;
   };
   const shape=new THREE.Shape(outline.map(p=>new THREE.Vector2(p.x,-p.z)));
   const floor=add('floor',new THREE.ShapeGeometry(shape),[0,-.001,0],0x9eb8ac);
   floor.rotation.x=-Math.PI/2;
-  roomWalls(outline).forEach(({id,a,length,tx,tz})=>{
+  roomWalls(room).forEach(({id,a,length,tx,tz})=>{
     for(const panel of wallPanels(length,room.height,(room.openings||[]).filter(o=>o.wall===id))) {
       const along=(panel.left+panel.right)/2;
       const mesh=add(id,new THREE.BoxGeometry(panel.right-panel.left,panel.top-panel.bottom,.16),
         [a.x+tx*along+tz*.08,(panel.bottom+panel.top)/2,a.z+tz*along-tx*.08],
-        wallIndex(id)%2 ? 0xc4cabb : 0xddd6c8,-Math.atan2(tz,tx));
+        wallIndex(room,id)%2 ? 0xc4cabb : 0xddd6c8,-Math.atan2(tz,tx));
       const slice=Math.min(1.2,room.height/2);
       mesh.userData.planVisible=panel.bottom<=slice && panel.top>=slice;
     }
   });
-  addOpeningVisuals(group,{...room,outline});
-  addFurnitureVisuals(group,{...room,outline});
+  addOpeningVisuals(group,room);
+  addFurnitureVisuals(group,room);
   return group;
 }
 
@@ -54,9 +57,10 @@ export function createGrid(room,spacing) {
 }
 
 export function updateSurfaces(group, view, selected) {
+  const cutaway = group.userData.cutaway || [];
   for (const mesh of group.children) {
     mesh.visible = view === 'Plan' ? mesh.userData.role!=='detail' && mesh.userData.planVisible!==false :
-      mesh.userData.role!=='symbol' && !['south','east'].includes(mesh.userData.id);
+      mesh.userData.role!=='symbol' && !cutaway.includes(mesh.userData.id);
     mesh.material.color.setHex(mesh.userData.baseColor);
     mesh.material.emissive?.setHex(mesh.userData.id === selected ? 0x766228 : 0x000000);
     if(mesh.material.emissive) mesh.material.emissiveIntensity = .65;

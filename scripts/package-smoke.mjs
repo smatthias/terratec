@@ -111,7 +111,7 @@ try{
   assert.deepEqual(upgraded.project,oldest.expected);
   const upgradedBytes=await readFile(join(restored,'projects',oldest.id+'.json'),'utf8');
   assert.equal(JSON.parse(upgradedBytes).project.schemaVersion,6);
-  await json('/api/projects/'+oldest.id,{...oldest.expected,schemaVersion:7},'PUT',400);
+  await json('/api/projects/'+oldest.id,{...oldest.expected,schemaVersion:8},'PUT',400);
   assert.equal(await readFile(join(restored,'projects',oldest.id+'.json'),'utf8'),upgradedBytes);
   assert.equal(await readFile(join(backupDir,'projects',oldest.id+'.json'),'utf8'),frozenRecords[0].bytes);
   await mkdir('test-results' ,{recursive:true});

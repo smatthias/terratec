@@ -14,7 +14,7 @@ function buildDrawing(input,{scale=null}={}) {
   const text=(p,value)=>{point(p);items.push(`<text x="${p.x}" y="${p.z}" text-anchor="middle" font-family="sans-serif" font-size="${font}" fill="#263e3c">${escapeXml(value)}</text>`);};
   poly(room.outline,'#eef2e9');
   for(const item of room.furniture) poly(cabinetFootprint(item),'#d8bd8e');
-  roomWalls(room.outline).forEach(({id:wall,a,length,tx,tz})=>{
+  roomWalls(room).forEach(({id:wall,a,length,tx,tz})=>{
     const at=(along,inset=0)=>({x:a.x+tx*along-tz*inset,z:a.z+tz*along+tx*inset});
     const openings=room.openings.filter(o=>o.wall===wall).sort((a,b)=>a.offset-b.offset),slice=Math.min(1.2,room.height/2);
     for(const p of wallPanels(length,room.height,openings)) if(p.bottom<=slice && p.top>=slice)

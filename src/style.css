@@ -23,3 +23,6 @@ aside{min-width:0}.recovery-panel select{min-width:0;max-width:100%}
 .workshop-jobs{font-size:12px;margin:18px 0}.job-hash{overflow-wrap:anywhere}.workshop-jobs textarea{display:block;width:100%;max-width:100%;min-height:70px}
 
 .job-register-list{list-style:none;padding:0;margin:12px 0;max-height:360px;overflow:auto}.job-register-list li{padding:10px 0;border-top:1px solid #bbc7b6;overflow-wrap:anywhere}.job-register-list strong,.job-register-list span,.job-register-list small{display:block}.job-register-list small{font-size:10px}
+.lock-toggle.locked{background:#263e3c;color:#f2f3eb}
+.room-mode{align-self:center;padding:0 10px;font-size:11px;letter-spacing:.04em;color:#60746a;white-space:nowrap}
+.lock-notice{margin:16px 0 0;padding:10px 12px;border:1px solid #c9b27a;border-radius:6px;background:#f6efdc;font-size:12px;line-height:1.5;color:#4c4126}
