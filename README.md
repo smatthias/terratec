@@ -676,3 +676,9 @@ Run `TERRATEC_DATA_DIR=/path/to/terratec-data npm run check:storage` from the so
 The check creates the directory if missing, writes/renames/deletes a uniquely named temporary probe, counts records, checks JSON readability and validates supported project formats. It never repairs or rewrites saved records. Job/customer checks cover JSON readability only. `POST /api/storage/check` returns the same report for local tooling; `status: attention` and the issues list indicate problems even when the HTTP request succeeds. Permission, read-only, full-storage and invalid-directory errors include recovery guidance. A successful probe describes the check time and does not guarantee future saves will succeed.
 
 Unsupported, invalid or damaged stored projects return HTTP 422 with a specific project error code and guidance to use a compatible release or restore a known-good backup. Existing records that cannot be read are protected from replacement saves. The project list also reports the affected record rather than silently hiding it. Stop the app and preserve a copy of the affected file before restoring data.
+
+### Taiga source ZIP
+
+Run `python3 scripts/pack-taiga.py` from your checkout (Python 3.8+ and Git required). It prints the output path and SHA-256. Use `--output /path/to/terratec-taiga.zip` for a specific new filename. The ZIP contains a `terratec/` source folder including `.gitignore`, license, source, tests and lockfile. It packages tracked **working-tree** files, so edited tracked files are included. Add intended new files to Git first; untracked files are omitted.
+
+Git history, dependencies, builds, release archives, local data, caches, test output and common credential filenames are excluded. This is a source ZIP, separate from the runnable release archive. Filename exclusions do not scan source contents for secrets; review the archive before uploading. Existing output files are not overwritten.
