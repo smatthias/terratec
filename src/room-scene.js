@@ -56,13 +56,16 @@ export function createGrid(room,spacing) {
     new THREE.LineBasicMaterial({color:0x66887f,transparent:true,opacity:.35}));
 }
 
-export function updateSurfaces(group, view, selected) {
-  const cutaway = group.userData.cutaway || [];
+// `selected` is one surface ID or a list (multi-selected furniture). `isolate` shows
+// only that furniture item, for inspection.
+export function updateSurfaces(group, view, selected, { isolate = null } = {}) {
+  const cutaway = group.userData.cutaway || [], highlighted = Array.isArray(selected) ? selected : [selected];
   for (const mesh of group.children) {
-    mesh.visible = view === 'Plan' ? mesh.userData.role!=='detail' && mesh.userData.planVisible!==false :
+    mesh.visible = isolate ? mesh.userData.furnitureId === isolate && mesh.userData.role !== (view === 'Plan' ? 'detail' : 'symbol') :
+      view === 'Plan' ? mesh.userData.role!=='detail' && mesh.userData.planVisible!==false :
       mesh.userData.role!=='symbol' && !cutaway.includes(mesh.userData.id);
     mesh.material.color.setHex(mesh.userData.baseColor);
-    mesh.material.emissive?.setHex(mesh.userData.id === selected ? 0x766228 : 0x000000);
+    mesh.material.emissive?.setHex(mesh.userData.id != null && highlighted.includes(mesh.userData.id) ? 0x766228 : 0x000000);
     if(mesh.material.emissive) mesh.material.emissiveIntensity = .65;
   }
 }
@@ -89,6 +92,28 @@ export function fitCamera(camera, room, aspect, view) {
   }
   camera.lookAt(b.x,0,b.z);
   camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+}
+
+// Frames a box {x, z, width, depth, height} (e.g. a furniture selection) and
+// returns the orbit target. Plan keeps north up; 3D looks from the south-east.
+export function frameBox(camera, box, aspect, view, roomHeight = box.height) {
+  const w = box.width + .6, d = box.depth + .6, target = { x: box.x, y: view === 'Plan' ? 0 : box.height / 2, z: box.z };
+  if (view === 'Plan') {
+    const halfHeight = Math.max(d/2, w/(2*aspect)) * 1.3;
+    camera.left = -halfHeight*aspect; camera.right = halfHeight*aspect;
+    camera.top = halfHeight; camera.bottom = -halfHeight; camera.zoom = 1;
+    camera.up.set(0,0,-1); camera.position.set(box.x, roomHeight+10, box.z);
+    camera.near = .01; camera.far = roomHeight+100;
+  } else {
+    camera.aspect = aspect;
+    const distance = Math.max(w, d, box.height) * 1.8 / Math.min(1, aspect);
+    camera.up.set(0,1,0);
+    camera.position.set(box.x+distance, target.y+distance*.8, box.z+distance);
+    camera.near = .01; camera.far = Math.max(2000, distance*10);
+  }
+  camera.lookAt(target.x, target.y, target.z);
+  camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  return target;
 }
 
 export function pickSurface(group, camera, x, y) {

@@ -26,3 +26,38 @@ aside{min-width:0}.recovery-panel select{min-width:0;max-width:100%}
 .lock-toggle.locked{background:#263e3c;color:#f2f3eb}
 .room-mode{align-self:center;padding:0 10px;font-size:11px;letter-spacing:.04em;color:#60746a;white-space:nowrap}
 .lock-notice{margin:16px 0 0;padding:10px 12px;border:1px solid #c9b27a;border-radius:6px;background:#f6efdc;font-size:12px;line-height:1.5;color:#4c4126}
+.furniture-toolbar{position:absolute;top:72px;left:24px;z-index:4;display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-width:calc(100% - 230px);padding:4px;background:#f2f3ebed;border-radius:8px}
+.furniture-toolbar .tool-group{display:flex;gap:2px;padding-right:6px;border-right:1px solid #c9d3c8}
+.furniture-toolbar button{padding:5px 8px;border:0;font-size:11px}
+.furniture-toolbar button[aria-pressed=true]{background:#263e3c;color:#f2f3eb}
+.tool-status{font-size:10px;color:#60746a;padding:0 6px;white-space:nowrap}
+.furniture-inspector{position:absolute;right:18px;bottom:60px;z-index:3;width:270px;max-height:60%;overflow:auto;padding:12px;background:#f2f3ebf5;border:1px solid #b9c6b9;border-radius:8px;box-shadow:0 6px 24px #001c2422;font-size:12px}
+.furniture-inspector h3{margin:2px 0 8px;font-size:15px}
+.furniture-inspector dl{margin:0}.furniture-inspector dl div{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid #dde3d9}
+.furniture-inspector dt{color:#60746a}.furniture-inspector dd{margin:0;text-align:right}
+.swatch{display:inline-block;width:10px;height:10px;margin-right:5px;border:1px solid #0003;border-radius:2px;vertical-align:-1px}
+/* Full-screen editing: canvas fills the screen, editors float over it. */
+.panel-section{display:contents}
+.workspace.immersive{--panel-left:12px;position:fixed;inset:0;z-index:1000;display:block;height:auto;min-height:0;overflow:hidden;background:#152c2d}
+.workspace.immersive.panel-open{--panel-left:364px}
+.workspace.immersive>main{position:absolute;inset:0}
+.workspace.immersive>header{position:absolute;top:8px;left:8px;right:8px;height:52px;min-height:0;padding:0 14px;z-index:20;background:#f2f3ebeb;border:1px solid #b9c6b9;border-radius:10px;box-shadow:0 6px 24px #001c2433}
+.workspace.immersive>header .brand{font-size:20px}.workspace.immersive>header .brand small{display:none}
+.workspace.immersive>header .actions{max-width:none;flex-wrap:nowrap;overflow-x:auto}
+.workspace.immersive>aside{position:absolute;top:68px;left:8px;bottom:56px;width:340px;z-index:15;padding:0 16px 16px;overflow:auto;background:#f2f3ebf2;border:1px solid #b9c6b9;border-right:1px solid #b9c6b9;border-radius:10px;box-shadow:0 6px 24px #001c2433;backdrop-filter:blur(6px)}
+.workspace.immersive:not(.panel-open)>aside{display:none}
+.workspace.immersive aside[data-tab=furniture] .panel-section:not([data-section=furniture]),
+.workspace.immersive aside[data-tab=room] .panel-section:not([data-section=room]),
+.workspace.immersive aside[data-tab=project] .panel-section:not([data-section=project]){display:none}
+.panel-tabs{position:sticky;top:0;z-index:1;display:flex;gap:4px;margin:0 -16px 12px;padding:10px 12px;background:#f2f3eb;border-bottom:1px solid #cdd5ca}
+.panel-tabs button{padding:6px 9px;font-size:11px}.panel-tabs button[aria-pressed=true]{background:#263e3c;color:#f2f3eb}
+.panel-tabs .panel-hide{margin-left:auto}
+.workspace.immersive>footer{position:absolute;left:var(--panel-left);right:12px;bottom:8px;height:36px;z-index:15;background:#f2f3ebe8;border-radius:8px}
+.workspace.immersive main nav{top:68px;left:var(--panel-left);max-width:calc(100% - var(--panel-left) - 160px)}
+.workspace.immersive .furniture-toolbar{top:118px;left:var(--panel-left);max-width:calc(100% - var(--panel-left) - 160px)}
+.workspace.immersive .surface-panel{top:68px;right:12px}
+.workspace.immersive .furniture-inspector{bottom:56px;right:12px}
+.workspace.immersive .canvas-note{left:var(--panel-left);bottom:58px}
+.workspace.immersive .preview-status{left:var(--panel-left);bottom:96px}
+.fullscreen-toggle[aria-pressed=true]{background:#263e3c;color:#f2f3eb}
+@media(max-width:700px){.workspace.immersive.panel-open{--panel-left:12px}.workspace.immersive>aside{width:auto;right:8px;top:auto;height:45%}}

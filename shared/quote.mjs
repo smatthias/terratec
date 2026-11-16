@@ -1,16 +1,20 @@
 import {stockRateKey,validateStockRates} from './stock-pricing.mjs';
 import {cabinetBom} from './cabinet-parts.mjs';
+import {WOOD_IDS,MATERIALS} from './materials.mjs';
+// Oak, birch and white rates are always required; other woods are optional so saved quotes stay unchanged.
+const BASE_RATES=['oak','birch','white'];
 export function validatePricing(input){
   if(!input||!['EUR','USD','GBP'].includes(input.currency))throw Error('Choose EUR, USD or GBP');
   const integer=(v,max)=>Number.isSafeInteger(v)&&v>=0&&v<=max;
-  if(!['oak','birch','white'].every(k=>integer(input.sheetRates?.[k],1000000))||!integer(input.handleUnitCents,1000000)||!integer(input.labourHourlyCents,1000000)||!integer(input.labourMinutesPerPanel,600)||!integer(input.markupBps,10000))throw Error('Invalid pricing: use non-negative integer cents, minutes (0–600) and markup basis points (0–10000)');
+  const extraRates=WOOD_IDS.filter(k=>!BASE_RATES.includes(k)&&input.sheetRates?.[k]!==undefined);
+  if(!BASE_RATES.every(k=>integer(input.sheetRates?.[k],1000000))||!extraRates.every(k=>integer(input.sheetRates[k],1000000))||!integer(input.handleUnitCents,1000000)||!integer(input.labourHourlyCents,1000000)||!integer(input.labourMinutesPerPanel,600)||!integer(input.markupBps,10000))throw Error('Invalid pricing: use non-negative integer cents, minutes (0–600) and markup basis points (0–10000)');
   let edging;
   if(input.edging!==undefined){
     const value=input.edging;
     if(!value||typeof value!=='object'||Array.isArray(value)||!integer(value.materialCentsPerMetre,1000000)||!integer(value.labourCentsPerMetre,1000000)||!integer(value.wasteBps,10000))throw Error('Invalid edging rates: use non-negative integer cents and waste basis points from 0 to 10000');
     edging={materialCentsPerMetre:value.materialCentsPerMetre,labourCentsPerMetre:value.labourCentsPerMetre,wasteBps:value.wasteBps};
   }
-  return {...(input.stockRates!==undefined?{stockRates:validateStockRates(input.stockRates)}:{}),...(edging?{edging}:{}),currency:input.currency,sheetRates:{oak:input.sheetRates.oak,birch:input.sheetRates.birch,white:input.sheetRates.white},handleUnitCents:input.handleUnitCents,labourHourlyCents:input.labourHourlyCents,labourMinutesPerPanel:input.labourMinutesPerPanel,markupBps:input.markupBps};
+  return {...(input.stockRates!==undefined?{stockRates:validateStockRates(input.stockRates)}:{}),...(edging?{edging}:{}),currency:input.currency,sheetRates:Object.fromEntries([...BASE_RATES,...extraRates].map(k=>[k,input.sheetRates[k]])),handleUnitCents:input.handleUnitCents,labourHourlyCents:input.labourHourlyCents,labourMinutesPerPanel:input.labourMinutesPerPanel,markupBps:input.markupBps};
 }
 export function quoteCosting(manifest,revision,input){
   const pricing=validatePricing(input);
@@ -18,6 +22,7 @@ export function quoteCosting(manifest,revision,input){
   const lines=manifest.batches.map(b=>{
     const dimensions={material:b.material,thicknessMm:b.thickness*1000,stockLengthMm:b.layout.stock.stockLengthMm,stockWidthMm:b.layout.stock.stockWidthMm};
     const override=pricing.stockRates?.find(row=>stockRateKey(row)===stockRateKey(dimensions)),unitCents=override?.unitCents??pricing.sheetRates[b.material];
+    if(unitCents===undefined)throw Error(`Enter a sheet price for ${MATERIALS[b.material].label}`);
     return {batch:b.number,...dimensions,quantity:b.layout.sheets.length,unitCents,amountCents:b.layout.sheets.length*unitCents,...(pricing.stockRates!==undefined?{rateSource:override?'stock':'material'}:{})};
   });
   const materialCents=lines.reduce((n,l)=>n+l.amountCents,0);

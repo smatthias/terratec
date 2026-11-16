@@ -134,6 +134,25 @@ with the reason and the room is unchanged. Walls are never removed implicitly: a
 edit that would shrink another wall to nothing is rejected instead. Each edit is one
 undo step. Corner dragging and endpoint edits keep opening offsets from end A, as before.
 
+### Full-screen editing
+
+**Full screen** (in the view bar) turns the whole editor into a full-screen
+workspace: the 3D/Plan canvas fills the screen and the editing tools float over it.
+The header becomes a slim top bar with the usual project actions, and the sidebar
+becomes a translucent editor panel with **Furniture**, **Room & walls** and
+**Project** tabs. Selecting furniture or a wall switches to the matching tab. **Hide
+panel** and **Show panel** give the canvas the full width. The view bar, furniture
+toolbar, surfaces list, inspector and status line sit beside the panel. Everything
+is the same live editor as in the normal layout, so edits, selection, undo/redo and
+placement modes carry over when you switch.
+
+TerraTec uses the browser Fullscreen API when it is available. Where the browser
+refuses it (for example inside an embedded frame), the editor fills the browser
+window instead and says so. **Exit full screen**, the browser's own Esc, or Escape
+with nothing selected and no placement in progress (first Escape clears a selection)
+returns to the normal layout. Resizing re-fits the camera, keeping an inspected item
+framed.
+
 ### Locking the walls
 
 **Lock walls** (next to Undo/Redo) fixes the room shell and switches to interior
@@ -325,9 +344,23 @@ are applied. Panel bill export does not mutate the model or history.
 
 ### Cabinet materials and panel blanks
 
-Choose oak board, birch plywood or white board, then apply the cabinet. Material
-selection changes panel colour and is included in saved projects and panel CSV.
-These are appearance labels, not certified structural material specifications.
+Choose a panel wood, then apply the cabinet. The catalogue (`shared/materials.mjs`)
+has wood-based boards (oak board, birch plywood, white board) and solid woods
+(beech, walnut, maple, pine). **Hardware metal** (zinc-plated steel by default,
+stainless steel, brass or aluminium) applies to handles and screws. Material
+selection changes panel and handle colour and is included in saved projects, panel
+CSV, manufacturing batches and quotes. Quotes always need oak, birch and white sheet
+rates; other woods have their own optional rate, and costing a wood without a rate
+asks for one. Labels and typical densities are for planning, not certified
+structural material specifications.
+
+Screws are a planning estimate: **Screws per joint** (default 4) at each structural
+joint, meaning the four top/bottom-to-side corners and both ends of every divider.
+Shelf supports, backs, hinges and fittings are not counted. The hardware line and
+panel CSV list handles and nominal 4 × 40 mm screws with their metal. The estimated
+weight multiplies design panel volume by the wood density and adds screws (solid
+cylinders) and handles (their modelled blocks) at the metal density. Cabinets
+without hardware settings keep their earlier saved form, manifests and quotes.
 
 Length/width allowances are total additions in millimetres (0–50 per axis),
 applied once to each finished panel dimension. They do not alter rendered
@@ -673,6 +706,39 @@ controls cancels that mode. Numeric previews keep the sidebar rotation controls
 and can be viewed in Plan or 3D. Guide alignment uses projected body bounds and
 does not imply door-swing, handle or shortest-distance clearance.
 
+### Furniture editing toolkit
+
+The furniture toolbar above the canvas works like editing in office tools. Select
+an item by clicking it, choosing it in the list or using **Select all furniture**
+(Ctrl/⌘+A). Shift-, Ctrl- or ⌘-click adds or removes items. The last item clicked
+is active and shown in the cabinet editor; all selected items are highlighted.
+
+| Command | Shortcut | Behaviour |
+| --- | --- | --- |
+| Cut / Copy furniture | Ctrl/⌘+X / C | Copies the selection to a session clipboard; cut also removes it |
+| Paste furniture | Ctrl/⌘+V | Tries the original position, then the nearest free grid offset (down-right first) |
+| Paste in Plan | — | The next click in Plan centres the pasted group there; invalid clicks explain why |
+| Duplicate furniture | Ctrl/⌘+D | Copy and paste in one step, without touching the clipboard |
+| Delete furniture | Delete / Backspace | Removes the selection |
+| Rotate ±15° / ±90° | R / Shift+R | Turns the selection rigidly about the centre of its footprint bounds |
+| Zoom to selection | F | Frames the selection in the current view |
+| Inspect furniture | I, Escape exits | Isolates the active item in 3D with an inspector panel |
+
+Dragging a selected item in Plan moves the whole selection; snapping applies to the
+dragged item. Pasted items get new IDs; copies are named “… (copy)” once, and cut
+items keep their names. The clipboard holds the full cabinet design, is not saved
+and persists when you open or create another project, so items can be moved between
+projects. The automatic paste search covers up to 40 grid steps in every direction
+and reports when no free space is found. Every command validates containment and
+overlap and is one undo step; shortcuts are ignored while typing in a field. All
+commands remain available while the walls are locked.
+
+**Inspect furniture** hides the room and other items, frames the item in 3D and keeps
+orbit and scroll-zoom. The inspector panel shows size, position, rotation, wood and
+hardware swatches, panel count and area, the screw and handle estimate, nearest wall
+and estimated weight. It can rotate the item, reframe it or exit; switching to Plan
+also exits.
+
 ### Wall and opening clearance planning
 
 Furniture clearance reports the nearest finite wall-segment distance from the
@@ -710,7 +776,7 @@ and `npm run preview` in separate terminals. Preview is a local verification
 server, not the production deployment setup.
 
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
-Manufacturing and workshop-record panels load when opened. Budgets are 180 kB for
+Manufacturing and workshop-record panels, the furniture inspector and export-only modules (cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 180 kB for
 the entry, 400 kB for each JavaScript chunk, 850 kB for initial JavaScript and
 950 kB for all JavaScript, measured uncompressed; CSS is limited to 15 kB per file.
 `test-results/bundle-report.json` records raw/gzip sizes and initial versus lazy

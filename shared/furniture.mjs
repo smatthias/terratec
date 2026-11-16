@@ -3,6 +3,7 @@ import {shelfJoinery} from './shelf-joinery.mjs';
 import {cabinetCompartments} from './cabinet-compartments.mjs';
 import {validateStock} from './stock.mjs';
 import {snapPoint} from './geometry.mjs';
+import {isWood,isMetal} from './materials.mjs';
 export function cabinetFootprint(item) {
   const angle=item.rotation*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
   return [[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,z])=>({x:item.x+c*x*item.width/2+s*z*item.depth/2,z:item.z-s*x*item.width/2+c*z*item.depth/2}));
@@ -17,13 +18,18 @@ export function cabinetSides(item) {
   const corners=cabinetCorners(item);
   return CABINET_SIDE_IDS.map((id,i)=>{const a=corners[i],b=corners[(i+1)%4];return {id,corners:{a:a.id,b:b.id},a:{x:a.x,z:a.z},b:{x:b.x,z:b.z}};});
 }
-function overlaps(a,b) {
+// Separating-axis test for two convex footprints; touching edges do not overlap.
+export function footprintsOverlap(a,b) {
   for(const polygon of [a,b])for(let i=0;i<4;i++) {
     const p=polygon[i],q=polygon[(i+1)%4],axis={x:-(q.z-p.z),z:q.x-p.x};
     const project=points=>points.map(v=>v.x*axis.x+v.z*axis.z),pa=project(a),pb=project(b);
     if(Math.max(...pa)<=Math.min(...pb)+1e-9 || Math.max(...pb)<=Math.min(...pa)+1e-9) return false;
   }
   return true;
+}
+// Convex room containment (clockwise outline); touching a wall is allowed.
+export function footprintInside(footprint,outline) {
+  return footprint.every(p=>outline.every((a,i)=>{const b=outline[(i+1)%outline.length];return (b.x-a.x)*(p.z-a.z)-(b.z-a.z)*(p.x-a.x)>=-1e-8;}));
 }
 export function validateFurniture(value,outline,roomHeight) {
   if(!Array.isArray(value)||value.length>64) throw Error('Expected at most 64 furniture items');
@@ -36,18 +42,18 @@ export function validateFurniture(value,outline,roomHeight) {
       item.thickness<.012 || item.thickness>.05 || item.thickness>=Math.min(item.width,item.depth,item.height)/4 || !Number.isInteger(item.shelves) || item.shelves<0 || item.shelves>10)
       throw Error('Invalid cabinet dimensions, panel thickness, shelves or rotation');
     const material=item.material??'oak',lengthAllowanceMm=item.lengthAllowanceMm??0,widthAllowanceMm=item.widthAllowanceMm??0;
-    if(!['oak','birch','white'].includes(material) || ![lengthAllowanceMm,widthAllowanceMm].every(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=50)) throw Error('Choose a supported material and allowances from 0 to 50 mm');
+    if(!isWood(material) || ![lengthAllowanceMm,widthAllowanceMm].every(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=50)) throw Error('Choose a supported material and allowances from 0 to 50 mm');
+    // Optional hardware settings; omitted fields keep older cabinets byte-identical.
+    if(item.hardwareMaterial!==undefined && !isMetal(item.hardwareMaterial)) throw Error('Choose a supported hardware metal');
+    if(item.screwsPerJoint!==undefined && !(Number.isInteger(item.screwsPerJoint)&&item.screwsPerJoint>=0&&item.screwsPerJoint<=20)) throw Error('Screws per joint must be a whole number from 0 to 20');
     cabinetCompartments(item);
     const joint=shelfJoinery(item),banding=edgeBanding(item);
     const stock=validateStock(item);
     const footprint=cabinetFootprint(item);
-    for(const p of footprint)for(let i=0;i<outline.length;i++) {
-      const a=outline[i],b=outline[(i+1)%outline.length];
-      if((b.x-a.x)*(p.z-a.z)-(b.z-a.z)*(p.x-a.x)<-1e-8) throw Error('Cabinet must fit inside the room');
-    }
-    if(footprints.some(other=>overlaps(footprint,other))) throw Error('Cabinets cannot overlap');
+    if(!footprintInside(footprint,outline)) throw Error('Cabinet must fit inside the room');
+    if(footprints.some(other=>footprintsOverlap(footprint,other))) throw Error('Cabinets cannot overlap');
     ids.add(item.id);footprints.push(footprint);
-    return {...(item.edgeBanding!==undefined?{edgeBanding:banding}:{}),...(item.shelfJoinery!==undefined?{shelfJoinery:joint}:{}),...(item.columnFronts!==undefined?{columnFronts:[...item.columnFronts]}:{}),...(item.columnWeights!==undefined?{columnWeights:[...item.columnWeights]}:{}),...(item.columnShelves!==undefined?{columnShelves:[...item.columnShelves]}:{}),...(item.columns!==undefined?{columns:item.columns}:{}),id:item.id,type:'cabinet',name:item.name.trim(),width:item.width,depth:item.depth,height:item.height,x:item.x,z:item.z,rotation:item.rotation,thickness:item.thickness,shelves:item.shelves,material,lengthAllowanceMm,widthAllowanceMm,...stock};
+    return {...(item.edgeBanding!==undefined?{edgeBanding:banding}:{}),...(item.shelfJoinery!==undefined?{shelfJoinery:joint}:{}),...(item.columnFronts!==undefined?{columnFronts:[...item.columnFronts]}:{}),...(item.columnWeights!==undefined?{columnWeights:[...item.columnWeights]}:{}),...(item.columnShelves!==undefined?{columnShelves:[...item.columnShelves]}:{}),...(item.columns!==undefined?{columns:item.columns}:{}),...(item.hardwareMaterial!==undefined?{hardwareMaterial:item.hardwareMaterial}:{}),...(item.screwsPerJoint!==undefined?{screwsPerJoint:item.screwsPerJoint}:{}),id:item.id,type:'cabinet',name:item.name.trim(),width:item.width,depth:item.depth,height:item.height,x:item.x,z:item.z,rotation:item.rotation,thickness:item.thickness,shelves:item.shelves,material,lengthAllowanceMm,widthAllowanceMm,...stock};
   });
 }
 

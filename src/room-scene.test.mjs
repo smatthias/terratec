@@ -39,3 +39,29 @@ test('selection persists while cutaway hides walls and reappears in plan', () =>
   updateSurfaces(group,'Plan',null);
   assert.equal(south.material.emissive.getHex(),0);
 });
+
+import { frameBox } from './room-scene.js';
+test('framing a selection keeps its whole box in view in plan and 3D', () => {
+  for (const box of [{x:2,z:-1,width:.8,depth:.5,height:1},{x:-40,z:30,width:12,depth:3,height:2.5}])
+    for (const aspect of [.4,1,2.2]) for (const view of ['Plan','3D']) {
+      const camera = view === 'Plan' ? new THREE.OrthographicCamera() : new THREE.PerspectiveCamera(45,aspect,.01,10000);
+      const target = frameBox(camera, box, aspect, view, 3);
+      assert.equal(target.x, box.x); assert.equal(target.z, box.z);
+      for (const x of [box.x-box.width/2, box.x+box.width/2]) for (const z of [box.z-box.depth/2, box.z+box.depth/2]) for (const y of [0, box.height]) {
+        const p = new THREE.Vector3(x,y,z).project(camera);
+        assert.ok(Math.abs(p.x) < 1 && Math.abs(p.y) < 1, `${view} ${aspect} corner in view`);
+      }
+      if (view === 'Plan') assert.ok(camera.position.y > 3, 'plan camera stays above the room');
+    }
+});
+test('inspection isolates one furniture item and multi-selection highlights every item', () => {
+  const cabinet = (id,x) => ({id,type:'cabinet',name:id,width:.8,depth:.5,height:1,thickness:.018,shelves:1,x,z:0,rotation:0});
+  const group = createRoom({ ...room, outline: [{x:-3,z:-2},{x:3,z:-2},{x:3,z:2},{x:-3,z:2}], openings: [], furniture: [cabinet('a',-1), cabinet('b',1)] });
+  updateSurfaces(group, '3D', null, { isolate: 'a' });
+  const visible = group.children.filter(m => m.visible);
+  assert.ok(visible.length > 0 && visible.every(m => m.userData.furnitureId === 'a' && m.userData.role !== 'symbol'));
+  updateSurfaces(group, '3D', ['furniture:a','furniture:b']);
+  const lit = new Set(group.children.filter(m => m.material.emissive?.getHex()).map(m => m.userData.id));
+  assert.deepEqual([...lit].sort(), ['furniture:a','furniture:b']);
+  assert.ok(group.children.some(m => m.userData.id === 'north' && m.visible), 'isolation ends when not requested');
+});
