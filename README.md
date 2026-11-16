@@ -739,6 +739,125 @@ hardware swatches, panel count and area, the screw and handle estimate, nearest 
 and estimated weight. It can rotate the item, reframe it or exit; switching to Plan
 also exits.
 
+### Furniture designer
+
+**Furniture designer** in the header switches the whole workspace from the room
+editor to a designer perspective in the same window; **Room** switches back. The
+room's view and selection are kept. The designer has a design and parts panel, a
+3D view with **Front**, **Top** and **Side** orthographic views, and a properties
+panel with layers and the CNC plan. Designs are measured in millimetres.
+
+Start with **New empty design**, **New box carcass** (a 600 × 720 × 560 mm carcass
+with shelf-pin holes and back-panel grooves) or **Design from selected cabinet**,
+which converts the cabinet selected in the room into editable pieces.
+
+**Piece library.** Every piece has a base form, a length, a material and a
+colour. Pick a base form from the cards (the icons show the cross-section), pick a
+material from the wood or metal swatches, set the new piece's length and colour,
+then choose **Add**. Choosing a form suggests its usual material and length;
+choosing a material sets the colour to the material colour.
+
+| Base form | Size | Typical use |
+| --- | --- | --- |
+| Board / panel | length × width × thickness, orientation | sides, shelves, backs, doors; machinable |
+| Rectangular bar | length; section width × height | legs, rails, battens |
+| Round rod | length; diameter | dowels, rods, round legs |
+| Round tube | length; diameter, wall | metal frames, hanging rails |
+| Rectangular tube | length; section width × height, wall | steel and aluminium frames |
+| L-angle | length; leg width × height, wall | brackets, edge profiles |
+
+Each piece is edited on its own in the properties panel:
+
+- **Name, Piece form, material and colour.** The colour follows material changes
+  until you choose a colour for the piece; **Use material colour** links it again.
+- **Length direction** for profiles (x left to right, y upright, z front to back);
+  the section fields name the axis they run along.
+- **Sizes** for its form, **position** (minimum corner; x right, y up, z toward the
+  front) and **layer**.
+
+Changing the **Piece form** keeps the piece's name, material, colour, layer and
+corner, and fills the same box. Round forms fit inside the section, and a panel
+takes the orientation whose thickness is the smallest side. Panels with machining
+features must have them removed first. Designs from the first designer version
+load their solid blocks as rectangular bars along their longest side, with the
+same size.
+
+Edits apply when a field changes. Invalid values are rejected with the reason and
+the field reverts. Each change is one step of the design's own **Undo design** /
+**Redo design** history (Ctrl/⌘+Z, Ctrl/⌘+Shift+Z or Ctrl/⌘+Y). Delete removes the
+selected piece or feature and Ctrl/⌘+D duplicates a piece. Design histories are kept
+for the session and are separate from room undo.
+
+**Working in the view.** Pieces are edited directly in the 3D, Front, Top and
+Side views:
+
+- **Move** (M): drag a piece to move it. Ortho views move it in the view plane. In
+  3D it slides horizontally; hold Shift to lift or lower it. The grabbed point stays
+  under the pointer, and the moved axes snap to the **Grid** (off, 1–50 mm). Arrow
+  keys nudge the selected piece by one grid step along the on-screen directions
+  (Shift+Up/Down moves vertically in 3D and Top).
+- **Rotate** (R): drag a coloured ring (x red, y green, z blue) around the selected
+  piece. Ortho views show only the ring turning within the view. Angles snap to the
+  **Angle** step (off, 5–90°). The selection toolbar has quick turns (X +90°,
+  Y ±15°, Y +90°, Z +90°) and **Reset rotation**. Exact angles can be typed in the
+  properties.
+- **Drag and drop:** drag a base-form card from the piece library into the view to
+  place a piece where you drop it. It lands on the floor in 3D and Top, at the back
+  in Front and on the left in Side, snapped to the grid. Drag a material swatch onto
+  a piece to apply it, or a layer's ⠿ handle onto a piece to move it to that layer.
+- The **selection toolbar** at the bottom of the view shows the selected piece and
+  changes its layer, turns it, duplicates it or deletes it.
+
+A press without dragging selects; a whole drag is one undo step and Escape cancels
+it. Pieces on locked layers do not move, and the camera orbits when you drag empty
+space. Rotation turns a piece about its centre; its position stays the corner of
+the unrotated piece and its machining turns with it. Quick turns and the rings use
+world axes.
+
+**Depth work.** Panels take machining features on face A (the positive side of the
+thickness axis) or face B (turned over): **drill holes** (centre and diameter),
+**pockets** and **grooves** (rectangles). Positions use the panel's own sheet frame:
+u along the length and v along the width from the panel corner, as the panel lies
+on the CNC bed with face A up. Depth is measured into the material; **Cut through**
+sets it to the panel thickness. Features must stay on the face and within the
+thickness. They show in the 3D view as translucent volumes in their layer colour.
+
+**Layers.** The layer panel floats in the design view and can be hidden. Every part
+and feature is on a layer with a name, colour, visibility, lock and CNC operation
+(profile, drill, pocket, groove or none). Make a layer **Active** to put new pieces
+on it (**Automatic layers** returns to choosing by type). **Focus** a layer to dim
+everything else in the view, and use **Colour by layer** in the view bar to shade
+pieces in their layer colour. The layer order is
+the machining order. New designs have Drilling, Grooves, Pockets, Parts (profile)
+and Reference (not machined), so holes and recesses are cut before the profile
+frees the part. Part edges are drawn in their layer colour. Hidden layers are not
+drawn or picked. Locked layers prevent editing, removing or moving anything onto
+them. Only empty layers can be deleted.
+
+**CNC plan.** The plan lists each panel's sheet size, material and operations in
+layer order, with face, sheet coordinates, depth and a through flag. Face B
+operations are marked as needing the panel turned over. Checks report:
+
+- features on a layer whose operation does not match;
+- features or parts on layers without an operation;
+- non-panel parts on machining layers;
+- parts that overlap another part without a groove, pocket, hole or tube receiving
+  them (a back panel in grooves, a dowel in a hole or a rod in a tube is fine).
+  Pieces square to each other (same rotation or quarter turns) are checked exactly
+  against the receiving features. Pieces at other angles use an exact oriented-box
+  test and count as received only when one lies entirely inside a feature of the
+  other. An L-angle counts as solid.
+
+**Export CNC plan JSON** downloads this machine-neutral plan. It is not G-code:
+tool selection, feeds and speeds, tabs, lead-ins and machine post-processing are
+future work.
+
+Designs are saved with the project (schema 7 `furnitureDesigns`; projects without
+designs are unchanged). They count toward the 64 KiB project limit; the designer
+shows the current size. A six-panel carcass uses about 4 KiB. Up to 32 designs,
+200 parts per design, 64 features per panel and 32 layers are supported. Designs
+cannot yet be placed in the room as furniture.
+
 ### Wall and opening clearance planning
 
 Furniture clearance reports the nearest finite wall-segment distance from the
@@ -776,9 +895,10 @@ and `npm run preview` in separate terminals. Preview is a local verification
 server, not the production deployment setup.
 
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
-Manufacturing and workshop-record panels, the furniture inspector and export-only modules (cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 180 kB for
+Manufacturing and workshop-record panels, the furniture inspector, the furniture designer and export-only modules (cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 180 kB for
 the entry, 400 kB for each JavaScript chunk, 850 kB for initial JavaScript and
-950 kB for all JavaScript, measured uncompressed; CSS is limited to 15 kB per file.
+950 kB for all JavaScript apart from the furniture designer, which must load lazily
+and has its own 80 kB budget, measured uncompressed; CSS is limited to 15 kB per file.
 `test-results/bundle-report.json` records raw/gzip sizes and initial versus lazy
 chunks. The default Vite size warning remains enabled. These checks do not claim
 that splitting alone reduces total downloads or guarantees faster rendering.
