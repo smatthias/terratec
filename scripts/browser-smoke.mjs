@@ -108,7 +108,7 @@ try {
   await page.getByRole('button',{name:'Plan',exact:true}).click();
   await page.getByRole('button',{name:'Fit room',exact:true}).click();
   await page.getByLabel('Snap endpoints to grid').check();
-  const firstHandle=page.getByRole('button',{name:'Corner 1 drag handle',exact:true});
+  const firstHandle=page.getByRole('button',{name:'North-west corner drag handle',exact:true});
   const handleBox=await firstHandle.boundingBox();
   const dragRect=await canvas.boundingBox();
   const dragCamera=new THREE.OrthographicCamera();

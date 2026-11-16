@@ -80,6 +80,28 @@ Width and depth inputs scale the outline about its bounding-box center. Height i
 uniform. Coordinates must be finite and within ±1000 m, wall lengths at least 0.1 m,
 and overall spans 0.1–1000 m. Crossing, concave and collapsed outlines are rejected.
 
+### Stable corner and wall IDs
+
+The room's fixed sets have stable IDs defined in `shared/room-topology.mjs`:
+corners `north-west`, `north-east`, `south-east`, `south-west` and walls `north`,
+`east`, `south`, `west`. Wall *w* runs from its A corner to its B corner (`north`:
+`north-west` → `north-east`), so each corner joins an incoming and an outgoing wall
+(`north-west`: `west` → `north`). Door hinge ends A/B refer to the same corners.
+Like wall IDs, corner IDs are identities, not compass bearings: they stay with the
+corner through drags, endpoint edits, scaling and rotation. IDs are derived from
+the fixed clockwise order and are not stored, so project files, fixtures and job
+manifest hashes are unchanged.
+
+Code addresses corners and walls by ID: `cornerPoint`, `wallSegment` (A/B points,
+length, direction and inward normal), `roomCorners` (joining walls and interior
+angle), `nextCorner`/`nextWall` (clockwise; negative steps go anticlockwise) and
+`oppositeCorner`/`oppositeWall`. `moveCorner`/`moveCorners` take corner IDs; numeric
+indexes are rejected. Plan corner handles are labelled by corner (for example
+“North-west corner drag handle”), and the endpoint editor names the A/B corners.
+Cabinet footprints use `back-left`, `back-right`, `front-right`, `front-left`
+corners and `back`, `right`, `front`, `left` sides (`cabinetCorners`,
+`cabinetSides`). Left and right are as seen when facing the cabinet front.
+
 Schema 1 rectangles and schema 2 outlines migrate with empty opening lists. Schema 3
 openings migrate to schema 4, with A-end/inward defaults for doors. Schema 6 persists doors, named opening presets and furniture. Earlier projects migrate
 with an empty furniture list. Older projects

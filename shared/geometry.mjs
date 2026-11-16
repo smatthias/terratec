@@ -1,4 +1,4 @@
-export const edgeIds = ['north','east','south','west'];
+import { cornerIndex } from './room-topology.mjs';
 export const rectangle = (width, depth) => [
   {x:-width/2,z:-depth/2},{x:width/2,z:-depth/2},
   {x:width/2,z:depth/2},{x:-width/2,z:depth/2}
@@ -27,11 +27,13 @@ export function snapPoint(point, spacing, enabled=true) {
   const snap=v=>enabled ? Number((Math.round(v/spacing)*spacing).toFixed(8)) : v;
   return {x:snap(point.x),z:snap(point.z)};
 }
-export function moveCorner(outline,index,point,spacing,enabled) {
+// Moves corners addressed by stable corner ID, e.g. {'north-west': {x, z}}.
+export function moveCorners(outline,moves,spacing,enabled) {
   const next=outline.map(p=>({...p}));
-  next[index]=snapPoint(point,spacing,enabled);
+  for(const [corner,point] of Object.entries(moves)) next[cornerIndex(corner)]=snapPoint(point,spacing,enabled);
   return validateOutline(next);
 }
+export const moveCorner=(outline,corner,point,spacing,enabled)=>moveCorners(outline,{[corner]:point},spacing,enabled);
 export function scaleOutline(outline,axis,size) {
   const b=bounds(outline), span=axis==='x'?b.width:b.depth;
   return validateOutline(outline.map(p=>({...p,[axis]:b[axis]+(p[axis]-b[axis])*size/span})));

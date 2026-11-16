@@ -7,6 +7,16 @@ export function cabinetFootprint(item) {
   const angle=item.rotation*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
   return [[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,z])=>({x:item.x+c*x*item.width/2+s*z*item.depth/2,z:item.z-s*x*item.width/2+c*z*item.depth/2}));
 }
+// Stable IDs for the footprint's fixed corner/side sets, in cabinetFootprint order.
+// The front faces local +z (doors and handles); left/right are as seen facing the front.
+// Side i runs from corner i to corner i+1, mirroring room walls and corners.
+export const CABINET_CORNER_IDS=Object.freeze(['back-left','back-right','front-right','front-left']);
+export const CABINET_SIDE_IDS=Object.freeze(['back','right','front','left']);
+export const cabinetCorners=item=>cabinetFootprint(item).map((p,i)=>({id:CABINET_CORNER_IDS[i],...p}));
+export function cabinetSides(item) {
+  const corners=cabinetCorners(item);
+  return CABINET_SIDE_IDS.map((id,i)=>{const a=corners[i],b=corners[(i+1)%4];return {id,corners:{a:a.id,b:b.id},a:{x:a.x,z:a.z},b:{x:b.x,z:b.z}};});
+}
 function overlaps(a,b) {
   for(const polygon of [a,b])for(let i=0;i<4;i++) {
     const p=polygon[i],q=polygon[(i+1)%4],axis={x:-(q.z-p.z),z:q.x-p.x};

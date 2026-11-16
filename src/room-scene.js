@@ -1,17 +1,16 @@
 import * as THREE from 'three';
-import { rectangle, bounds, edgeIds } from '../shared/geometry.mjs';
+import { rectangle, bounds } from '../shared/geometry.mjs';
+import { wallIndex, wallLabel, roomWalls } from '../shared/room-topology.mjs';
 
 import { addOpeningVisuals } from './opening-visuals.js';
 import { wallPanels } from '../shared/openings.mjs';
 
 import { addFurnitureVisuals } from './furniture-scene.js';
 
+// Walls are listed north, west, south, east to match the visible cutaway walls first.
 export const surfaces = [
   { id: 'floor', label: 'Floor' },
-  { id: 'north', label: 'North wall' },
-  { id: 'west', label: 'West wall' },
-  { id: 'south', label: 'South wall' },
-  { id: 'east', label: 'East wall' }
+  ...['north','west','south','east'].map(id => ({ id, label: wallLabel(id) }))
 ];
 
 export function createRoom(room) {
@@ -26,13 +25,12 @@ export function createRoom(room) {
   const shape=new THREE.Shape(outline.map(p=>new THREE.Vector2(p.x,-p.z)));
   const floor=add('floor',new THREE.ShapeGeometry(shape),[0,-.001,0],0x9eb8ac);
   floor.rotation.x=-Math.PI/2;
-  outline.forEach((a,i)=>{
-    const b=outline[(i+1)%4], dx=b.x-a.x, dz=b.z-a.z, length=Math.hypot(dx,dz);
-    for(const panel of wallPanels(length,room.height,(room.openings||[]).filter(o=>o.wall===edgeIds[i]))) {
+  roomWalls(outline).forEach(({id,a,length,tx,tz})=>{
+    for(const panel of wallPanels(length,room.height,(room.openings||[]).filter(o=>o.wall===id))) {
       const along=(panel.left+panel.right)/2;
-      const mesh=add(edgeIds[i],new THREE.BoxGeometry(panel.right-panel.left,panel.top-panel.bottom,.16),
-        [a.x+dx/length*along+dz/length*.08,(panel.bottom+panel.top)/2,a.z+dz/length*along-dx/length*.08],
-        i%2 ? 0xc4cabb : 0xddd6c8,-Math.atan2(dz,dx));
+      const mesh=add(id,new THREE.BoxGeometry(panel.right-panel.left,panel.top-panel.bottom,.16),
+        [a.x+tx*along+tz*.08,(panel.bottom+panel.top)/2,a.z+tz*along-tx*.08],
+        wallIndex(id)%2 ? 0xc4cabb : 0xddd6c8,-Math.atan2(tz,tx));
       const slice=Math.min(1.2,room.height/2);
       mesh.userData.planVisible=panel.bottom<=slice && panel.top>=slice;
     }
