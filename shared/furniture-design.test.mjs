@@ -48,7 +48,7 @@ test('features must lie on the face, within the thickness and on an existing lay
   assert.throws(bad({u:1}),/Drill hole must lie within the panel face/);
   assert.throws(bad({depth:19}),/Feature depth must be between 0.01 and 18 mm/);
   assert.throws(bad({depth:0}),/Feature depth/);
-  assert.throws(bad({face:'C'}),/face must be A or B/);
+  assert.throws(bad({face:'C'}),/face must be A, B or an edge/);
   assert.throws(bad({layer:'nope'}),/Layer not found/);
   assert.equal(D.updateFeature(design,drill.id,{depth:18}).parts[0].features[0].depth,18,'through is depth = thickness');
   const groove=left.features.find(f=>f.type==='groove');
@@ -192,7 +192,7 @@ test('collisions are allowed only where a feature receives the other part',()=>{
 
 test('CNC plan JSON is a versioned, machine-neutral export',()=>{
   const json=JSON.parse(cncPlanJson(box(),'2024-01-01T00:00:00.000Z'));
-  assert.equal(json.format,'terratec-cnc-plan');assert.equal(json.units,'mm');assert.match(json.note,/Not G-code/);
+  assert.equal(json.format,'terratec-cnc-plan');assert.equal(json.units,'mm');assert.match(json.note,/Not an NC program/);
   assert.equal(json.parts.length,6);assert.equal(json.generatedAt,'2024-01-01T00:00:00.000Z');
 });
 

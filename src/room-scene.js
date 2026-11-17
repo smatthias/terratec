@@ -15,7 +15,8 @@ export const roomSurfaces = room => [
 // The 3D camera looks from the south-east (+x, +z); walls facing it are cut away.
 export const cutawayWalls = room => roomWalls(withOutline(room)).filter(w => -w.nx - w.nz > 1e-9).map(w => w.id);
 
-export function createRoom(input) {
+// `designs` and `designScene` (the lazily loaded design renderer) draw placed furniture designs.
+export function createRoom(input,{designs=[],designScene=null}={}) {
   const room=withOutline(input), outline=room.outline;
   const group = new THREE.Group();
   group.userData.cutaway=cutawayWalls(room);
@@ -39,7 +40,7 @@ export function createRoom(input) {
     }
   });
   addOpeningVisuals(group,room);
-  addFurnitureVisuals(group,room);
+  addFurnitureVisuals(group,room,{designs,designScene});
   return group;
 }
 

@@ -6,6 +6,7 @@ import { validatePresets } from './presets.mjs';
 import { validateFurniture } from './furniture.mjs';
 import { validateWalls, usesDefaultWalls } from './room-topology.mjs';
 import { validateDesigns } from './furniture-design.mjs';
+import { syncPlacedDesign } from './design-placement.mjs';
 export function validateProject(value) {
   if (!value || ![1,2,3,4,5,6,7].includes(value.schemaVersion) || value.units !== 'm')
     throw new Error('Expected schemaVersion 1, 2, 3, 4, 5, 6 or 7 and units m');
@@ -30,6 +31,8 @@ export function validateProject(value) {
   const {width,depth}=bounds(outline);
   const openings=validateOpenings(value.schemaVersion>=3?value.room.openings:[],{outline,walls},value.room.height);
   const presets=validatePresets(value.schemaVersion>=5?value.presets:[]);
-  const furniture=validateFurniture(value.schemaVersion>=6?value.room.furniture:[],outline,value.room.height);
+  // Placed designs take their size from the design they refer to.
+  const designsById=new Map(designs.map(d=>[d.id,d])),rawFurniture=value.schemaVersion>=6?value.room.furniture:[];
+  const furniture=validateFurniture(Array.isArray(rawFurniture)?rawFurniture.map(item=>item?.type==='design'?syncPlacedDesign(item,designsById):item):rawFurniture,outline,value.room.height);
   return {...(value.furniturePresets!==undefined?{furniturePresets:validateFurniturePresets(value.furniturePresets)}:{}),schemaVersion:walls||locked||designs.length?7:6,presets,...(designs.length?{furnitureDesigns:designs}:{}),workshopProfiles:validateWorkshopProfiles(value.workshopProfiles??[]),units:'m',name:value.name.trim(),room:{width,depth,height:value.room.height,outline,...(walls?{walls}:{}),...(locked?{locked}:{}),openings,furniture}};
 }

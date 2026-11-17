@@ -2,9 +2,10 @@ import {cabinetFootprint} from './furniture.mjs';
 import {roomWalls,wallSegment} from './room-topology.mjs';
 import {doorPose} from './openings.mjs';
 export function clearanceSettings(input={}){
-  const minWall=input.minWall??.05,doorDepth=input.doorDepth??.6,enforce=input.enforce??false,serviceDepth=input.serviceDepth??0;
-  if(![minWall,doorDepth,serviceDepth].every(v=>typeof v==='number'&&Number.isFinite(v))||minWall<0||minWall>2||doorDepth<0||doorDepth>3||serviceDepth<0||serviceDepth>3||typeof enforce!=='boolean')throw Error('Clearance settings need wall gap 0–2 m and door/service depth 0–3 m');
-  return {minWall,doorDepth,enforce,serviceDepth};
+  const minWall=input.minWall??.05,doorDepth=input.doorDepth??.6,enforce=input.enforce??false,serviceDepth=input.serviceDepth??0,windowDepth=input.windowDepth??.15;
+  if(![minWall,doorDepth,serviceDepth,windowDepth].every(v=>typeof v==='number'&&Number.isFinite(v))||minWall<0||minWall>2||doorDepth<0||doorDepth>3||serviceDepth<0||serviceDepth>3||windowDepth<0||windowDepth>3||typeof enforce!=='boolean')throw Error('Clearance settings need wall gap 0–2 m and door/window/service depth 0–3 m');
+  // The window zone depth is optional (0.15 m when unset), so saved settings stay as they were.
+  return {minWall,doorDepth,enforce,serviceDepth,...(input.windowDepth!==undefined?{windowDepth}:{})};
 }
 const cross=(a,b)=>a.x*b.z-a.z*b.x;
 const sub=(a,b)=>({x:a.x-b.x,z:a.z-b.z});
@@ -55,7 +56,7 @@ export function furnitureClearance(room,item,options){
  for(const opening of room.openings??[]){
   if(item.height<=opening.sill+1e-9)continue;
   const {a,tx,tz,nx,nz}=wallSegment(room,opening.wall);
-  const depth=opening.type==='door'?settings.doorDepth:.15;
+  const depth=opening.type==='door'?settings.doorDepth:settings.windowDepth??.15;
   const point=(along,inward)=>({x:a.x+along*tx+inward*nx,z:a.z+along*tz+inward*nz});
   const polygon=[point(opening.offset,0),point(opening.offset+opening.width,0),point(opening.offset+opening.width,depth),point(opening.offset,depth)];
   let conflict=depth>0&&intersects(body,polygon);

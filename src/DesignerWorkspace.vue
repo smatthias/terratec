@@ -2,46 +2,66 @@
 // Furniture designer perspective. It replaces the room view in the same window
 // and edits the project's furniture designs. Designs are stored with the project;
 // each design has its own undo history for this session.
-import {ref,computed,watch,onMounted,onBeforeUnmount,onActivated,onDeactivated} from 'vue';
+import {ref,computed,watch,onMounted,onBeforeUnmount,onActivated,onDeactivated,defineAsyncComponent} from 'vue';
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import * as D from '../shared/furniture-design-edit.mjs';
 import {cabinetParts} from '../shared/cabinet-parts.mjs';
 import {cncPlan,cncPlanJson} from '../shared/design-cnc.mjs';
+import {camPlan,POSTS} from '../shared/design-cam.mjs';
+// Program and DXF writers load on the first export.
+const camExport=()=>import('../shared/cam-export.mjs');
 import {createHistory,commitHistory,undoHistory,redoHistory} from '../shared/history.mjs';
 import {buildDesignGroup,disposeDesignGroup,fitDesignCamera,pickDesign,DESIGN_VIEWS} from './design-scene.js';
 import {buildRotateGizmo,dropPlane,dropCorner,nudgeAxis} from './design-gizmo.js';
 import {createDesignInteraction} from './design-interaction.js';
+import {localAxis} from '../shared/design-transform.mjs';
 import {MATERIALS} from '../shared/materials.mjs';
 import DesignPartEditor from './DesignPartEditor.vue';
 import DesignLayers from './DesignLayers.vue';
 import DesignCncPanel from './DesignCncPanel.vue';
 import DesignPieceLibrary from './DesignPieceLibrary.vue';
+// The drilling bench loads when first opened.
+const DrillingBench=defineAsyncComponent(()=>import('./DrillingBench.vue'));
 
 const props=defineProps({designs:{type:Array,required:true},applyDesigns:{type:Function,required:true},cabinet:{type:Object,default:null},
+  placeDesign:{type:Function,default:null},placedDesignIds:{type:Array,default:()=>[]},focusDesignId:{type:String,default:null},
   workspaceKey:{type:String,default:''},projectBytes:{type:Number,default:0},maxBytes:{type:Number,default:65536}});
-const emit=defineEmits(['message']);
+const emit=defineEmits(['message','active']);
 const say=text=>emit('message',text);
 const makeId=()=>crypto.randomUUID();
 
 // ---- Designs and selection
-const activeId=ref(props.designs[0]?.id??null),selection=ref({partId:null,featureId:null}),confirmDelete=ref(false),formKey=ref(0);
+// `partId` is the active piece (edited in the properties); `partIds` is the whole selection.
+const activeId=ref(props.designs[0]?.id??null),selection=ref({partId:null,featureId:null,partIds:[]}),confirmDelete=ref(false),formKey=ref(0);
 const design=computed(()=>props.designs.find(d=>d.id===activeId.value)??null);
 const selectedPart=computed(()=>design.value?.parts.find(p=>p.id===selection.value.partId)??null);
 const layerOf=id=>design.value.layers.find(l=>l.id===id);
-const clearSelection=()=>{selection.value={partId:null,featureId:null};};
+const clearSelection=()=>{selection.value={partId:null,featureId:null,partIds:[]};};
+const selectedIds=computed(()=>selection.value.partIds);
+const selectedParts=computed(()=>design.value?.parts.filter(p=>selectedIds.value.includes(p.id))??[]);
 watch(()=>props.designs.map(d=>d.id).join('|'),()=>{
   if(!props.designs.some(d=>d.id===activeId.value)) {activeId.value=props.designs[0]?.id??null;clearSelection();}
 });
 watch(activeId,()=>{clearSelection();confirmDelete.value=false;});
+watch(activeId,id=>emit('active',id),{immediate:true});
 // Undo or another edit can remove the selected part or feature.
 watch(design,value=>{
-  const part=value?.parts.find(p=>p.id===selection.value.partId);
-  if(!part) clearSelection();
-  else if(selection.value.featureId && !part.features?.some(f=>f.id===selection.value.featureId)) selection.value={partId:part.id,featureId:null};
+  const present=new Set(value?.parts.map(p=>p.id)??[]),ids=selection.value.partIds.filter(id=>present.has(id));
+  const partId=present.has(selection.value.partId)?selection.value.partId:ids.at(-1)??null,part=value?.parts.find(p=>p.id===partId);
+  const featureId=part?.features?.some(f=>f.id===selection.value.featureId)?selection.value.featureId:null;
+  if(ids.length!==selection.value.partIds.length||partId!==selection.value.partId||featureId!==selection.value.featureId) selection.value={partId,featureId,partIds:ids};
 });
-const selectPart=partId=>{selection.value={partId,featureId:null};};
-const selectFeature=(partId,featureId)=>{selection.value={partId,featureId};};
+const selectPart=partId=>{selection.value={partId,featureId:null,partIds:[partId]};};
+const selectParts=partIds=>{selection.value={partId:partIds.at(-1)??null,featureId:null,partIds:[...partIds]};};
+const selectFeature=(partId,featureId)=>{selection.value={partId,featureId,partIds:[partId]};};
+// Adds or removes a piece; the last piece added is active.
+function togglePart(partId) {
+  const ids=selectedIds.value;
+  if(ids.includes(partId)) {const rest=ids.filter(id=>id!==partId);selection.value={partId:selection.value.partId===partId?rest.at(-1)??null:selection.value.partId,featureId:null,partIds:rest};}
+  else selection.value={partId,featureId:null,partIds:[...ids,partId]};
+}
+const clickPart=(event,partId)=>event.shiftKey||event.ctrlKey||event.metaKey?togglePart(partId):selectPart(partId);
 
 // ---- History: one stack per design, cleared when the workspace changes project.
 const histories=ref(new Map());
@@ -82,8 +102,13 @@ function fromCabinet() {
   catch(error) {say(error.message);}
 }
 function duplicateActive() {try {addDesign(D.duplicateDesign(design.value,{id:makeId(),makeId}),'Design duplicated');} catch(error) {say(error.message);}}
+// "Edit design" from the room opens that design here.
+watch(()=>props.focusDesignId,id=>{if(id&&props.designs.some(d=>d.id===id)) activeId.value=id;},{immediate:true});
+const placedCount=computed(()=>props.placedDesignIds.filter(id=>id===activeId.value).length);
+function placeActive() {const error=props.placeDesign?.(activeId.value);if(error) say(error);}
 function deleteActive() {
   const name=design.value.name;confirmDelete.value=false;
+  if(placedCount.value) {say(`“${name}” is placed in the room ${placedCount.value===1?'once':placedCount.value+' times'}; remove it from the room before deleting the design`);return;}
   if(replaceDesigns(props.designs.filter(d=>d.id!==activeId.value),'Design “'+name+'” deleted')) activeId.value=props.designs[0]?.id??null;
 }
 function rename(event) {run(d=>D.renameDesign(d,event.target.value),'Design renamed');}
@@ -96,11 +121,14 @@ function addPiece({shape,material,color,length}) {
 }
 const convertPart=shape=>run(d=>D.convertPart(d,selection.value.partId,shape),'Changed to '+D.PIECE_FORMS[shape].label.toLowerCase());
 const updatePart=changes=>run(d=>D.updatePart(d,selection.value.partId,changes),'Part updated');
-function duplicateSelectedPart() {const result=run(d=>D.duplicatePart(d,selection.value.partId,makeId),'Part duplicated');if(result) selectPart(result.partId);}
+const plural=(n,word)=>n+' '+word+(n===1?'':'s');
+// A unique, descriptive name for a feature (identical holes differ by position).
+const featureName=(part,f)=>`${part.name}: ${f.type} on ${f.face.length>1?'edge':'face'} ${f.face} at u ${f.u}, v ${f.v}${f.t!==undefined?', t '+f.t:''}, ${f.depth} mm deep`;
+function duplicateSelectedPart() {const ids=selectedIds.value,result=run(d=>D.duplicateParts(d,ids,makeId),ids.length>1?'Duplicated '+plural(ids.length,'piece'):'Part duplicated');if(result) selectParts(result.partIds);}
 function removeSelected() {
-  const {partId,featureId}=selection.value;
-  if(featureId) {if(run(d=>D.removeFeature(d,featureId),'Feature deleted')) selection.value={partId,featureId:null};}
-  else if(partId && run(d=>D.removePart(d,partId),'Part deleted')) clearSelection();
+  const {partId,featureId}=selection.value,ids=selectedIds.value;
+  if(featureId) {if(run(d=>D.removeFeature(d,featureId),'Feature deleted')) selectPart(partId);}
+  else if(ids.length && run(d=>D.removeParts(d,ids),ids.length>1?'Deleted '+plural(ids.length,'piece'):'Part deleted')) clearSelection();
 }
 function addFeature(type) {const partId=selection.value.partId,result=run(d=>D.addFeature(d,partId,type,makeId),'Added '+type);if(result) selectFeature(partId,result.featureId);}
 const updateFeature=(featureId,changes)=>run(d=>D.updateFeature(d,featureId,changes),'Feature updated');
@@ -118,13 +146,26 @@ const layerCommands={
 
 // ---- CNC plan
 const plan=computed(()=>{try {return design.value?cncPlan(design.value):null;} catch(error) {return {error:error.message};}});
-function exportPlan() {
+const camResult=computed(()=>{try {return design.value?camPlan(design.value):null;} catch(error) {return null;}});
+const fileBase=text=>text.replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,60)||'design';
+async function download(make,type,suffix,done) {
+  const source=design.value;
   try {
-    const url=URL.createObjectURL(new Blob([cncPlanJson(design.value)],{type:'application/json'})),link=document.createElement('a');
-    link.href=url;link.download=(design.value.name.replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,80)||'design')+'_cnc-plan.json';
-    link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);say('CNC plan exported');
+    const url=URL.createObjectURL(new Blob([await make(source)],{type})),link=document.createElement('a');
+    link.href=url;link.download=fileBase(source.name)+suffix;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);say(done);
   } catch(error) {say(error.message);}
 }
+const post=()=>POSTS[design.value.cam?.post??'grbl'];
+const exportPlan=()=>download(d=>cncPlanJson(d),'application/json','_cnc-plan.json','CNC plan exported');
+const exportDxf=()=>download(async d=>(await camExport()).designDxf(d),'application/dxf','.dxf','DXF exported');
+const exportAllGcode=()=>download(async d=>(await camExport()).designProgram(d),'text/plain','_all-panels'+post().extension,`NC program exported for all panels · ${post().label}`);
+function exportGcode(partId,face) {
+  const part=design.value.parts.find(p=>p.id===partId);
+  download(async d=>(await camExport()).partProgram(d,partId,face),'text/plain','_'+fileBase(part.name)+'_face-'+face+post().extension,`NC program exported for ${part.name} face ${face} · ${post().label}`);
+}
+const updateCam=changes=>run(d=>D.updateCam(d,changes),'CAM settings updated');
+const updateTool=(layerId,changes)=>run(d=>D.updateLayerTool(d,layerId,changes),'Tool updated');
+const updateStock=changes=>run(d=>D.updateStock(d,changes),'Sheet stock updated');
 function selectIssue(issue) {if(issue.featureId) selectFeature(issue.partId,issue.featureId);else if(issue.partId) selectPart(issue.partId);}
 const summary=computed(()=>{
   if(!design.value) return '';
@@ -134,10 +175,11 @@ const summary=computed(()=>{
 
 // ---- In-canvas tools. While dragging, `preview` holds the edited design; it is
 // committed once on release, so a whole drag is one undo step.
-const tool=ref('move'),gridStep=ref(10),angleStep=ref(15),colorByLayer=ref(false),focusLayerId=ref(null),activeLayerId=ref(null);
+const tool=ref('move'),gridStep=ref(10),angleStep=ref(15),colorByLayer=ref(false),focusLayerId=ref(null),activeLayerId=ref(null),axisMode=ref('world');
 const preview=ref(null),dragInfo=ref('');
 const shown=computed(()=>preview.value??design.value);
-const shownPart=computed(()=>shown.value?.parts.find(p=>p.id===selection.value.partId)??null);
+const shownSelection=computed(()=>shown.value?.parts.filter(p=>selectedIds.value.includes(p.id))??[]);
+const shownActive=computed(()=>shown.value?.parts.find(p=>p.id===selection.value.partId)??null);
 watch(()=>design.value?.layers.map(l=>l.id).join('|'),()=>{
   const ids=new Set(design.value?.layers.map(l=>l.id)??[]);
   if(!ids.has(activeLayerId.value)) activeLayerId.value=null;
@@ -168,11 +210,11 @@ function rebuild() {
   if(!scene) return;
   disposeDesignGroup(group);disposeDesignGroup(gizmo);group=gizmo=null;
   if(!shown.value) return;
-  group=buildDesignGroup(shown.value,{selectedPartId:selection.value.partId,selectedFeatureId:selection.value.featureId,colorByLayer:colorByLayer.value,focusLayerId:focusLayerId.value});
+  group=buildDesignGroup(shown.value,{selectedPartIds:selectedIds.value,selectedFeatureId:selection.value.featureId,colorByLayer:colorByLayer.value,focusLayerId:focusLayerId.value});
   scene.add(group);
-  if(tool.value==='rotate'&&shownPart.value) {gizmo=buildRotateGizmo(shownPart.value,view.value);scene.add(gizmo);}
+  if(tool.value==='rotate'&&shownSelection.value.length) {gizmo=buildRotateGizmo(shownSelection.value,view.value,axisMode.value==='local'?shownActive.value?.rotation:undefined);scene.add(gizmo);}
 }
-watch([shown,selection,colorByLayer,focusLayerId,tool],rebuild,{deep:true});
+watch([shown,selection,colorByLayer,focusLayerId,tool,axisMode],rebuild,{deep:true});
 watch(view,setupCamera);
 watch(activeId,fitSoon);
 function resize() {
@@ -190,11 +232,14 @@ const pickAt=event=>{const p=ndc(event);return group?pickDesign(group,camera,p.x
 let interaction=null;
 function createInteraction() {
   interaction=createDesignInteraction({element:renderer.domElement,camera:()=>camera,group:()=>group,gizmo:()=>gizmo,view:()=>view.value,tool:()=>tool.value,
-    design:()=>design.value,selectedPart:()=>selectedPart.value,gridStep:()=>gridStep.value,angleStep:()=>angleStep.value,
+    design:()=>design.value,selectedIds:()=>selectedIds.value,axisMode:()=>axisMode.value,gridStep:()=>gridStep.value,angleStep:()=>angleStep.value,
     onPreview:(next,info)=>{preview.value=next;dragInfo.value=info;},onCommit:(next,text)=>commit(next,text),
-    onSelect:hit=>{if(hit) selection.value=hit;else clearSelection();}});
+    onSelect:(hit,{toggle}={})=>{if(toggle) togglePart(hit.partId);else if(hit?.featureId) selectFeature(hit.partId,hit.featureId);else if(hit) selectPart(hit.partId);else clearSelection();}});
 }
-const pointerDown=event=>interaction?.pointerDown(event),pointerMove=event=>interaction?.pointerMove(event),pointerUp=event=>interaction?.pointerUp(event);
+// A right-button press that moves pans the view; one that does not opens the menu.
+const pointerDown=event=>{if(event.button===2) {rightPress={x:event.clientX,y:event.clientY,moved:false};return;}menu.value=null;interaction?.pointerDown(event);};
+const pointerMove=event=>{if(rightPress&&Math.hypot(event.clientX-rightPress.x,event.clientY-rightPress.y)>5) {rightPress.moved=true;menu.value=null;}interaction?.pointerMove(event);};
+const pointerUp=event=>interaction?.pointerUp(event);
 function cancelDrag() {if(interaction?.cancel()) say('Drag cancelled');}
 
 // ---- Drag and drop from the piece library and the layer panel.
@@ -206,9 +251,11 @@ function canvasDrop(event) {
   if(data.kind==='form') {dropPiece(data,event);return;}
   const hit=camera?pickAt(event):null;
   if(!hit) {say('Drop materials and layers onto a piece');return;}
-  selectPart(hit.partId);
-  if(data.kind==='material') run(d=>D.updatePart(d,hit.partId,{material:data.material}),'Applied '+materialLabel(data.material));
-  else if(data.kind==='layer') run(d=>D.updatePart(d,hit.partId,{layer:data.layerId}),'Moved to layer '+(layerOf(data.layerId)?.name??''));
+  // Dropping onto a selected piece applies to the whole selection.
+  const ids=selectedIds.value.includes(hit.partId)?selectedIds.value:[hit.partId],count=ids.length>1?' · '+plural(ids.length,'piece'):'';
+  if(!selectedIds.value.includes(hit.partId)) selectPart(hit.partId);
+  if(data.kind==='material') run(d=>D.updateParts(d,ids,{material:data.material}),'Applied '+materialLabel(data.material)+count);
+  else if(data.kind==='layer') run(d=>D.updateParts(d,ids,{layer:data.layerId}),'Moved to layer '+(layerOf(data.layerId)?.name??'')+count);
 }
 const materialLabel=id=>MATERIALS[id]?.label??id;
 function dropPiece(data,event) {
@@ -223,12 +270,50 @@ function dropPiece(data,event) {
 }
 
 // ---- Selection toolbar commands
-const rotateSelected=(axis,degrees)=>run(d=>D.rotatePartsAbout(d,[selection.value.partId],axis,degrees),`Rotated about ${axis} ${degrees>0?'+':''}${degrees}°`);
-const resetRotation=()=>run(d=>D.updatePart(d,selection.value.partId,{rotation:undefined}),'Rotation reset');
-function nudge(axis,sign) {
-  const part=selectedPart.value,step=gridStep.value||1;
-  run(d=>D.updatePart(d,part.id,{[axis]:part[axis]+sign*step}),`Nudged ${axis} ${sign>0?'+':'−'}${step} mm`);
+// Quick turns use world axes, or the active piece's own axes in local mode.
+function rotateSelected(axis,degrees) {
+  const local=axisMode.value==='local',about=local?localAxis(selectedPart.value?.rotation,axis):axis;
+  run(d=>D.rotatePartsAbout(d,selectedIds.value,about,degrees),`Rotated about ${local?'local ':''}${axis} ${degrees>0?'+':''}${degrees}°${selectedIds.value.length>1?' · '+plural(selectedIds.value.length,'piece'):''}`);
 }
+const resetRotation=()=>run(d=>D.updateParts(d,selectedIds.value,{rotation:undefined}),'Rotation reset');
+function nudge(axis,sign) {
+  const step=gridStep.value||1;
+  run(d=>D.moveParts(d,selectedIds.value,{[axis]:sign*step}),`Nudged ${axis} ${sign>0?'+':'−'}${step} mm`);
+}
+const setSelectionLayer=layerId=>run(d=>D.updateParts(d,selectedIds.value,{layer:layerId}),'Moved to layer '+layerOf(layerId).name);
+
+// ---- Context menu (right-click a piece, or the Menu key / Shift+F10 for the active piece)
+const menu=ref(null),menuEl=ref(null);
+const menuPart=computed(()=>menu.value&&design.value?.parts.find(p=>p.id===menu.value.partId)||null);
+let rightPress=null;
+function openMenu(partId,x,y) {
+  if(!selectedIds.value.includes(partId)) selectPart(partId);else selection.value={...selection.value,partId,featureId:null};
+  menu.value={partId,x,y};requestAnimationFrame(()=>menuEl.value?.querySelector?.('button:not(:disabled)')?.focus());
+}
+function contextMenu(event) {
+  event.preventDefault();
+  const panned=rightPress?.moved;rightPress=null;
+  if(panned) return;
+  const hit=camera?pickAt(event):null;
+  if(!hit) {menu.value=null;return;}
+  const rect=canvasHost.value.getBoundingClientRect();openMenu(hit.partId,event.clientX-rect.left,event.clientY-rect.top);
+}
+// Menu commands act on the piece the menu was opened for (now the active piece).
+function menuCommand(action) {const partId=menu.value?.partId;menu.value=null;action(partId);}
+const drillable=part=>part?.shape==='panel';
+
+// ---- Drilling bench (one panel at a time; the design view pauses meanwhile)
+const benchPartId=ref(null);
+function openBench(partId=selection.value.partId) {
+  const part=design.value?.parts.find(p=>p.id===partId);menu.value=null;
+  if(!part) return;
+  if(!drillable(part)) {say(`${part.name} is a ${D.PIECE_FORMS[part.shape].label.toLowerCase()}; the drilling bench takes panels`);return;}
+  cancelDrag();selectPart(partId);benchPartId.value=partId;active=false;say('Drilling bench · '+part.name);
+}
+function closeBench() {if(!benchPartId.value) return;benchPartId.value=null;active=true;say('Furniture designer');requestAnimationFrame(resize);}
+const benchDrill=({holes,message})=>run(d=>D.drillHoles(d,benchPartId.value,holes,makeId),message);
+const benchRemove=featureId=>run(d=>D.removeFeature(d,featureId),'Hole removed');
+watch(activeId,closeBench);
 
 onMounted(()=>{
   try {
@@ -243,6 +328,7 @@ onMounted(()=>{
     renderer.domElement.addEventListener('pointermove',pointerMove);
     renderer.domElement.addEventListener('pointerup',pointerUp);
     renderer.domElement.addEventListener('pointercancel',cancelDrag);
+    renderer.domElement.addEventListener('contextmenu',contextMenu);
     observer=new ResizeObserver(resize);observer.observe(canvasHost.value);
     const animate=()=>{frame=requestAnimationFrame(animate);if(!active) return;controls.update();renderer.render(scene,camera);};animate();
   } catch {webgl.value=false;say('The designer preview needs WebGL · designing still works');}
@@ -256,21 +342,27 @@ function keydown(event) {
   const handled=()=>{event.preventDefault();return true;};
   if(mod&&key==='z') return handled()&&travel(event.shiftKey?'redo':'undo');
   if(mod&&key==='y') return handled()&&travel('redo');
+  // The bench handles its own keys.
+  if(benchPartId.value) return;
+  if(menu.value&&key==='escape') {menu.value=null;return handled();}
+  if((key==='contextmenu'||event.shiftKey&&key==='f10')&&selection.value.partId) {const host=canvasHost.value;return handled()&&openMenu(selection.value.partId,(host?.clientWidth??400)/2,Math.max(20,(host?.clientHeight??400)-200));}
+  if(mod&&key==='a'&&design.value?.parts.length) return handled()&&selectParts(design.value.parts.map(p=>p.id));
   if(mod&&key==='d'&&selection.value.partId) return handled()&&duplicateSelectedPart();
   if(!mod&&(key==='delete'||key==='backspace')&&selection.value.partId) return handled()&&removeSelected();
   if(key==='escape') {if(interaction?.dragging()) cancelDrag();else clearSelection();return;}
   if(mod||event.altKey) return;
   if(key==='m') return handled()&&(tool.value='move');
   if(key==='r') return handled()&&(tool.value='rotate');
+  if(key==='l') return handled()&&(axisMode.value=axisMode.value==='local'?'world':'local');
   const step=selection.value.partId&&nudgeAxis(view.value,event.key,event.shiftKey);
   if(step) return handled()&&nudge(step.axis,step.sign);
 }
-onActivated(()=>{active=true;window.addEventListener('keydown',keydown);resize();});
+onActivated(()=>{active=!benchPartId.value;window.addEventListener('keydown',keydown);resize();});
 onDeactivated(()=>{active=false;cancelDrag();window.removeEventListener('keydown',keydown);});
 onBeforeUnmount(()=>{
   window.removeEventListener('keydown',keydown);cancelAnimationFrame(frame);observer?.disconnect();controls?.dispose();
   disposeDesignGroup(group);grid?.geometry.dispose();grid?.material.dispose();
-  renderer?.domElement.removeEventListener('pointerdown',pointerDown,true);renderer?.domElement.removeEventListener('pointermove',pointerMove);renderer?.domElement.removeEventListener('pointerup',pointerUp);renderer?.domElement.removeEventListener('pointercancel',cancelDrag);disposeDesignGroup(gizmo);renderer?.dispose();
+  renderer?.domElement.removeEventListener('pointerdown',pointerDown,true);renderer?.domElement.removeEventListener('pointermove',pointerMove);renderer?.domElement.removeEventListener('pointerup',pointerUp);renderer?.domElement.removeEventListener('pointercancel',cancelDrag);renderer?.domElement.removeEventListener('contextmenu',contextMenu);disposeDesignGroup(gizmo);renderer?.dispose();
 });
 </script>
 <template>
@@ -282,14 +374,15 @@ onBeforeUnmount(()=>{
       <button :disabled="!cabinet" :title="cabinet?'Convert '+cabinet.name:'Select a cabinet in the room first'" @click="fromCabinet">Design from selected cabinet</button>
       <template v-if="design">
         <label>Design name<input :key="formKey+design.id" :value="design.name" maxlength="60" @change="rename"></label>
+        <button v-if="placeDesign" class="place-design" :disabled="!design.parts.length" title="Add this design to the room as furniture at the nearest free spot" @click="placeActive">Place in room{{ placedCount?' ('+placedCount+' placed)':'' }}</button>
         <div class="design-row"><button @click="duplicateActive">Duplicate design</button>
           <button v-if="!confirmDelete" @click="confirmDelete=true">Delete design</button><button v-else class="danger" @click="deleteActive">Confirm delete design</button></div>
         <DesignPieceLibrary @add="addPiece"/>
         <p class="eyebrow">PARTS · {{ design.parts.length }}</p>
         <ul class="part-tree" aria-label="Parts">
           <li v-for="part in design.parts" :key="part.id" :class="{hidden:!layerOf(part.layer).visible}">
-            <button :aria-pressed="selection.partId===part.id&&!selection.featureId" :title="'Layer '+layerOf(part.layer).name" @click="selectPart(part.id)"><span class="swatch" :style="{background:part.color}"></span>{{ part.name }}<small>{{ D.PIECE_FORMS[part.shape].short }}</small></button>
-            <ul v-if="part.features?.length"><li v-for="f in part.features" :key="f.id"><button :aria-pressed="selection.featureId===f.id" @click="selectFeature(part.id,f.id)"><span class="swatch" :style="{background:layerOf(f.layer).color}"></span>{{ f.type }} · {{ f.face }} · {{ f.depth }} mm</button></li></ul>
+            <button :aria-pressed="selectedIds.includes(part.id)&&!selection.featureId" :class="{active:selection.partId===part.id}" :title="'Layer '+layerOf(part.layer).name+' · Shift/Ctrl-click to add to the selection'" @click="clickPart($event,part.id)"><span class="swatch" :style="{background:part.color}"></span>{{ part.name }}<small>{{ D.PIECE_FORMS[part.shape].short }}</small></button>
+            <ul v-if="part.features?.length"><li v-for="f in part.features" :key="f.id"><button :aria-pressed="selection.featureId===f.id" :aria-label="featureName(part,f)" :title="featureName(part,f)" @click="selectFeature(part.id,f.id)"><span class="swatch" :style="{background:layerOf(f.layer).color}"></span>{{ f.type }} · {{ f.face }} · {{ f.depth }} mm</button></li></ul>
           </li>
         </ul>
       </template>
@@ -306,6 +399,7 @@ onBeforeUnmount(()=>{
         <button :aria-pressed="tool==='rotate'" title="Drag a ring to rotate the selected piece (R)" @click="tool='rotate'">Rotate</button>
         <label class="tool-select">Grid<select v-model.number="gridStep" aria-label="Move snap"><option :value="0">off</option><option v-for="step in [1,5,10,25,50]" :key="step" :value="step">{{ step }} mm</option></select></label>
         <label class="tool-select">Angle<select v-model.number="angleStep" aria-label="Angle snap"><option :value="0">off</option><option v-for="step in [5,15,45,90]" :key="step" :value="step">{{ step }}°</option></select></label>
+        <button :aria-pressed="axisMode==='local'" title="Rings and quick turns use the active piece's own axes (L)" @click="axisMode=axisMode==='local'?'world':'local'">Local axes</button>
         <button :aria-pressed="colorByLayer" title="Shade pieces in their layer colour" @click="colorByLayer=!colorByLayer">Colour by layer</button>
       </nav>
       <div ref="canvasHost" class="designer-canvas" @dragover="canvasDragOver" @drop="canvasDrop"></div>
@@ -313,30 +407,44 @@ onBeforeUnmount(()=>{
         @add="layerCommands.add" @update="layerCommands.update" @remove="layerCommands.remove" @move="layerCommands.move" @activate="activeLayerId=$event" @focus="focusLayerId=$event"/>
       <p v-if="dragInfo" class="drag-info" role="status">{{ dragInfo }}</p>
       <div v-if="selectedPart" class="selection-hud" role="toolbar" aria-label="Selected piece">
-        <span class="hud-name"><span class="swatch" :style="{background:selectedPart.color}"></span>{{ selectedPart.name }} <small>{{ D.PIECE_FORMS[selectedPart.shape].short }}</small></span>
-        <select :value="selectedPart.layer" aria-label="Piece layer" @change="run(d=>D.updatePart(d,selectedPart.id,{layer:$event.target.value}),'Moved to layer '+layerOf($event.target.value).name)">
+        <span v-if="selectedIds.length>1" class="hud-name" data-testid="selection-count">{{ selectedIds.length }} pieces <small>active: {{ selectedPart.name }}</small></span>
+        <span v-else class="hud-name"><span class="swatch" :style="{background:selectedPart.color}"></span>{{ selectedPart.name }} <small>{{ D.PIECE_FORMS[selectedPart.shape].short }}</small></span>
+        <select :value="selectedParts.every(p=>p.layer===selectedPart.layer)?selectedPart.layer:''" aria-label="Piece layer" @change="setSelectionLayer($event.target.value)">
+          <option v-if="!selectedParts.every(p=>p.layer===selectedPart.layer)" value="" disabled>Mixed layers</option>
           <option v-for="layer in design.layers" :key="layer.id" :value="layer.id">{{ layer.name }}{{ layer.locked?' · locked':'' }}</option>
         </select>
         <button v-for="[axis,degrees] in [['x',90],['y',-15],['y',15],['y',90],['z',90]]" :key="axis+degrees" :aria-label="'Rotate about '+axis+' '+(degrees>0?'+':'')+degrees+'°'" @click="rotateSelected(axis,degrees)">{{ axis.toUpperCase() }} {{ degrees>0?'+':'' }}{{ degrees }}°</button>
-        <button :disabled="!selectedPart.rotation" @click="resetRotation">Reset rotation</button>
-        <button @click="duplicateSelectedPart">Duplicate</button><button @click="removeSelected">Delete</button>
+        <button :disabled="!selectedParts.some(p=>p.rotation)" @click="resetRotation">Reset rotation</button>
+        <button :disabled="!drillable(selectedPart)" :title="drillable(selectedPart)?'Open the drilling bench for '+selectedPart.name:'The drilling bench takes panels'" @click="openBench()">Drill…</button>
+        <button title="Ctrl/⌘+D" @click="duplicateSelectedPart">Duplicate selection</button><button title="Delete" @click="removeSelected">Delete selection</button>
+      </div>
+      <div v-if="menu" class="menu-backdrop" @pointerdown="menu=null" @contextmenu.prevent="menu=null"></div>
+      <div v-if="menu&&menuPart" ref="menuEl" class="piece-menu" role="menu" :aria-label="'Actions for '+menuPart.name" :style="{left:menu.x+'px',top:menu.y+'px'}">
+        <p class="menu-title">{{ selectedIds.length>1?selectedIds.length+' pieces':menuPart.name }}</p>
+        <button role="menuitem" :disabled="!drillable(menuPart)" :title="drillable(menuPart)?'':'The drilling bench takes panels'" @click="menuCommand(openBench)">Drill on the bench…</button>
+        <button role="menuitem" :disabled="!drillable(menuPart)" @click="menuCommand(()=>addFeature('drill'))">Add a drill hole</button>
+        <button role="menuitem" @click="menuCommand(duplicateSelectedPart)">{{ selectedIds.length>1?'Duplicate '+selectedIds.length+' pieces':'Duplicate piece' }}</button>
+        <button role="menuitem" :disabled="!selectedParts.some(p=>p.rotation)" @click="menuCommand(resetRotation)">Straighten (reset rotation)</button>
+        <button role="menuitem" class="danger-text" @click="menuCommand(removeSelected)">{{ selectedIds.length>1?'Delete '+selectedIds.length+' pieces':'Delete piece' }}</button>
       </div>
       <p v-if="!design" class="designer-empty">Start a design: an empty design, a box carcass, or one converted from the cabinet selected in the room.</p>
       <p v-else class="designer-summary" data-testid="design-summary">{{ summary }}</p>
       <p v-if="!webgl" class="designer-empty">3D preview needs WebGL; all editing panels still work.</p>
     </section>
+    <DrillingBench v-if="benchPartId&&design" :design="design" :part-id="benchPartId" @drill="benchDrill" @remove="benchRemove" @close="closeBench" @message="say"/>
     <aside class="designer-right" aria-label="Design properties">
+      <p v-if="selectedIds.length>1" class="hint">{{ selectedIds.length }} pieces selected. These properties edit the active piece, {{ selectedPart?.name }}; moving, turning, layers, materials, duplicating and deleting in the view apply to all of them.</p>
       <DesignPartEditor v-if="selectedPart" :key="formKey" :part="selectedPart" :layers="design.layers" :feature-id="selection.featureId"
         @update="updatePart" @convert="convertPart" @remove="removeSelected" @duplicate="duplicateSelectedPart" @add-feature="addFeature"
         @select-feature="id=>selectFeature(selectedPart.id,id)" @update-feature="updateFeature" @remove-feature="removeSelected"/>
       <p v-else-if="design" class="hint">Select a part in the view or the parts list to edit its shape, material, layer and machining.</p>
-      <DesignCncPanel v-if="plan" :plan="plan" @export="exportPlan" @select="selectIssue"/>
+      <DesignCncPanel v-if="plan" :key="'cnc'+formKey" :plan="plan" :cam="camResult" :design="design" @export="exportPlan" @select="selectIssue" @dxf="exportDxf" @gcode="exportGcode" @gcode-all="exportAllGcode" @update-cam="updateCam" @update-tool="updateTool" @update-stock="updateStock"/>
     </aside>
   </div>
 </template>
 <style>
 /* Not scoped: these rules style the child panels too, namespaced under .designer. */
-.designer{grid-column:1/-1;grid-row:2/-2;display:grid;grid-template-columns:270px minmax(0,1fr) 330px;min-height:0;border-top:1px solid #cdd5ca}
+.designer{position:relative;grid-column:1/-1;grid-row:2/-2;display:grid;grid-template-columns:270px minmax(0,1fr) 330px;min-height:0;border-top:1px solid #cdd5ca}
 .designer .designer-left,.designer .designer-right{padding:18px;overflow:auto;min-height:0}
 .designer .designer-left{border-right:1px solid #cdd5ca}.designer .designer-right{border-left:1px solid #cdd5ca}
 .designer .designer-stage{position:relative;min-width:0;min-height:0;background:#1b2f31}
@@ -361,9 +469,9 @@ onBeforeUnmount(()=>{
 .designer .part-tree ul{list-style:none;padding-left:16px;margin:0}
 .designer .part-tree button,.designer .feature-list button{width:100%;text-align:left;border:0;padding:4px 6px;font-size:12px;display:flex;gap:6px;align-items:center}
 .designer .part-tree button small{margin-left:auto;color:#60746a}.designer .part-tree li.hidden>button{opacity:.45}
-.designer .part-tree button[aria-pressed=true],.designer .feature-list button[aria-pressed=true]{background:#d3dfd1}
+.designer .part-tree button.active{box-shadow:inset 3px 0 0 #263e3c}.designer .part-tree button[aria-pressed=true],.designer .feature-list button[aria-pressed=true]{background:#d3dfd1}
 .designer .swatch{display:inline-block;width:10px;height:10px;border:1px solid #0003;border-radius:2px;flex-shrink:0}
-.designer .mm-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}.designer .mm-grid input{width:100%;min-width:0}
+.designer .mm-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}.designer .mm-grid input{width:100%;min-width:0}.designer .mm-grid .cam-check{display:flex;align-items:center;gap:6px}.designer .mm-grid .cam-check input{width:auto}
 .designer .feature-editor{margin:8px 0;padding:8px;border:1px solid #becabe;border-radius:6px}
 .designer .layer-row{display:grid;grid-template-columns:18px 28px 1fr auto;gap:4px;align-items:center;padding:5px 0;border-bottom:1px solid #dde3d9;font-size:11px}
 .designer .layer-row select{grid-column:3/5;margin:0;padding:4px}.designer .layer-row .layer-name{min-width:0;padding:4px}
@@ -375,8 +483,16 @@ onBeforeUnmount(()=>{
 .designer .cnc-layers{width:100%;border-collapse:collapse;font-size:11px;margin:6px 0}.designer .cnc-layers th,.designer .cnc-layers td{text-align:left;padding:3px;border-bottom:1px solid #dde3d9}
 .designer .cnc-issues button{width:100%;text-align:left;border:0;font-size:11px;padding:3px}
 .designer .cnc-issues .error button{color:#8d2b19}.designer .cnc-issues .warning button{color:#7a5a10}
+.designer .cam-settings{margin:8px 0}.designer .cam-settings summary{cursor:pointer;font-size:12px;font-weight:700}
+.designer .cam-tools{width:100%;border-collapse:collapse;font-size:10px;margin:6px 0}.designer .cam-tools td,.designer .cam-tools th{padding:2px}.designer .cam-tools input{width:100%;min-width:0;padding:3px;font-size:10px}
+.designer .cam-programs{list-style:none;margin:4px 0;padding:0;font-size:11px}.designer .cam-programs li{display:flex;justify-content:space-between;align-items:center;padding:2px 0}.designer .cam-programs button{font-size:10px;padding:2px 8px}
 .designer .cnc-ready{color:#2e7d5b;font-weight:700}.designer .cnc-blocked{color:#8d2b19;font-weight:700}
 .designer .danger{background:#8d2b19;color:#fff}
+.designer .place-design{width:100%;margin:6px 0;background:#263e3c;color:#f2f3eb}
 @media(max-width:1100px){.designer{grid-template-columns:1fr;grid-template-rows:auto 420px auto}.designer .designer-left,.designer .designer-right{border:0}}
 .designer .colour-row{display:flex;gap:6px;align-items:flex-end}.designer .colour-row label{flex:1}.designer .colour-row input{height:34px;padding:2px}.designer .colour-row button{font-size:11px;margin-bottom:8px}
+.designer .menu-backdrop{position:absolute;inset:0;z-index:9}
+.designer .piece-menu{position:absolute;z-index:10;display:flex;flex-direction:column;min-width:200px;padding:4px;background:#f2f3eb;border:1px solid #9fb09f;border-radius:8px;box-shadow:0 8px 28px #001c2455}
+.designer .piece-menu button{border:0;text-align:left;font-size:12px;padding:7px 10px;border-radius:4px}.designer .piece-menu button:focus-visible{outline:2px solid #263e3c}
+.designer .piece-menu .menu-title{margin:2px 8px 4px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#60746a}.designer .piece-menu .danger-text{color:#8d2b19}
 </style>

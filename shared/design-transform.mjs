@@ -38,9 +38,25 @@ export function normaliseRotation(rotation) {
   }
   return out.x||out.y||out.z?out:undefined;
 }
-// Turns a piece about a world axis through its centre (what the canvas rings do).
+// Rotation by `degrees` about a unit world direction (Rodrigues' formula).
+export function vectorMatrix(axis,degrees) {
+  const n=Math.hypot(axis.x,axis.y,axis.z);
+  if(!(n>1e-12)) throw Error('Rotation axis must have a direction');
+  const x=axis.x/n,y=axis.y/n,z=axis.z/n,c=Math.cos(degrees*RAD),s=Math.sin(degrees*RAD),t=1-c;
+  return [[t*x*x+c,t*x*y-s*z,t*x*z+s*y],[t*x*y+s*z,t*y*y+c,t*y*z-s*x],[t*x*z-s*y,t*y*z+s*x,t*z*z+c]];
+}
+const WORLD={x:{x:1,y:0,z:0},y:{x:0,y:1,z:0},z:{x:0,y:0,z:1}};
+// `axis` is 'x', 'y', 'z' (world) or a direction vector.
+export const axisDirection=axis=>typeof axis==='string'?WORLD[axis]:axis;
+export const turnMatrix=(axis,degrees)=>typeof axis==='string'?axisMatrix(axis,degrees):vectorMatrix(axis,degrees);
+// Turns a piece about a world axis or direction through its centre.
 export function rotateAboutWorldAxis(rotation,axis,degrees) {
-  return normaliseRotation(eulerFromMatrix(multiply(axisMatrix(axis,degrees),rotationMatrix(rotation))));
+  return normaliseRotation(eulerFromMatrix(multiply(turnMatrix(axis,degrees),rotationMatrix(rotation))));
+}
+// A piece's own x, y or z axis in world space (a column of its rotation).
+export function localAxis(rotation,axis) {
+  const m=rotationMatrix(rotation),j={x:0,y:1,z:2}[axis];
+  return {x:m[0][j],y:m[1][j],z:m[2][j]};
 }
 
 // Local box {min, max} of the unrotated piece → world corners.

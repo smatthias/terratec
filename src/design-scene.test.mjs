@@ -2,34 +2,41 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {buildDesignGroup,fitDesignCamera,pickDesign,DESIGN_VIEWS} from './design-scene.js';
-import {partCentre} from '../shared/furniture-design.mjs';
-import {createDesign,updateLayer,designBounds,partBox} from '../shared/furniture-design-edit.mjs';
+import {partCentre,partBox} from '../shared/furniture-design.mjs';
+import {addFeature,updateFeature} from '../shared/furniture-design-edit.mjs';
+import {createDesign,updateLayer,designBounds} from '../shared/furniture-design-edit.mjs';
 const ids=()=>{let n=0;return ()=>'id'+(++n);};
 const box=()=>createDesign({id:'box',name:'Box',template:'box',makeId:ids()});
 const all=group=>{const out=[];group.traverse(o=>{if(o.userData.role&&o.userData.role!=='piece') out.push(o);});return out;};
 const roles=group=>all(group).reduce((n,o)=>({...n,[o.userData.role]:(n[o.userData.role]??0)+1}),{});
 const world=o=>{o.parent?.updateMatrixWorld(true);return o.getWorldPosition(new THREE.Vector3());};
+const mat=mesh=>[mesh.material].flat();
+const worldPoints=o=>{o.updateWorldMatrix(true,false);const p=o.geometry.attributes.position,out=[];for(let i=0;i<p.count;i++) out.push(new THREE.Vector3().fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld));return out;};
+const centroid=points=>points.reduce((a,p)=>a.add(p),new THREE.Vector3()).divideScalar(points.length);
 
-test('parts, layer-coloured edges and machining features are drawn per visible layer',()=>{
+
+test('parts, layer-coloured edges and machining outlines are drawn per visible layer',()=>{
   const design=box();
-  assert.deepEqual(roles(buildDesignGroup(design)),{part:6,edges:6,feature:6});
+  assert.deepEqual(roles(buildDesignGroup(design)),{part:6,edges:6,outline:6});
   const drill=design.layers.find(l=>l.operation==='drill').id,parts=design.layers.find(l=>l.operation==='profile').id;
-  assert.deepEqual(roles(buildDesignGroup(updateLayer(design,drill,{visible:false}))),{part:6,edges:6,feature:2},'hidden drilling layer');
-  assert.deepEqual(roles(buildDesignGroup(updateLayer(design,parts,{visible:false}))),{feature:6},'features keep their own layer');
+  assert.deepEqual(roles(buildDesignGroup(updateLayer(design,drill,{visible:false}))),{part:6,edges:6,outline:2},'hidden drilling layer');
+  assert.deepEqual(roles(buildDesignGroup(updateLayer(design,parts,{visible:false}))),{outline:6},'features keep their own layer');
   const edges=all(buildDesignGroup(design)).find(o=>o.userData.role==='edges');
   assert.equal(edges.material.color.getHex(),0x2e7d5b,'edges use the layer colour');
 });
 
-test('feature volumes sit inside their panel and the selection is highlighted',()=>{
+test('machining is cut out of the panel, outlined at opening and floor, and highlighted when selected',()=>{
   const design=box(),left=design.parts[0],drill=left.features[0];
-  const group=buildDesignGroup(design,{selectedPartId:left.id,selectedFeatureId:drill.id});
-  const box0=partBox(left);
-  for(const mesh of all(group).filter(o=>o.userData.role==='feature'&&o.userData.partId===left.id))
-    for(const axis of ['x','y','z']) assert.ok(world(mesh)[axis]>=box0.min[axis]&&world(mesh)[axis]<=box0.max[axis]);
-  const hole=all(group).find(o=>o.userData.featureId===drill.id);
-  assert.deepEqual(world(hole).toArray(),[12,346,60],'drill centre: 6 mm into the 18 mm side, at v=346, u=60');
-  assert.equal(hole.material.depthTest,false);
-  assert.notEqual(all(group).find(o=>o.userData.partId===left.id&&o.userData.role==='part').material.emissive.getHex(),0);
+  const group=buildDesignGroup(design,{selectedPartId:left.id,selectedFeatureId:drill.id}),box0=partBox(left);
+  const panel=all(group).find(o=>o.userData.partId===left.id&&o.userData.role==='part');
+  assert.equal(mat(panel).length,1+left.features.length,'one material group per feature');
+  assert.deepEqual(panel.userData.featureIds,left.features.map(f=>f.id));
+  assert.equal(mat(panel)[1].color.getHex(),0xffe08a,'the selected drill hole is highlighted');
+  assert.equal(mat(panel)[3].color.getHex(),new THREE.Color(design.layers.find(l=>l.operation==='groove').color).getHex(),'the groove in its layer colour');
+  const outline=all(group).find(o=>o.userData.featureId===drill.id),points=worldPoints(outline);
+  assert.ok(points.every(p=>['x','y','z'].every(k=>p[k]>=box0.min[k]-1e-6&&p[k]<=box0.max[k]+1e-6)),'outline inside the panel');
+  assert.deepEqual(centroid(points).toArray().map(v=>Math.round(v*1e6)/1e6),[12,346,60],'drill centre: 6 mm into the 18 mm side, at v=346, u=60');
+  assert.deepEqual([...new Set(points.map(p=>Math.round(p.x*1e6)/1e6))].sort((a,b)=>a-b),[6,18],'rings at the opening (x=18) and the 12 mm floor (x=6)');
 });
 
 test('every view frames the whole design',()=>{
@@ -46,18 +53,25 @@ test('every view frames the whole design',()=>{
   assert.doesNotThrow(()=>fitDesignCamera(camera,empty,1,'Top'));
 });
 
-test('picking returns the part, preferring a feature drawn over it',()=>{
+test('picking hits real geometry: into a pocket selects it, through a hole sees past it',()=>{
   const design=box(),group=buildDesignGroup(design),camera=new THREE.OrthographicCamera();
   fitDesignCamera(camera,design,1,'Front');
   const at=(x,y,z)=>{const p=new THREE.Vector3(x,y,z).project(camera);return pickDesign(group,camera,p.x,p.y);};
   assert.deepEqual(at(300,360,560),{partId:design.parts[4].id,featureId:null},'the shelf (y 351–369) is frontmost here');
   assert.deepEqual(at(300,100,560),{partId:design.parts[5].id,featureId:null},'below the shelf only the back panel is in line');
-  assert.deepEqual(at(4,50,560),{partId:design.parts[0].id,featureId:null},'left side, outside its groove (x 8–18)');
-  assert.deepEqual(at(12,50,560),{partId:design.parts[0].id,featureId:design.parts[0].features[2].id},'through the groove the feature wins');
-  fitDesignCamera(camera,design,1,'Side');
-  const right=design.parts[1],hit=at(600,346,60);
-  assert.equal(hit.partId,right.id);assert.equal(hit.featureId,right.features[0].id,'face B shelf-pin hole on the right side');
+  assert.deepEqual(at(12,50,560),{partId:design.parts[0].id,featureId:null},'the groove is inside the side, not visible from the front');
   assert.equal(at(5000,5000,5000),null);
+  // A lone panel, seen from above: a pocket and a through hole.
+  let single=createDesign({id:'s',name:'S',makeId:ids()}),partId,pocket,hole;
+  ({design:single,partId}=addPart(single,'panel',{makeId:()=>'panel'}));
+  ({design:single,featureId:pocket}=addFeature(single,partId,'pocket',()=>'pocket'));
+  ({design:single,featureId:hole}=addFeature(single,partId,'drill',()=>'hole'));
+  single=updateFeature(updateFeature(single,hole,{u:500,v:200,diameter:30,depth:18}),pocket,{u:100,v:100});
+  const g=buildDesignGroup(single),top=new THREE.OrthographicCamera();fitDesignCamera(top,single,1,'Top');
+  const from=(u,v)=>{const p=new THREE.Vector3(u,18,v).project(top);return pickDesign(g,top,p.x,p.y);};
+  assert.deepEqual(from(150,125),{partId:'panel',featureId:'pocket'},'looking into the pocket hits its floor');
+  assert.equal(from(500,200),null,'a through hole: nothing behind it');
+  assert.deepEqual(from(300,300),{partId:'panel',featureId:null});
 });
 
 import {addPart,partSize,SHAPES} from '../shared/furniture-design-edit.mjs';
@@ -72,8 +86,8 @@ test('every base form renders exactly the box the model describes, in its colour
       assert.ok(Math.abs(bb.max[k]-bb.min[k]-size[k])<1e-6,`${shape} ${axis} size ${k}`);
       assert.ok(Math.abs(world(mesh)[k]-(part[k]+size[k]/2))<1e-6,`${shape} ${axis} centre ${k}`);
     }
-    assert.equal(mesh.material.color.getHex(),0x123456);
-    assert.equal(mesh.material.metalness>0,['tube','box-tube','angle'].includes(shape),'library metals look metallic');
+    assert.equal(mat(mesh)[0].color.getHex(),0x123456);
+    assert.equal(mat(mesh)[0].metalness>0,['tube','box-tube','angle'].includes(shape),'library metals look metallic');
   }
 });
 test('tubes are hollow and angles are L-shaped in the rendered section',()=>{
@@ -112,16 +126,18 @@ test('rotated pieces render at their rotated corners, with features turning alon
       assert.ok(Math.abs(rendered.max[k]-Math.max(...expected.map(p=>p[k])))<1e-3,part.name+' max '+k);
     }
   }
-  const left=design.parts[0],hole=all(group).find(o=>o.userData.featureId===left.features[0].id);
+  const left=design.parts[0],hole=centroid(worldPoints(all(group).find(o=>o.userData.featureId===left.features[0].id)));
   const c=partCentre(left),local={x:left.x+12-c.x,y:left.y+346-c.y,z:left.z+60-c.z},a=30*Math.PI/180;
   const expected={x:c.x+Math.cos(a)*local.x+Math.sin(a)*local.z,y:c.y+local.y,z:c.z-Math.sin(a)*local.x+Math.cos(a)*local.z};
-  for(const k of ['x','y','z']) assert.ok(Math.abs(world(hole)[k]-expected[k])<1e-6,'drill hole turns with its panel '+k);
+  for(const k of ['x','y','z']) assert.ok(Math.abs(hole[k]-expected[k])<1e-4,'drill hole turns with its panel '+k);
 });
 test('layer display: colour by layer and focus dimming',()=>{
   const design=box(),parts=design.layers.find(l=>l.operation==='profile'),drill=design.layers.find(l=>l.operation==='drill');
   const byLayer=all(buildDesignGroup(design,{colorByLayer:true})).filter(o=>o.userData.role==='part');
-  assert.ok(byLayer.every(m=>m.material.color.getHex()===new THREE.Color(parts.color).getHex()));
+  assert.ok(byLayer.every(m=>mat(m)[0].color.getHex()===new THREE.Color(parts.color).getHex()));
   const focused=all(buildDesignGroup(design,{focusLayerId:drill.id}));
-  assert.ok(focused.filter(o=>o.userData.role==='part').every(m=>m.material.transparent&&m.material.opacity<.2),'panels dimmed');
-  assert.ok(focused.filter(o=>o.userData.layerId===drill.id).every(m=>m.material.opacity>.5),'drilling stays visible');
+  assert.ok(focused.filter(o=>o.userData.role==='part').every(m=>mat(m)[0].transparent&&mat(m)[0].opacity<.2),'panels dimmed');
+  assert.ok(focused.filter(o=>o.userData.role==='outline'&&o.userData.layerId===drill.id).every(m=>m.material.opacity>.5),'drilling stays visible');
+  const side=focused.find(o=>o.userData.role==='part'&&o.userData.featureIds.length);
+  assert.ok(mat(side)[1].opacity===1&&mat(side)[3].opacity<.2,'drill cuts stay solid, groove cuts dim');
 });

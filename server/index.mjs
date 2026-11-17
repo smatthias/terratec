@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import {MAX_JOB_BACKUP_BYTES} from '../shared/job-backup.mjs';
 import {customerStore} from './customer-store.mjs';
 import {jobStore} from './job-store.mjs';
-import { projectStore } from './project-store.mjs';
+import { projectStore, MAX_TIMELINE_BYTES } from './project-store.mjs';
 import { validateProject } from './project.mjs';
 
 const run = promisify(execFile);
@@ -21,6 +21,8 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
       res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify(value));
     };
+    // Oversized uploads: answer, then close the connection instead of leaving the rest of the body unread on it.
+    const tooLarge=error=>{res.setHeader('Connection','close');res.once('finish',()=>req.socket?.destroy());send(413,{error});};
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
       if(path==='/api/storage/check' && req.method==='POST')return send(200,await checkStorage(dataDir));
@@ -42,7 +44,7 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
         if(req.method==='GET'&&!customerRestore)return send(200,customerMatch?await customers.read(customerMatch[1]):await customers.list());
         if(req.method!==(customerMatch&&!customerRestore?'PUT':'POST'))return send(405,{error:'Method not allowed'});
         if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
-        const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>8192)return send(413,{error:'Customer request exceeds 8 KiB'});chunks.push(chunk);}
+        const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>8192)return tooLarge('Customer request exceeds 8 KiB');chunks.push(chunk);}
         let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid customer JSON'});}
         return send(customerRestore?201:customerMatch?200:201,customerRestore?await customers.restore(input):await customers.save(input,customerMatch?.[1]));
       }
@@ -54,10 +56,19 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
         if(req.method!=='POST'||(jobMatch&&!jobMatch[2]&&!restoring))return send(405,{error:'Method not allowed'});
         if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
         const chunks=[];let size=0;
-        for await(const chunk of req){size+=chunk.length;if(size>(restoring?MAX_JOB_BACKUP_BYTES:131072))return send(413,{error:restoring?'Job backup exceeds 16 MiB':'Job request exceeds 128 KiB'});chunks.push(chunk);}
+        for await(const chunk of req){size+=chunk.length;if(size>(restoring?MAX_JOB_BACKUP_BYTES:131072))return tooLarge(restoring?'Job backup exceeds 16 MiB':'Job request exceeds 128 KiB');chunks.push(chunk);}
         let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid job JSON'});}
         const record=restoring?await jobs.restore(input):path==='/api/jobs'?await jobs.create(input):jobMatch[2]==='revisions'?await jobs.revise(jobMatch[1],input):jobMatch[2]==='review'?await jobs.review(jobMatch[1],input):jobMatch[2]==='quotes'?await jobs.quote(jobMatch[1],input):jobMatch[2]==='quote-status'?await jobs.quoteStatus(jobMatch[1],input):await jobs.fulfil(jobMatch[1],input);
         return send(path==='/api/jobs'||restoring?201:200,record);
+      }
+      const timelineMatch=path.match(/^\/api\/projects\/([^/]+)\/timeline$/);
+      if(timelineMatch){
+        if(req.method==='GET')return send(200,await projects.readTimeline(timelineMatch[1]));
+        if(req.method!=='PUT')return send(405,{error:'Method not allowed'});
+        if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
+        const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>MAX_TIMELINE_BYTES)return tooLarge('Project history exceeds 2 MiB');chunks.push(chunk);}
+        let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid history JSON'});}
+        return send(200,await projects.saveTimeline(timelineMatch[1],input));
       }
       const projectMatch=path.match(/^\/api\/projects\/([^/]+)$/);
       if(req.method==='GET' && path==='/api/projects') return send(200,await projects.list());
@@ -78,7 +89,7 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
       let size = 0;
       for await (const chunk of req) {
         size += chunk.length;
-        if (size > 65536) { send(413, { error: 'Project exceeds 64 KiB' }); return; }
+        if (size > 65536) return tooLarge('Project exceeds 64 KiB');
         chunks.push(chunk);
       }
       let project;

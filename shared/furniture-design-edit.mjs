@@ -1,10 +1,11 @@
 // Editing operations for furniture designs: templates, cabinet conversion and
 // pure edit commands. Only the designer loads this module; project validation
 // needs just furniture-design.mjs. Everything from that module is re-exported.
-import {validateDesign,designBounds,partSize,partCentre,round,SHAPES,FEATURE_TYPES,PANEL_ORIENTATIONS,PIECE_FORMS,SECTION_AXES,ROUND_SHAPES,materialColor} from './furniture-design.mjs';
+import {validateDesign,designBounds,partSize,partCentre,round,isEdgeFace,SHAPES,FEATURE_TYPES,PANEL_ORIENTATIONS,PIECE_FORMS,SECTION_AXES,ROUND_SHAPES,materialColor} from './furniture-design.mjs';
 export * from './furniture-design.mjs';
+export * from './furniture-design-geometry.mjs';
 import {MATERIALS} from './materials.mjs';
-import {rotateAboutWorldAxis,rotationMatrix} from './design-transform.mjs';
+import {rotateAboutWorldAxis,turnMatrix,axisDirection} from './design-transform.mjs';
 const copy=value=>JSON.parse(JSON.stringify(value));
 
 // ---- Creation -------------------------------------------------------------
@@ -123,22 +124,62 @@ export function convertPart(design,partId,shape) {
   }
   return withParts(design,design.parts.map(p=>p.id===partId?next:p));
 }
-// Turns pieces rigidly about a world axis through their common centre (world
-// bounds), keeping their joints: each centre orbits the pivot and each rotation
-// composes with the turn. A single piece turns in place.
+// Centre of the world bounds of some pieces: the pivot for turning them together.
+export function selectionCentre(design,partIds) {
+  const moving=design.parts.filter(p=>partIds.includes(p.id));
+  if(!moving.length) throw Error('Part not found');
+  const bounds=designBounds({...design,parts:moving});
+  return {x:(bounds.min.x+bounds.max.x)/2,y:(bounds.min.y+bounds.max.y)/2,z:(bounds.min.z+bounds.max.z)/2};
+}
+// Turns pieces rigidly about an axis through their common centre, keeping their
+// joints: each centre orbits the pivot and each rotation composes with the turn.
+// `axis` is 'x', 'y', 'z' (world) or a direction, such as a piece's local axis.
+// A single piece turns in place.
 export function rotatePartsAbout(design,partIds,axis,degrees) {
-  if(!['x','y','z'].includes(axis) || typeof degrees!=='number' || !Number.isFinite(degrees)) throw Error('Rotate about x, y or z by a finite angle');
+  const direction=axisDirection(axis);
+  if(!direction || ![direction.x,direction.y,direction.z,degrees].every(v=>typeof v==='number'&&Number.isFinite(v))) throw Error('Rotate about x, y, z or a direction by a finite angle');
   const moving=design.parts.filter(p=>partIds.includes(p.id));
   if(!moving.length) throw Error('Part not found');
   assertEditable(design,...moving.map(p=>p.layer));
-  const bounds=designBounds({...design,parts:moving}),pivot={x:(bounds.min.x+bounds.max.x)/2,y:(bounds.min.y+bounds.max.y)/2,z:(bounds.min.z+bounds.max.z)/2};
-  const turn=rotationMatrix(rotateAboutWorldAxis(undefined,axis,degrees));
+  const pivot=selectionCentre(design,partIds),turn=turnMatrix(axis,degrees);
   const turned=new Map(moving.map(part=>{
     const size=partSize(part),centre=partCentre(part),offset={x:centre.x-pivot.x,y:centre.y-pivot.y,z:centre.z-pivot.z};
     const moved=[0,1,2].map(i=>turn[i][0]*offset.x+turn[i][1]*offset.y+turn[i][2]*offset.z);
     return [part.id,{...part,x:round(pivot.x+moved[0]-size.x/2),y:round(pivot.y+moved[1]-size.y/2),z:round(pivot.z+moved[2]-size.z/2),rotation:rotateAboutWorldAxis(part.rotation,axis,degrees)}];
   }));
   return withParts(design,design.parts.map(p=>turned.get(p.id)??p));
+}
+// ---- Multi-piece commands: every piece is validated and checked for locks.
+function pick(design,partIds) {
+  const parts=design.parts.filter(p=>partIds.includes(p.id));
+  if(!parts.length||parts.length!==new Set(partIds).size) throw Error('Part not found');
+  return parts;
+}
+// Moves pieces together by the same offset (mm).
+export function moveParts(design,partIds,offset) {
+  const parts=pick(design,partIds);assertEditable(design,...parts.map(p=>p.layer));
+  const moved=new Set(partIds);
+  return withParts(design,design.parts.map(p=>moved.has(p.id)?{...p,x:round(p.x+(offset.x??0)),y:round(p.y+(offset.y??0)),z:round(p.z+(offset.z??0))}:p));
+}
+// Applies the same changes (layer, material, rotation…) to several pieces.
+export function updateParts(design,partIds,changes) {
+  let next=design;
+  for(const id of pick(design,partIds).map(p=>p.id)) next=updatePart(next,id,changes);
+  return next;
+}
+export function removeParts(design,partIds) {
+  const parts=pick(design,partIds);assertEditable(design,...parts.map(p=>p.layer));
+  const gone=new Set(partIds);
+  return withParts(design,design.parts.filter(p=>!gone.has(p.id)));
+}
+// Copies pieces as a group 50 mm to the right of the group, keeping their
+// relative positions (and so their joints).
+export function duplicateParts(design,partIds,makeId) {
+  const parts=pick(design,partIds);assertEditable(design,...parts.flatMap(p=>[p.layer,...(p.features??[]).map(f=>f.layer)]));
+  const bounds=designBounds({...design,parts}),shift=round(bounds.size.x+50);
+  const clones=parts.map(part=>({...copy(part),id:makeId(),name:(part.name.endsWith(' (copy)')?part.name:part.name.slice(0,53)+' (copy)'),x:round(part.x+shift),
+    ...(part.features?{features:part.features.map(f=>({...f,id:makeId()}))}:{})}));
+  return {design:withParts(design,[...design.parts,...clones]),partIds:clones.map(c=>c.id)};
 }
 export function removePart(design,partId) {
   assertEditable(design,findPart(design,partId).layer);
@@ -169,12 +210,31 @@ export function addFeature(design,partId,type,makeId) {
   assertEditable(design,part.layer,layer);
   return {design:withParts(design,design.parts.map(p=>p.id===partId?{...p,features:[...p.features,feature]}:p)),featureId:feature.id};
 }
+// Drills holes into a panel in one edit (one undo step): each hole is
+// {face, u, v, t, diameter, depth} as for drill features, on the drilling layer.
+export function drillHoles(design,partId,holes,makeId) {
+  const part=findPart(design,partId);
+  if(part.shape!=='panel') throw Error('Only panels can be drilled');
+  if(!Array.isArray(holes)||!holes.length) throw Error('Nothing to drill');
+  const layer=layerFor(design,'drill');
+  assertEditable(design,part.layer,layer);
+  const features=holes.map(h=>({id:makeId(),type:'drill',layer,face:h.face,u:h.u??0,v:h.v??0,...(h.t!==undefined?{t:h.t}:{}),diameter:h.diameter,depth:h.depth}));
+  return {design:withParts(design,design.parts.map(p=>p.id===partId?{...p,features:[...p.features,...features]}:p)),featureIds:features.map(f=>f.id)};
+}
 function findFeature(design,featureId) {
   for(const part of design.parts) {const feature=part.features?.find(f=>f.id===featureId);if(feature) return {part,feature};}
   throw Error('Feature not found');
 }
 export function updateFeature(design,featureId,changes) {
   const {part,feature}=findFeature(design,featureId),next={...feature,...changes,id:feature.id,type:feature.type};
+  // Onto an edge: centre across the thickness. Back onto a face: centre the
+  // coordinate the edge had fixed, so the hole lands on the face.
+  if(isEdgeFace(next.face)&&!isEdgeFace(feature.face)&&changes.t===undefined) next.t=part.thickness/2;
+  if(!isEdgeFace(next.face)&&isEdgeFace(feature.face)) {
+    if(feature.face[0]==='u'&&changes.u===undefined) next.u=part.length/2;
+    if(feature.face[0]==='v'&&changes.v===undefined) next.v=part.width/2;
+    delete next.t;
+  }
   assertEditable(design,feature.layer,next.layer);
   return withParts(design,design.parts.map(p=>p.id===part.id?{...p,features:p.features.map(f=>f.id===featureId?next:f)}:p));
 }
@@ -213,9 +273,21 @@ export function moveLayer(design,layerId,delta) {
   return validateDesign({...design,layers});
 }
 export const renameDesign=(design,name)=>validateDesign({...design,name});
+// CAM settings and layer tools merge with what is set; a null value clears it.
+const merge=(current,changes)=>Object.fromEntries(Object.entries({...current,...changes}).filter(([,v])=>v!==null&&v!==undefined));
+export const updateCam=(design,changes)=>validateDesign({...design,cam:merge(design.cam,changes)});
+// Sheet stock for nesting; clearing every value returns to the defaults.
+export function updateStock(design,changes) {
+  const stock=merge(design.stock,changes),{stock:_,...rest}=design;
+  return validateDesign(Object.keys(stock).length?{...rest,stock}:rest);
+}
+export function updateLayerTool(design,layerId,changes) {
+  const layer=findLayer(design,layerId);
+  return validateDesign({...design,layers:design.layers.map(l=>l.id===layerId?{...layer,tool:merge(layer.tool,changes)}:l)});
+}
 export function duplicateDesign(design,{id,makeId}) {
   const layerIds=new Map(design.layers.map(l=>[l.id,makeId()]));
-  return validateDesign({id,name:(design.name.endsWith(' (copy)')?design.name:design.name.slice(0,53)+' (copy)'),
+  return validateDesign({id,name:(design.name.endsWith(' (copy)')?design.name:design.name.slice(0,53)+' (copy)'),...(design.cam?{cam:design.cam}:{}),...(design.stock?{stock:design.stock}:{}),
     layers:design.layers.map(l=>({...l,id:layerIds.get(l.id)})),
     parts:design.parts.map(p=>({...copy(p),id:makeId(),layer:layerIds.get(p.layer),...(p.features?{features:p.features.map(f=>({...f,id:makeId(),layer:layerIds.get(f.layer)}))}:{})}))});
 }

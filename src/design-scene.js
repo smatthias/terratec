@@ -1,11 +1,12 @@
 // Three.js view of a furniture design (millimetres). Each piece is a group at
 // its centre carrying its rotation; inside it the piece is shaded in its colour
-// (or its layer colour) with edges in its layer colour, and machining features are
-// translucent volumes in their layer colour, drawn through the panel so depth work
-// stays visible. Hidden layers are not drawn or picked; with a focus layer,
-// everything on other layers is dimmed.
+// (or its layer colour) with edges in its layer colour. Panels show machining
+// really cut out (see panel-mesh.js): cut surfaces take the feature's layer
+// colour, and each feature is outlined at its opening and its floor. Hidden
+// layers are not drawn or picked; with a focus layer, other layers are dimmed.
 import * as THREE from 'three';
-import {partSize,partCentre,featureBox,designBounds,PANEL_ORIENTATIONS,SECTION_AXES} from '../shared/furniture-design.mjs';
+import {partSize,partCentre,designBounds,SECTION_AXES} from '../shared/furniture-design.mjs';
+import {panelMeshData,featureOutline} from './panel-mesh.js';
 import {isMetal} from '../shared/materials.mjs';
 
 const SELECTED=0x766228;
@@ -61,7 +62,7 @@ function pieceGeometry(part,size) {
 
 const RAD=Math.PI/180;
 function dim(material) {material.transparent=true;material.opacity=.16;material.depthWrite=false;return material;}
-export function buildDesignGroup(design,{selectedPartId=null,selectedFeatureId=null,colorByLayer=false,focusLayerId=null}={}) {
+export function buildDesignGroup(design,{selectedPartId=null,selectedPartIds=[],selectedFeatureId=null,colorByLayer=false,focusLayerId=null}={}) {
   const group=new THREE.Group(),layers=new Map(design.layers.map(l=>[l.id,l]));
   const dimmed=layerId=>focusLayerId!==null&&layerId!==focusLayerId;
   for(const part of design.parts) {
@@ -70,32 +71,46 @@ export function buildDesignGroup(design,{selectedPartId=null,selectedFeatureId=n
     const holder=new THREE.Group();holder.position.copy(centre);holder.userData={role:'piece',partId:part.id};
     if(part.rotation) holder.rotation.set(part.rotation.x*RAD,part.rotation.y*RAD,part.rotation.z*RAD,'XYZ');
     group.add(holder);
+    // Features on hidden layers are not cut (or drawn), like any hidden layer content.
+    const features=(part.features??[]).filter(f=>layers.get(f.layer).visible);
+    if(!layer.visible&&!features.length) continue;
+    const selected=part.id===selectedPartId||selectedPartIds.includes(part.id),metal=isMetal(part.material);
     if(layer.visible) {
-      const geometry=pieceGeometry(part,size),selected=part.id===selectedPartId,metal=isMetal(part.material);
       // Some section bases are mirrored, so both faces are drawn.
       const material=new THREE.MeshStandardMaterial({color:new THREE.Color(colorByLayer?layer.color:part.color).getHex(),roughness:metal?.35:.75,metalness:metal?.55:0,side:THREE.DoubleSide,emissive:selected?SELECTED:0x000000,emissiveIntensity:.6});
-      const mesh=new THREE.Mesh(geometry,dimmed(part.layer)?dim(material):material);
-      mesh.userData={role:'part',partId:part.id,layerId:part.layer};holder.add(mesh);
+      const materials=[dimmed(part.layer)?dim(material):material];
+      let geometry;
+      if(part.shape==='panel') {
+        // Panels show their machining really cut out; each feature's cut surfaces
+        // are a material group in its layer colour.
+        const data=panelMeshData(part,features);
+        geometry=new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(data.positions.slice(),3)).setAttribute('normal',new THREE.BufferAttribute(data.normals.slice(),3));
+        for(const g of data.groups) geometry.addGroup(g.start,g.count,g.materialIndex);
+        for(const feature of features) {
+          const cut=new THREE.MeshStandardMaterial({color:feature.id===selectedFeatureId?0xffe08a:new THREE.Color(layers.get(feature.layer).color).getHex(),roughness:.8,side:THREE.DoubleSide});
+          materials.push(dimmed(feature.layer)?dim(cut):cut);
+        }
+      } else geometry=pieceGeometry(part,size);
+      const mesh=new THREE.Mesh(geometry,part.shape==='panel'?materials:materials[0]);
+      mesh.userData={role:'part',partId:part.id,layerId:part.layer,featureIds:features.map(f=>f.id)};holder.add(mesh);
       const lines=new THREE.LineBasicMaterial({color:selected?0xffe08a:new THREE.Color(layer.color).getHex()});
-      const edges=new THREE.LineSegments(new THREE.EdgesGeometry(geometry,25),dimmed(part.layer)?dim(lines):lines);
+      const edgeSource=part.shape==='panel'?new THREE.BoxGeometry(size.x,size.y,size.z):geometry;
+      const edges=new THREE.LineSegments(new THREE.EdgesGeometry(edgeSource,25),dimmed(part.layer)?dim(lines):lines);
+      if(edgeSource!==geometry) edgeSource.dispose();
       edges.userData={role:'edges',partId:part.id,layerId:part.layer};holder.add(edges);
     }
-    for(const feature of part.features??[]) {
-      const featureLayer=layers.get(feature.layer);
-      if(!featureLayer.visible) continue;
-      const box=featureBox(part,feature),normal=PANEL_ORIENTATIONS[part.orientation].n,selected=feature.id===selectedFeatureId;
-      const geometry=feature.type==='drill'
-        ?orient(new THREE.CylinderGeometry(feature.diameter/2,feature.diameter/2,feature.depth,24),normal)
-        :new THREE.BoxGeometry(box.max.x-box.min.x,box.max.y-box.min.y,box.max.z-box.min.z);
-      const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:selected?0xffe08a:new THREE.Color(featureLayer.color).getHex(),transparent:true,opacity:selected?.9:dimmed(feature.layer)?.12:.65,depthTest:false,depthWrite:false}));
-      mesh.position.copy(centreOf(box)).sub(centre);mesh.renderOrder=2;
-      mesh.userData={role:'feature',partId:part.id,featureId:feature.id,layerId:feature.layer};holder.add(mesh);
+    for(const feature of features) {
+      const selectedFeature=feature.id===selectedFeatureId,color=selectedFeature?0xffe08a:new THREE.Color(layers.get(feature.layer).color).getHex();
+      const outline=new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(featureOutline(part,feature),3)),
+        new THREE.LineBasicMaterial({color,transparent:true,opacity:dimmed(feature.layer)?.15:1,depthTest:!selectedFeature}));
+      outline.renderOrder=selectedFeature?3:1;
+      outline.userData={role:'outline',partId:part.id,featureId:feature.id,layerId:feature.layer};holder.add(outline);
     }
   }
   return group;
 }
 export function disposeDesignGroup(group) {
-  group?.traverse(item=>{item.geometry?.dispose();item.material?.dispose();});
+  group?.traverse(item=>{item.geometry?.dispose();for(const material of [item.material??[]].flat()) material.dispose();});
   group?.removeFromParent();
 }
 
@@ -123,14 +138,18 @@ export function fitDesignCamera(camera,design,aspect,view) {
   camera.lookAt(centre);camera.updateProjectionMatrix();camera.updateMatrixWorld();
   return centre;
 }
-// Features are drawn on top of their panel, so they win when both are hit.
+// A hit on a cut surface selects that feature.
 // With `withPoint`, the world point hit on the piece is included.
 export function pickDesign(group,camera,x,y,withPoint=false) {
   const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(x,y),camera);group.updateMatrixWorld(true);
-  const targets=[];group.traverse(o=>{if(o.userData.role==='part'||o.userData.role==='feature') targets.push(o);});
+  const targets=[];group.traverse(o=>{if(o.userData.role==='part') targets.push(o);});
   const hits=ray.intersectObjects(targets,false);
-  const hit=hits.find(h=>h.object.userData.role==='feature')??hits[0];
+  const hit=hits[0];
   if(!hit) return null;
-  const result={partId:hit.object.userData.partId,featureId:hit.object.userData.featureId??null};
+  // Cut surfaces are material groups 1…n of the panel mesh, one per feature.
+  const slot=hit.face?.materialIndex??0,featureId=slot>0?hit.object.userData.featureIds?.[slot-1]??null:null;
+  const result={partId:hit.object.userData.partId,featureId};
   return withPoint?{...result,point:{x:hit.point.x,y:hit.point.y,z:hit.point.z}}:result;
 }
+// Bounds for placing a design in the room (re-exported for the room renderer).
+export const designBoundsOf=designBounds;

@@ -83,7 +83,10 @@ test('new woods batch and price separately; legacy pricing is unchanged',()=>{
   assert.throws(()=>validatePricing({...legacy,sheetRates:{...legacy.sheetRates,walnut:-1}}),/Invalid pricing/);
   assert.throws(()=>validatePricing({...legacy,sheetRates:{oak:1,birch:1}}),/Invalid pricing/,'base rates stay required');
   assert.equal(validateStockRates([{material:'walnut',thicknessMm:18,stockLengthMm:2440,stockWidthMm:1220,unitCents:5}])[0].material,'walnut');
-  assert.throws(()=>validateStockRates([{material:'steel',thicknessMm:18,stockLengthMm:2440,stockWidthMm:1220,unitCents:5}]));
+  // Metal sheets (panels of placed designs) can have stock prices too; unknown materials cannot.
+  assert.equal(validateStockRates([{material:'steel',thicknessMm:2,stockLengthMm:2000,stockWidthMm:1000,unitCents:5}])[0].material,'steel');
+  assert.throws(()=>validateStockRates([{material:'gold',thicknessMm:18,stockLengthMm:2440,stockWidthMm:1220,unitCents:5}]));
+  assert.throws(()=>validateStockRates([{material:'oak',thicknessMm:201,stockLengthMm:2440,stockWidthMm:1220,unitCents:5}]));
 });
 
 test('quoting a wood without a rate fails clearly instead of producing NaN',async()=>{

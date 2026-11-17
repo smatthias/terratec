@@ -98,3 +98,48 @@ test('angled pieces are tested exactly, not by their bounding boxes',()=>{
   ({design}=D.addPart(design,'cylinder',{makeId:ids('r'),overrides:{axis:'x',length:120,diameter:8,x:240,y:296,z:6,rotation:{x:0,y:0,z:30}}}));
   assert.deepEqual(partCollisions(design).map(c=>c.message),[]);
 });
+
+import {vectorMatrix,localAxis} from './design-transform.mjs';
+test('rotation about any direction matches three.js and equals world turns on world axes',()=>{
+  for(const [axis,deg] of [[{x:1,y:2,z:-.5},37],[{x:0,y:0,z:3},-120],[{x:.3,y:-.8,z:.1},200]]) {
+    const ours=vectorMatrix(axis,deg),n=Math.hypot(axis.x,axis.y,axis.z);
+    const theirs=new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(axis.x/n,axis.y/n,axis.z/n),deg*Math.PI/180).elements;
+    for(let i=0;i<3;i++) for(let j=0;j<3;j++) close(ours[i][j],theirs[j*4+i]);
+  }
+  const r={x:10,y:20,z:30};
+  assert.deepEqual(rotateAboutWorldAxis(r,{x:0,y:1,z:0},40),rotateAboutWorldAxis(r,'y',40));
+  assert.throws(()=>vectorMatrix({x:0,y:0,z:0},10),/direction/);
+  // Turning about a piece's own axis equals R_old · R_axis.
+  const old=rotationMatrix(r),turned=rotationMatrix(rotateAboutWorldAxis(r,localAxis(r,'y'),25)),ry=rotationMatrix({x:0,y:25,z:0});
+  for(let i=0;i<3;i++) for(let j=0;j<3;j++) close(turned[i][j],old[i][0]*ry[0][j]+old[i][1]*ry[1][j]+old[i][2]*ry[2][j]);
+  assert.deepEqual(localAxis(undefined,'z'),{x:0,y:0,z:1});
+});
+
+test('selections move, change, duplicate and delete together, respecting locks',()=>{
+  const design=box(),pair=[design.parts[0].id,design.parts[1].id];
+  const moved=D.moveParts(design,pair,{x:5,z:-10});
+  assert.deepEqual(moved.parts.slice(0,2).map(p=>[p.x,p.z]),[[5,-10],[587,-10]]);assert.deepEqual(moved.parts.slice(2),design.parts.slice(2));
+  const layer=design.layers.find(l=>l.operation==='none').id;
+  assert.ok(D.updateParts(design,pair,{layer}).parts.slice(0,2).every(p=>p.layer===layer));
+  const locked=D.updateLayer(design,design.parts[0].layer,{locked:true});
+  assert.throws(()=>D.moveParts(locked,pair,{x:1}),/locked/);assert.throws(()=>D.removeParts(locked,pair),/locked/);
+  assert.throws(()=>D.moveParts(design,[...pair,'missing'],{x:1}),/Part not found/);
+  assert.equal(D.removeParts(design,pair).parts.length,4);
+  const all=design.parts.map(p=>p.id),copy=D.duplicateParts(design,all,ids('dup'));
+  assert.equal(copy.design.parts.length,12);assert.equal(copy.partIds.length,6);
+  assert.deepEqual(partCollisions(copy.design),[],'the copied carcass keeps its joints and sits clear of the original');
+  const clones=copy.design.parts.filter(p=>copy.partIds.includes(p.id));
+  clones.forEach((c,i)=>{assert.equal(c.x-design.parts[i].x,650);assert.equal(c.y,design.parts[i].y);assert.notEqual(c.id,design.parts[i].id);});
+  assert.deepEqual(D.selectionCentre(design,all),{x:300,y:360,z:280});
+});
+
+test('an angle at an angle: its legs are still tested separately',()=>{
+  let design=D.createDesign({id:'d',name:'D',makeId:ids('l')}),angle;
+  ({design,partId:angle}=D.addPart(design,'angle',{makeId:ids('a'),overrides:{axis:'x',length:600,width:60,height:60,wall:4,x:0,y:0,z:0,rotation:{x:20,y:0,z:0}}}));
+  // A small bar turned with the angle, sitting in its inside corner.
+  const {design:withBar,partId:bar}=D.addPart(design,'bar',{makeId:ids('b'),overrides:{axis:'x',length:100,width:20,height:20,x:100,y:20,z:20,rotation:{x:20,y:0,z:0}}});
+  assert.deepEqual(partCollisions(withBar),[],'square to the angle, in its corner');
+  const tilted=D.updatePart(withBar,bar,{rotation:{x:50,y:0,z:0}});
+  assert.deepEqual(partCollisions(tilted),[],'at another angle but still clear of both legs');
+  assert.equal(partCollisions(D.updatePart(tilted,bar,{y:-15})).length,1,'pushed through a leg');
+});

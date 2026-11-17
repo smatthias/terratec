@@ -24,6 +24,7 @@
 // locked layer cannot be edited, moved onto or removed.
 import {MATERIALS} from './materials.mjs';
 import {normaliseRotation,boxCorners,boundsOf} from './design-transform.mjs';
+import {validateStock} from './stock.mjs';
 
 export const DESIGN_LIMITS=Object.freeze({designs:32,parts:200,features:64,layers:32});
 export const SHAPES=Object.freeze(['panel','bar','cylinder','tube','box-tube','angle']);
@@ -97,46 +98,62 @@ export function designBounds(design) {
   for(const axis of ['x','y','z']) {min[axis]=Math.min(...boxes.map(b=>b.min[axis]));max[axis]=Math.max(...boxes.map(b=>b.max[axis]));}
   return {min,max,size:{x:max.x-min.x,y:max.y-min.y,z:max.z-min.z}};
 }
-// Maps sheet coordinates on a panel face to world points. `depth` goes into the material.
-export function faceFrame(part,face) {
-  const axes=PANEL_ORIENTATIONS[part.orientation],origin={x:part.x,y:part.y,z:part.z};
-  const sign=face==='A'?1:-1,surface=face==='A'?part.thickness:0;
-  return (u,v,depth=0)=>{
-    const point={...origin};
-    point[axes.u]+=u;point[axes.v]+=v;point[axes.n]+=surface-sign*depth;
-    return point;
-  };
-}
-// World box of the material a feature removes (drills use their bounding square).
-export function featureBox(part,feature) {
-  const at=faceFrame(part,feature.face);
-  const [u0,u1,v0,v1]=feature.type==='drill'
-    ?[feature.u-feature.diameter/2,feature.u+feature.diameter/2,feature.v-feature.diameter/2,feature.v+feature.diameter/2]
-    :[feature.u,feature.u+feature.length,feature.v,feature.v+feature.width];
-  const a=at(u0,v0,0),b=at(u1,v1,feature.depth),min={},max={};
-  for(const axis of ['x','y','z']) {min[axis]=Math.min(a[axis],b[axis]);max[axis]=Math.max(a[axis],b[axis]);}
-  return {min,max};
-}
-export const isThrough=(part,feature)=>feature.depth>=part.thickness-1e-9;
-// Open space inside a tube, which can receive another piece (a rod in a tube).
-export function hollowBox(part) {
-  if(part.shape!=='tube'&&part.shape!=='box-tube') return null;
-  const box=partBox(part),[a,b]=SECTION_AXES[part.axis],min={...box.min},max={...box.max};
-  for(const axis of [a,b]) {min[axis]+=part.wall;max[axis]-=part.wall;}
-  return {min,max};
-}
+// Panel edges can take drill holes: u0 and u1 are the ends at u = 0 and u = length,
+// v0 and v1 the long edges at v = 0 and v = width. An edge hole drills inward from
+// its edge, centred at `t` across the thickness (measured from face B).
+export const EDGE_FACES=Object.freeze(['u0','u1','v0','v1']);
+export const FEATURE_FACES=Object.freeze(['A','B',...EDGE_FACES]);
+export const isEdgeFace=face=>EDGE_FACES.includes(face);
+
 
 // ---- Validation -----------------------------------------------------------
+// Optional cutting tool of a machining layer; unset values use the CAM
+// defaults for the layer's operation (design-cam.mjs).
+// Post-processors (machine dialects); see cam-export.mjs.
+export const CAM_POSTS=Object.freeze(['grbl','linuxcnc','mach','fanuc','siemens','heidenhain']);
+function validateTool(tool) {
+  if(!tool||typeof tool!=='object'||Array.isArray(tool)) throw Error('Layer tool settings are invalid');
+  const out={};
+  if(tool.diameter!==undefined) out.diameter=number(tool.diameter,'Tool diameter',.1,50);
+  if(tool.feed!==undefined) out.feed=number(tool.feed,'Feed rate (mm/min)',1,50000);
+  if(tool.plunge!==undefined) out.plunge=number(tool.plunge,'Plunge rate (mm/min)',1,20000);
+  if(tool.stepdown!==undefined) out.stepdown=number(tool.stepdown,'Step-down',.05,50);
+  if(tool.rpm!==undefined) {if(!Number.isInteger(tool.rpm)||tool.rpm<0||tool.rpm>100000) throw Error('Spindle speed must be a whole number from 0 to 100000 rpm');out.rpm=tool.rpm;}
+  return Object.keys(out).length?out:undefined;
+}
+function validateCam(cam) {
+  if(!cam||typeof cam!=='object'||Array.isArray(cam)) throw Error('CAM settings are invalid');
+  const out={};
+  if(cam.post!==undefined) {if(!CAM_POSTS.includes(cam.post)) throw Error('Choose a listed post-processor');out.post=cam.post;}
+  const choice=(key,values,label)=>{if(cam[key]!==undefined) {if(!values.includes(cam[key])) throw Error(label);out[key]=cam[key];}};
+  const whole=(key,min,max,label)=>{if(cam[key]!==undefined) {if(!Number.isInteger(cam[key])||cam[key]<min||cam[key]>max) throw Error(label);out[key]=cam[key];}};
+  choice('units',['mm','inch'],'Program units must be mm or inch');
+  choice('arcs',['native','lines'],'Arcs must be native or lines');
+  choice('lineNumbers',[true,false],'Line numbers must be on or off');
+  choice('dwellMs',[true,false],'Dwell unit must be seconds or milliseconds');
+  whole('programNumber',1,9999,'Program number must be a whole number from 1 to 9999');
+  whole('tabs',0,16,'Tabs must be a whole number from 0 to 16 per part');
+  if(cam.spinUpS!==undefined) {if(typeof cam.spinUpS!=='number'||!Number.isFinite(cam.spinUpS)||cam.spinUpS<0||cam.spinUpS>60) throw Error('Spindle start wait must be between 0 and 60 s');out.spinUpS=round(cam.spinUpS);}
+  if(cam.tabWidth!==undefined) out.tabWidth=number(cam.tabWidth,'Tab width',1,50);
+  if(cam.tabHeight!==undefined) out.tabHeight=number(cam.tabHeight,'Tab height',.2,20);
+  if(cam.safeZ!==undefined) out.safeZ=number(cam.safeZ,'Safe Z',1,200);
+  if(cam.throughMm!==undefined) out.throughMm=number(cam.throughMm,'Through-cut allowance',0,5);
+  if(cam.direction!==undefined) {if(!['climb','conventional'].includes(cam.direction)) throw Error('Cutting direction must be climb or conventional');out.direction=cam.direction;}
+  if(cam.stepoverPct!==undefined) {if(!Number.isInteger(cam.stepoverPct)||cam.stepoverPct<10||cam.stepoverPct>90) throw Error('Stepover must be a whole number from 10 to 90 %');out.stepoverPct=cam.stepoverPct;}
+  return Object.keys(out).length?out:undefined;
+}
 function validateLayer(layer) {
   if(!LAYER_OPERATIONS.includes(layer.operation)) throw Error('Layer operation must be profile, drill, pocket, groove or none');
   if(typeof layer.color!=='string' || !/^#[0-9a-fA-F]{6}$/.test(layer.color)) throw Error('Layer colour must be #rrggbb');
   if(typeof layer.visible!=='boolean' || typeof layer.locked!=='boolean') throw Error('Layer visibility and lock must be true or false');
-  return {id:layer.id,name:text(layer.name,'Layer name',40),color:layer.color.toLowerCase(),visible:layer.visible,locked:layer.locked,operation:layer.operation};
+  const tool=layer.tool===undefined?undefined:validateTool(layer.tool);
+  return {id:layer.id,name:text(layer.name,'Layer name',40),color:layer.color.toLowerCase(),visible:layer.visible,locked:layer.locked,operation:layer.operation,...(tool?{tool}:{})};
 }
 function validateFeature(feature,part,layers) {
   if(!FEATURE_TYPES.includes(feature.type)) throw Error('Feature type must be drill, pocket or groove');
-  if(!['A','B'].includes(feature.face)) throw Error('Feature face must be A or B');
+  if(!FEATURE_FACES.includes(feature.face)) throw Error('Feature face must be A, B or an edge (u0, u1, v0, v1)');
   if(!layers.has(feature.layer)) throw Error('Feature layer does not exist');
+  if(isEdgeFace(feature.face)) return validateEdgeHole(feature,part);
   const result={id:feature.id,type:feature.type,face:feature.face,layer:feature.layer,u:number(feature.u,'Feature u',-10000,10000),v:number(feature.v,'Feature v',-10000,10000),
     depth:number(feature.depth,'Feature depth',.01,part.thickness)};
   if(feature.type==='drill') {
@@ -149,6 +166,19 @@ function validateFeature(feature,part,layers) {
     if(result.u<-1e-9||result.u+result.length>part.length+1e-9||result.v<-1e-9||result.v+result.width>part.width+1e-9) throw Error(`${feature.type==='pocket'?'Pocket':'Groove'} must lie within the panel face`);
   }
   return result;
+}
+// Edge holes: the coordinate across the edge is fixed by the face; the hole must
+// fit within the thickness and along the edge, and may go as deep as the panel.
+function validateEdgeHole(feature,part) {
+  if(feature.type!=='drill') throw Error('Only drill holes can go into panel edges');
+  const alongU=feature.face[0]==='v',diameter=number(feature.diameter,'Drill diameter',.5,200),r=diameter/2;
+  const t=number(feature.t,'Hole position across the thickness',0,part.thickness);
+  if(t-r<-1e-9||t+r>part.thickness+1e-9) throw Error('Edge hole must fit within the panel thickness');
+  const along=number(alongU?feature.u:feature.v,alongU?'Feature u':'Feature v',-10000,10000),edge=alongU?part.length:part.width;
+  if(along-r<-1e-9||along+r>edge+1e-9) throw Error('Edge hole must lie along the edge');
+  const u=feature.face==='u0'?0:feature.face==='u1'?part.length:along,v=feature.face==='v0'?0:feature.face==='v1'?part.width:along;
+  const depth=number(feature.depth,'Feature depth',.01,alongU?part.width:part.length);
+  return {id:feature.id,type:'drill',face:feature.face,layer:feature.layer,u,v,t,depth,diameter};
 }
 // Early designs stored solid blocks as width × height × depth; they load as
 // rectangular bars along their longest side with exactly the same box.
@@ -202,7 +232,11 @@ export function validateDesign(design) {
   const layerIds=new Set(layers.map(layer=>layer.id)),featureIds=new Set();
   const parts=design.parts.map(part=>validatePart(part,layerIds));
   for(const feature of parts.flatMap(part=>part.features??[])) {if(featureIds.has(feature.id)) throw Error('Feature IDs must be unique');featureIds.add(feature.id);}
-  return {id:design.id,name,layers,parts};
+  const cam=design.cam===undefined?undefined:validateCam(design.cam);
+  // Optional sheet stock for nesting the design's panels (defaults as for cabinets).
+  if(design.stock!==undefined&&(!design.stock||typeof design.stock!=='object'||Array.isArray(design.stock))) throw Error('Design sheet stock is invalid');
+  const stock=design.stock===undefined?undefined:validateStock(design.stock);
+  return {id:design.id,name,layers,parts,...(cam?{cam}:{}),...(stock?{stock}:{})};
 }
 export function validateDesigns(value) {
   if(!Array.isArray(value) || value.length>DESIGN_LIMITS.designs) throw Error(`A project supports at most ${DESIGN_LIMITS.designs} furniture designs`);

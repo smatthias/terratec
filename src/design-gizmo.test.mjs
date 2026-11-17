@@ -46,7 +46,7 @@ test('rotation rings surround the piece and can be picked in every view',()=>{
       // 45° round each ring: a point no other ring passes through (rings meet at quarter turns).
       const p=new THREE.Vector3().fromBufferAttribute(ring.geometry.attributes.position,12).add(gizmo.position);
       const screen=p.clone().project(camera);
-      assert.equal(pickRing(gizmo,camera,screen.x,screen.y,pixelSize(camera,p,600)*6),ring.userData.axis,`${view} ${ring.userData.axis}`);
+      assert.equal(pickRing(gizmo,camera,screen.x,screen.y,pixelSize(camera,p,600)*6)?.axis,ring.userData.axis,`${view} ${ring.userData.axis}`);
     }
     const mid=new THREE.Vector3(centre.x,centre.y,centre.z).project(camera);
     if(view!=='3D') assert.equal(pickRing(gizmo,camera,mid.x,mid.y,pixelSize(camera,centre,600)*6),null,'the centre is not a ring');

@@ -3,7 +3,8 @@
 // change (Enter or leaving the field); each change is one design undo step.
 import {computed} from 'vue';
 import {MATERIALS,WOOD_IDS,METAL_IDS} from '../shared/materials.mjs';
-import {PANEL_ORIENTATIONS,PIECE_FORMS,SHAPES,SECTION_AXES,materialColor,isThrough} from '../shared/furniture-design.mjs';
+import {PANEL_ORIENTATIONS,PIECE_FORMS,SHAPES,SECTION_AXES,materialColor,isEdgeFace} from '../shared/furniture-design.mjs';
+import {isThrough,featureDepthLimit} from '../shared/furniture-design-geometry.mjs';
 const props=defineProps({part:{type:Object,required:true},layers:{type:Array,required:true},featureId:{type:String,default:null}});
 const emit=defineEmits(['update','convert','remove','duplicate','add-feature','select-feature','update-feature','remove-feature']);
 const feature=computed(()=>props.part.features?.find(f=>f.id===props.featureId)??null);
@@ -18,10 +19,18 @@ const dimensions=computed(()=>{
 });
 const AXES={x:'x · left to right',y:'y · upright',z:'z · front to back'};
 const usesMaterialColor=computed(()=>props.part.color===materialColor(props.part.material));
-const featureFields=computed(()=>feature.value?.type==='drill'?[['u','Centre u'],['v','Centre v'],['diameter','Diameter']]:[['u','Start u'],['v','Start v'],['length','Length along u'],['width','Width along v']]);
+// Edge holes are placed along their edge and across the thickness (t from face B).
+const featureFields=computed(()=>{
+  const f=feature.value;
+  if(f?.type!=='drill') return [['u','Start u'],['v','Start v'],['length','Length along u'],['width','Width along v']];
+  if(isEdgeFace(f.face)) return [[f.face[0]==='v'?'u':'v','Along the edge'],['t','Across the thickness t'],['diameter','Diameter']];
+  return [['u','Centre u'],['v','Centre v'],['diameter','Diameter']];
+});
+const FACES=[['A','A (positive side)'],['B','B (turned over)'],['u0','Edge u = 0 (end)'],['u1','Edge u = length (end)'],['v0','Edge v = 0 (long edge)'],['v1','Edge v = width (long edge)']];
+const depthLimit=computed(()=>feature.value?featureDepthLimit(props.part,feature.value):props.part.thickness);
 const layerLabel=layer=>layer.name+' · '+layer.operation+(layer.locked?' · locked':'');
-const featureLabel=f=>`${f.type} · face ${f.face} · ${f.depth} mm${isThrough(props.part,f)?' through':''}`;
-const setThrough=checked=>emit('update-feature',feature.value.id,{depth:checked?props.part.thickness:Math.max(.5,Math.round(props.part.thickness/2))});
+const featureLabel=f=>`${f.type} · ${isEdgeFace(f.face)?'edge':'face'} ${f.face} · ${f.depth} mm${isThrough(props.part,f)?' through':''}`;
+const setThrough=checked=>emit('update-feature',feature.value.id,{depth:checked?depthLimit.value:Math.max(.5,Math.round(depthLimit.value/2))});
 </script>
 <template>
   <section class="design-props" aria-label="Part properties">
@@ -44,17 +53,18 @@ const setThrough=checked=>emit('update-feature',feature.value.id,{depth:checked?
     <template v-if="part.shape==='panel'">
       <p class="eyebrow">MACHINING · DEPTH WORK</p>
       <div class="design-row"><button @click="emit('add-feature','drill')">Add drill hole</button><button @click="emit('add-feature','pocket')">Add pocket</button><button @click="emit('add-feature','groove')">Add groove</button></div>
-      <ul class="feature-list"><li v-for="f in part.features" :key="f.id"><button :aria-pressed="f.id===featureId" @click="emit('select-feature',f.id)"><span class="swatch" :style="{background:layers.find(l=>l.id===f.layer)?.color}"></span>{{ featureLabel(f) }}</button></li></ul>
+      <ul class="feature-list"><li v-for="f in part.features" :key="f.id"><button :aria-pressed="f.id===featureId" :aria-label="'Edit '+f.type+' on face '+f.face+' at u '+f.u+', v '+f.v+', '+f.depth+' mm deep'" @click="emit('select-feature',f.id)"><span class="swatch" :style="{background:layers.find(l=>l.id===f.layer)?.color}"></span>{{ featureLabel(f) }}</button></li></ul>
       <fieldset v-if="feature" class="feature-editor">
         <legend>{{ feature.type }} · sheet frame mm</legend>
-        <label>Feature face<select :value="feature.face" aria-label="Feature face" @change="emit('update-feature',feature.id,{face:$event.target.value})"><option value="A">A (positive side)</option><option value="B">B (turned over)</option></select></label>
+        <label>Feature face<select :value="feature.face" aria-label="Feature face" @change="emit('update-feature',feature.id,{face:$event.target.value})"><option v-for="[id,label] in FACES.slice(0,feature.type==='drill'?6:2)" :key="id" :value="id">{{ label }}</option></select></label>
         <label>Feature layer<select :value="feature.layer" aria-label="Feature layer" @change="emit('update-feature',feature.id,{layer:$event.target.value})"><option v-for="layer in layers" :key="layer.id" :value="layer.id">{{ layerLabel(layer) }}</option></select></label>
         <div class="mm-grid"><label v-for="[key,label] in featureFields" :key="key">{{ label }} mm<input type="number" step="0.1" :value="feature[key]" @change="emit('update-feature',feature.id,{[key]:num($event)})"></label>
-          <label>Depth mm<input type="number" step="0.1" min="0.01" :max="part.thickness" :value="feature.depth" @change="emit('update-feature',feature.id,{depth:num($event)})"></label></div>
-        <label class="snap-toggle"><input type="checkbox" :checked="isThrough(part,feature)" aria-label="Cut through" @change="setThrough($event.target.checked)"> Cut through ({{ part.thickness }} mm)</label>
+          <label>Depth mm<input type="number" step="0.1" min="0.01" :max="depthLimit" :value="feature.depth" @change="emit('update-feature',feature.id,{depth:num($event)})"></label></div>
+        <label class="snap-toggle"><input type="checkbox" :checked="isThrough(part,feature)" aria-label="Cut through" @change="setThrough($event.target.checked)"> Cut through ({{ depthLimit }} mm)</label>
+        <p v-if="isEdgeFace(feature.face)" class="hint">Edge holes drill into the panel from its edge, for dowels and connectors. They need a horizontal drilling unit and are not in 3-axis G-code.</p>
         <button @click="emit('remove-feature',feature.id)">Delete feature</button>
       </fieldset>
-      <p class="hint">u runs along the length and v along the width from the panel corner, as the panel lies on the CNC bed with face A up. Depth is measured into the material.</p>
+      <p class="hint">u runs along the length and v along the width from the panel corner, as the panel lies on the CNC bed with face A up. Depth is measured into the material. Round tools leave inside corners of pockets and grooves rounded to the tool radius.</p>
     </template>
   </section>
 </template>

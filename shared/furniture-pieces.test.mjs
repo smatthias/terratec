@@ -101,9 +101,15 @@ test('a tube receives a rod inside it; a rod through its wall collides',()=>{
   ({design:boxed,partId:outer}=add(boxed,'box-tube',{axis:'x',width:40,height:40,wall:2,length:600,x:0,y:0,z:0}));
   ({design:boxed}=add(boxed,'bar',{axis:'x',width:36,height:36,length:100,x:50,y:2,z:2}));
   assert.deepEqual(partCollisions(boxed),[]);
-  let angle=add(empty(),'angle',{axis:'x',width:40,height:40,wall:3,length:600,x:0,y:0,z:0}).design;
-  angle=add(angle,'bar',{axis:'x',width:20,height:20,length:100,x:50,y:10,z:10}).design;
-  assert.equal(partCollisions(angle).length,1,'an angle is not hollow');
+  // An L-angle is its two 3 mm legs: a bar in its inside corner is clear of them.
+  let angle=add(empty(),'angle',{axis:'x',width:40,height:40,wall:3,length:600,x:0,y:0,z:0}).design,bar;
+  ({design:angle,partId:bar}=add(angle,'bar',{axis:'x',width:20,height:20,length:100,x:50,y:10,z:10}));
+  assert.deepEqual(partCollisions(angle),[],'the inside corner of an angle is free space');
+  assert.deepEqual(partCollisions(D.updatePart(angle,bar,{y:3,z:3})),[],'resting on both legs touches them');
+  assert.equal(partCollisions(D.updatePart(angle,bar,{y:2})).length,1,'into the flat leg');
+  assert.equal(partCollisions(D.updatePart(angle,bar,{z:1})).length,1,'into the upright leg');
+  const turned=D.rotatePartsAbout(angle,angle.parts.map(p=>p.id),'z',25);
+  assert.deepEqual(partCollisions(turned),[],'still clear when the pair is rotated together');
   assert.match(cncPlan(D.updatePart(design,tube,{layer:design.layers.find(l=>l.operation==='profile').id})).issues.find(i=>i.code==='NOT_SHEET').message,/round tube/);
 });
 

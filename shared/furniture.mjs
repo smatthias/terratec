@@ -31,11 +31,28 @@ export function footprintsOverlap(a,b) {
 export function footprintInside(footprint,outline) {
   return footprint.every(p=>outline.every((a,i)=>{const b=outline[(i+1)%outline.length];return (b.x-a.x)*(p.z-a.z)-(b.z-a.z)*(p.x-a.x)>=-1e-8;}));
 }
+// A placed furniture design (see design-placement.mjs); its size is checked
+// against the design by project validation.
+function validatePlacedDesign(item,roomHeight) {
+  if(typeof item.name!=='string'||!item.name.trim()||item.name.trim().length>60) throw Error('Placed design needs a name of 1–60 characters');
+  if(typeof item.designId!=='string'||!/^[a-zA-Z0-9_-]{1,64}$/.test(item.designId)) throw Error('Placed design needs a design ID');
+  if(!['width','depth','height','x','z','rotation'].every(k=>typeof item[k]==='number'&&Number.isFinite(item[k]))||!['width','depth','height'].every(k=>item[k]>=.01&&item[k]<=10)||
+    Math.abs(item.x)>1000||Math.abs(item.z)>1000||item.rotation<0||item.rotation>=360) throw Error('Invalid placed design size, position or rotation');
+  if(item.height>roomHeight) throw Error(`Placed design “${item.name.trim()}” is taller than the room`);
+  return {id:item.id,type:'design',name:item.name.trim(),designId:item.designId,width:item.width,depth:item.depth,height:item.height,x:item.x,z:item.z,rotation:item.rotation};
+}
 export function validateFurniture(value,outline,roomHeight) {
   if(!Array.isArray(value)||value.length>64) throw Error('Expected at most 64 furniture items');
   const ids=new Set(),footprints=[];
   return value.map(item=>{
     if(!item || typeof item.id!=='string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(item.id) || ids.has(item.id)) throw Error('Furniture IDs must be unique');
+    if(item.type==='design') {
+      const placed=validatePlacedDesign(item,roomHeight),footprint=cabinetFootprint(placed);
+      if(!footprintInside(footprint,outline)) throw Error(`Placed design “${placed.name}” must fit inside the room`);
+      if(footprints.some(other=>footprintsOverlap(footprint,other))) throw Error(`Placed design “${placed.name}” overlaps other furniture`);
+      ids.add(item.id);footprints.push(footprint);
+      return placed;
+    }
     if(item.type!=='cabinet' || typeof item.name!=='string' || !item.name.trim() || item.name.trim().length>60) throw Error('Cabinet needs a name of 1–60 characters');
     if(!['width','depth','height','x','z','rotation','thickness'].every(k=>typeof item[k]==='number'&&Number.isFinite(item[k])) ||
       !['width','depth','height'].every(k=>item[k]>=.2&&item[k]<=10) || item.height>roomHeight || Math.abs(item.x)>1000 || Math.abs(item.z)>1000 || item.rotation<0 || item.rotation>=360 ||

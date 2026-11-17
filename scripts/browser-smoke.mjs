@@ -488,6 +488,8 @@ try {
   await page.getByLabel('SVG paper size',{exact:true}).selectOption('A3');
   await page.locator('[data-testid=sheet-fit]:not(.invalid)').waitFor();
   assert.equal(await page.getByLabel('SVG print scale',{exact:true}).inputValue(),'100');
+  // The placement assertions below use exact positions: connecting (magnetic snapping) is checked separately at the end.
+  await page.getByLabel('Snap furniture to walls and furniture',{exact:true}).uncheck();
   // Parametric cabinets participate in selection, validation, history and persistence.
   await page.getByRole('button',{name:'Add cabinet',exact:true}).click();
   await page.getByText('Cabinet added',{exact:true}).waitFor();
@@ -1323,6 +1325,54 @@ try {
   await page.getByRole('button',{name:'Save revision quote snapshot',exact:true}).click();await page.getByTestId('job-record-message').filter({hasText:'Revision quote snapshot saved'}).waitFor();
   const coveragePrintPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export printable quote',exact:true}).click();const coveragePrintDownload=await coveragePrintPromise,coveragePrintStream=await coveragePrintDownload.createReadStream();let coveragePrintHtml='';for await(const chunk of coveragePrintStream)coveragePrintHtml+=chunk.toString();assert.match(coveragePrintHtml,/Pricing coverage review/);assert.match(coveragePrintHtml,/Coverage reflects the saved quote rates/);
   const coveragePrintPage=await browser.newPage({viewport:{width:703,height:1032}});await coveragePrintPage.setContent(coveragePrintHtml);await coveragePrintPage.emulateMedia({media:'print'});assert.ok((await coveragePrintPage.locator('.page').evaluateAll(pages=>pages.map(p=>p.getBoundingClientRect().height))).every(h=>h<=1032));await coveragePrintPage.pdf({path:'test-results/pricing-coverage-quote.pdf',preferCSSPageSize:true,printBackground:true});await coveragePrintPage.close();
+  // ---- Auto-arrange (loaded on first use) places the furniture along the walls as one undoable edit.
+  await page.getByLabel('Snap furniture to walls and furniture',{exact:true}).check();
+  await page.getByRole('button',{name:'Auto-arrange',exact:true}).click();
+  await page.locator('footer').getByText(/^Arranged \d+ items? along the walls/).waitFor();
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  // ---- Furniture designer: the lazy designer and CAM export chunks load; a Fanuc program downloads.
+  await page.getByRole('button',{name:'Furniture designer',exact:true}).click();
+  await page.getByRole('button',{name:'New box carcass',exact:true}).click();await page.locator('footer').getByText('Box carcass design created',{exact:false}).waitFor();
+  await page.getByText('CAM settings and tools',{exact:true}).click();
+  await page.getByLabel('Post-processor',{exact:true}).selectOption('fanuc');await page.locator('footer').getByText('CAM settings updated',{exact:true}).waitFor();
+  const ncPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export NC program (all panels)',exact:true}).click();
+  const ncDownload=await ncPromise,ncStream=await ncDownload.createReadStream();let ncText='';for await(const chunk of ncStream)ncText+=chunk;
+  assert.match(ncText,/^%\r\nO1000 \(BOX CARCASS\)\r\n/);assert.ok(ncText.endsWith('M30\r\n%\r\n'));assert.match(ncDownload.suggestedFilename(),/_all-panels\.nc$/);
+  // Drilling bench (loaded on first use) from the piece menu: one hole at the centre of face A.
+  await page.getByLabel('Parts',{exact:true}).getByRole('button',{name:/^Left side/}).first().click();
+  await page.keyboard.press('ContextMenu');
+  await page.getByRole('menuitem',{name:'Drill on the bench…',exact:true}).click();
+  const benchRegion=page.getByRole('region',{name:'Drilling bench'});await benchRegion.waitFor();
+  await benchRegion.getByRole('button',{name:'Drill',exact:true}).click();
+  await page.locator('footer').getByText('Drilled Ø8 × 12 mm at u 280 · v 360',{exact:true}).waitFor();
+  await benchRegion.getByRole('button',{name:'Back to designer',exact:true}).click();await benchRegion.waitFor({state:'detached'});
+  await page.getByRole('button',{name:'Room',exact:true}).click();
+  // ---- Version history: preview an earlier version read-only, keep the history across a reload (IndexedDB), restore.
+  await page.getByRole('button',{name:'New',exact:true}).click();await page.locator('footer').getByText('New project',{exact:true}).waitFor();
+  await page.getByLabel('Project name',{exact:true}).fill('History studio');
+  await page.getByRole('button',{name:'Add cabinet',exact:true}).click();await page.locator('footer').getByText('Cabinet added',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'History',exact:true}).click();
+  const historyPanel=page.getByRole('region',{name:'Version history'});await historyPanel.waitFor();
+  await historyPanel.getByRole('button',{name:/· Cabinet added$/}).waitFor();
+  await historyPanel.getByRole('button',{name:'Oldest version',exact:true}).click();
+  await page.locator('footer').getByText('· read-only',{exact:false}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Add cabinet',exact:true}).isDisabled(),true,'a preview is read-only');
+  await historyPanel.getByRole('button',{name:'Back to now',exact:true}).click();
+  await page.locator('footer').getByText('Back to the current version',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Add cabinet',exact:true}).isDisabled(),false);
+  await page.waitForTimeout(1500);
+  await page.reload();await page.locator('canvas').waitFor();
+  const historyDraft=await page.evaluate(()=>JSON.parse(localStorage.getItem('terratec.recovery.v1')).drafts.find(d=>d.project.name==='History studio').key);
+  await page.getByLabel('Recovery draft',{exact:true}).selectOption(historyDraft);
+  await page.getByRole('button',{name:'Recover draft',exact:true}).click();
+  await page.getByText('Draft recovered as an unsaved copy',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'History',exact:true}).click();
+  await historyPanel.getByRole('button',{name:/· Cabinet added$/}).waitFor();
+  await historyPanel.getByRole('button',{name:'Oldest version',exact:true}).click();
+  await historyPanel.getByRole('button',{name:'Restore this version',exact:true}).click();
+  await page.locator('footer').getByText('Restored the version from',{exact:false}).waitFor();
+  await historyPanel.getByRole('button',{name:/· Restored the version from/}).waitFor();
+  await historyPanel.getByRole('button',{name:'Close history',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});
   await page.screenshot({path:'test-results/workspace-desktop.png'});
