@@ -149,12 +149,15 @@ sideways instead of growing over the workspace.
 TerraTec always fills the browser window, like a desktop application: the top bar,
 the desk in the middle and a taskbar at the bottom. On the desk, the
 canvas (the 3D/Plan room view, or the design view in the furniture designer) is
-the core of the view, with its own buttons over it (the view bar, the furniture
-toolbar and the surfaces list in the room; the view and tool bar and the selected
-piece's toolbar in the designer). The editors are windows around it:
+the core of the view, with its toolbars over it (the view bar and the furniture
+toolbar in the room; the view and tool bar and the selected piece's toolbar in the
+designer). The editors are windows around it:
 
 - Room: **Furniture** (docked left), **Room & walls** and **Project** (recovery,
-  SVG settings, project name and project manufacturing; both docked right).
+  SVG settings, project name and project manufacturing; both docked right),
+  **Surfaces** (the room surfaces list, floating over the canvas) and, while an
+  item is inspected, **Inspector** (it comes to the front whenever an inspection
+  starts).
 - Furniture designer: **Designs and parts** and **Machining layers** (left),
   **Design properties** and **CNC and CAM** (right).
 
@@ -165,7 +168,9 @@ minimised or brought back (when the drag ends, not at every step). Other windows
 over the canvas. Windows behave as on the workshop benches (see *Bench windows*
 under the furniture designer): drag the title bar to move or snap them, drag an
 edge to resize, ◧ ◨ snap, ⧉ sends to the back, – minimises, □ maximises, and the
-arrow keys move a focused title bar.
+arrow keys move a focused title bar. Every window can be minimised, and so can
+the **Version history** panel (its – button); it then waits in the taskbar, and
+**History** in the top bar also brings it back.
 
 **Taskbar.** As on a Windows desktop, the bottom taskbar has a button for every
 window of the perspective on screen; minimised windows wait there. A small mark

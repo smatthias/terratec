@@ -4,7 +4,7 @@
 import {ref,computed,watch,onBeforeUnmount} from 'vue';
 import {versionAtTime,elementHistory,ELEMENT_KINDS} from '../shared/timeline.mjs';
 const props=defineProps({timeline:{type:Object,required:true},previewSeq:{type:Number,default:null},focus:{type:Object,default:null},busy:Boolean});
-const emit=defineEmits(['preview','exit','restore','restore-element','close']);
+const emit=defineEmits(['preview','exit','restore','restore-element','close','minimize']);
 const MIN=60000,JUMPS=[['5 min ago',5*MIN],['15 min ago',15*MIN],['1 h ago',60*MIN],['3 h ago',180*MIN]];
 const now=ref(Date.now()),timer=setInterval(()=>{now.value=Date.now();},30000);
 onBeforeUnmount(()=>clearInterval(timer));
@@ -46,6 +46,7 @@ const scrub=value=>{note.value='';emit('preview',entries.value[Number(value)].se
     <div class="timeline-head">
       <h2>Version history</h2>
       <span>{{ entries.length }} versions since {{ clock(entries[0].at) }}</span>
+      <button aria-label="Minimise Version history" title="Minimise to the taskbar" @click="emit('minimize')">–</button>
       <button @click="emit('close')">Close history</button>
     </div>
     <div class="timeline-jumps" role="group" aria-label="Jump back in time">

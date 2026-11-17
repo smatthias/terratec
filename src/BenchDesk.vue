@@ -16,18 +16,24 @@
 //                  taskbar into (its own buttons, the window buttons, Reset layout
 //                  and its status); passing it at all (even while still null on
 //                  the first render) gives the desk its full height;
-//   taskbarActive  whether that taskbar is shown (the desk is on screen).
-import {ref,watch,onMounted,onBeforeUnmount} from 'vue';
+//   taskbarActive  whether that taskbar is shown (the desk is on screen);
+//   available      the ids of the windows offered now (default: all), for windows
+//                  that only exist at times (the room's inspector); a window that
+//                  becomes available comes to the front.
+import {ref,computed,watch,onMounted,onBeforeUnmount} from 'vue';
 import * as L from './desk-layout.js';
 import './desk.css';
 
 const props=defineProps({storageKey:{type:String,required:true},windows:{type:Array,required:true},status:{type:String,default:''},
-  dock:{type:Boolean,default:false},taskbarTarget:{type:null,default:undefined},taskbarActive:{type:Boolean,default:true}});
+  dock:{type:Boolean,default:false},taskbarTarget:{type:null,default:undefined},taskbarActive:{type:Boolean,default:true},
+  available:{type:Array,default:null}});
 const external=props.taskbarTarget!==undefined,TASKBAR=external?0:40,key='terratec.desk.'+props.storageKey+'.v1';
 const deskEl=ref(null),wins=ref([]),preview=ref(null),insets=ref({left:0,right:0});
 let size={width:800,height:560},observer=null;
 const ids=props.windows.map(w=>w.id),defs=props.windows;
 const title=id=>defs.find(d=>d.id===id).title;
+const offered=id=>!props.available||props.available.includes(id);
+const shown=computed(()=>wins.value.filter(w=>offered(w.id)));
 function measure() {
   const el=deskEl.value;if(!el) return size;
   return {width:Math.max(320,el.clientWidth||800),height:Math.max(240,(el.clientHeight||600)-TASKBAR)};
@@ -36,7 +42,7 @@ function load() {let text=null;try {text=localStorage.getItem(key);} catch {}ret
 function save() {try {localStorage.setItem(key,L.writeLayout(wins.value));} catch {}}
 // The canvas follows docked windows when they settle, not on every step of a drag.
 function dockNow() {
-  const next=props.dock?L.dockInsets(wins.value,size):{left:0,right:0};
+  const next=props.dock?L.dockInsets(shown.value,size):{left:0,right:0};
   if(next.left!==insets.value.left||next.right!==insets.value.right) insets.value=next;
 }
 watch(wins,()=>{save();if(!drag) dockNow();},{deep:true});
@@ -46,7 +52,11 @@ onMounted(()=>{
   observer=new ResizeObserver(()=>{if(!deskEl.value?.clientWidth) return;size=measure();wins.value=L.fitDesk(wins.value,size);dockNow();});observer.observe(deskEl.value);
 });
 onBeforeUnmount(()=>observer?.disconnect());
-const topId=()=>L.topWindow(wins.value);
+watch(()=>props.available,(now,before)=>{
+  for(const id of now??[]) if(before&&!before.includes(id)&&wins.value.some(w=>w.id===id)) wins.value=L.focusWindow(wins.value,id);
+  dockNow();
+});
+const topId=()=>L.topWindow(shown.value);
 const focus=id=>{if(topId()!==id||wins.value.find(w=>w.id===id).minimized) wins.value=L.focusWindow(wins.value,id);};
 function taskbar(id) {
   const win=wins.value.find(w=>w.id===id);
@@ -98,7 +108,7 @@ defineExpose({focus});
   <div ref="deskEl" class="bench-desk" :class="{external}" @pointermove="dragMove" @pointerup="dragEnd" @pointercancel="dragEnd">
     <div class="desk-background"><slot name="background" :insets="insets"/></div>
     <div v-if="preview" class="snap-preview" :style="{left:preview.x+'px',top:preview.y+'px',width:preview.w+'px',height:preview.h+'px'}"></div>
-    <section v-for="win in wins" v-show="!win.minimized" :key="win.id" class="desk-window" :class="{focused:win.id===topId(),snapped:!!win.snap}" :aria-label="title(win.id)"
+    <section v-for="win in shown" v-show="!win.minimized" :key="win.id" class="desk-window" :class="{focused:win.id===topId(),snapped:!!win.snap}" :aria-label="title(win.id)"
       :style="{left:win.x+'px',top:win.y+'px',width:win.w+'px',height:win.h+'px',zIndex:win.z}" @pointerdown.capture="focus(win.id)">
       <header class="desk-title" tabindex="0" :aria-label="title(win.id)+' window · arrows move, Shift+arrows resize, Enter maximises'" @pointerdown="startMove($event,win)" @dblclick="command(win.id,'max')" @keydown="titleKey($event,win)">
         <span>{{ title(win.id) }}</span>
@@ -116,7 +126,7 @@ defineExpose({focus});
       <div class="desk-taskbar" :class="{docked:external}" role="group" aria-label="Taskbar">
         <slot name="start"/>
         <span v-if="$slots.start" class="taskbar-sep"></span>
-        <button v-for="win in wins" :key="win.id" class="task-window" :aria-pressed="!win.minimized" :class="{top:win.id===topId(),minimized:win.minimized}" :aria-label="'Window '+title(win.id)"
+        <button v-for="win in shown" :key="win.id" class="task-window" :aria-pressed="!win.minimized" :class="{top:win.id===topId(),minimized:win.minimized}" :aria-label="'Window '+title(win.id)"
           :title="win.minimized?'Show '+title(win.id):win.id===topId()?'Minimise '+title(win.id):'Bring '+title(win.id)+' to the front'" @click="taskbar(win.id)">{{ title(win.id) }}</button>
         <button class="task-reset" title="Put every window back where it started" @click="reset">Reset layout</button>
         <p v-if="!external||status" class="taskbar-status" role="status" data-testid="desk-status">{{ status }}</p>
