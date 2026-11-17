@@ -16,24 +16,31 @@ for(const [key,chunk] of Object.entries(manifest)){
  chunks.push({file:chunk.file,bytes:bytes.length,gzipBytes:gzipSync(bytes).length,initial:initial.has(key)});
 }
 // The furniture designer perspective is budgeted on its own: it must stay lazy and
-// within 80 kB, and the rest of the application keeps the 990 kB total (950 kB until CAM posts,
-// holding tabs and design manufacturing, 975 kB until furniture snapping and auto-arrange).
+// within 82 kB (80 kB until its panels became desk windows), and the rest of the
+// application keeps the 1000 kB total (950 kB until CAM posts, holding tabs and design
+// manufacturing, 975 kB until furniture snapping and auto-arrange, 990 kB until the desk).
 const designerKey='src/DesignerWorkspace.vue',designer=manifest[designerKey];
 assert.ok(designer?.isDynamicEntry&&!initial.has(designerKey),designerKey+' must stay lazy');
 const designerBytes=chunks.find(c=>c.file===designer.file).bytes;
-assert.ok(designerBytes<=80000,'Furniture designer exceeds 80 kB budget');
+assert.ok(designerBytes<=82000,'Furniture designer exceeds 82 kB budget');
 // The version-history panel likewise: lazy and within 12 kB (recording versions is part of the entry).
 const historyKey='src/TimelinePanel.vue',historyPanel=manifest[historyKey];
 assert.ok(historyPanel?.isDynamicEntry&&!initial.has(historyKey),historyKey+' must stay lazy');
 const historyBytes=chunks.find(c=>c.file===historyPanel.file).bytes;
 assert.ok(historyBytes<=12000,'Version history panel exceeds 12 kB budget');
-// The drilling bench (a designer tool) likewise: lazy and within 25 kB.
-const benchKey='src/DrillingBench.vue',bench=manifest[benchKey];
-assert.ok(bench?.isDynamicEntry&&!initial.has(benchKey),benchKey+' must stay lazy');
-const benchBytes=chunks.find(c=>c.file===bench.file).bytes;
-assert.ok(benchBytes<=25000,'Drilling bench exceeds 25 kB budget');
+// The workshop benches (designer tools) likewise: the drilling and cutting
+// benches, the workbench and the chunks only they import must stay lazy and within 100 kB.
+const benchKeys=new Set(['src/DrillingBench.vue','src/CuttingBench.vue','src/Workbench.vue']);
+for(const key of benchKeys) assert.ok(manifest[key]?.isDynamicEntry&&!initial.has(key),key+' must stay lazy');
+const importers=new Map();
+for(const [key,chunk] of Object.entries(manifest)) for(const imported of chunk.imports??[]) importers.set(imported,[...(importers.get(imported)??[]),key]);
+for(let grew=true;grew;) {grew=false;for(const [key,list] of importers) if(!benchKeys.has(key)&&list.every(k=>benchKeys.has(k))) {benchKeys.add(key);grew=true;}}
+const benchFiles=new Set([...benchKeys].map(k=>manifest[k].file)),benchBytes=chunks.filter(c=>benchFiles.has(c.file)).reduce((n,c)=>n+c.bytes,0);
+assert.ok(benchBytes<=100000,'Workshop benches exceed 100 kB budget');
+// Initial JavaScript: 870 kB since the studio became a desk of windows (860 kB before);
+// total 1000 kB (990 kB before): the desk moved from the benches' chunks into the entry.
 const entryBytes=chunks.find(c=>c.file===entry.file).bytes,initialBytes=chunks.filter(c=>c.initial).reduce((n,c)=>n+c.bytes,0),totalBytes=chunks.reduce((n,c)=>n+c.bytes,0)-designerBytes-historyBytes-benchBytes;
-assert.ok(entryBytes<=180000,'Entry exceeds 180 kB budget');assert.ok(initialBytes<=860000,'Initial JavaScript exceeds 860 kB budget');assert.ok(totalBytes<=990000,'Total JavaScript exceeds 990 kB budget');
+assert.ok(entryBytes<=180000,'Entry exceeds 180 kB budget');assert.ok(initialBytes<=870000,'Initial JavaScript exceeds 870 kB budget');assert.ok(totalBytes<=1000000,'Total JavaScript exceeds 1000 kB budget');
 for(const key of ['src/ManufacturingPanel.vue','src/WorkshopJobs.vue'])assert.ok(manifest[key]?.isDynamicEntry&&!initial.has(key),key+' must stay lazy');
 await mkdir('test-results',{recursive:true});await writeFile('test-results/bundle-report.json',JSON.stringify({entryBytes,initialBytes,totalBytes,designerBytes,historyBytes,benchBytes,chunks},null,2)+'\n');
-console.log(`Bundle budgets passed: entry ${(entryBytes/1000).toFixed(1)} kB, initial ${(initialBytes/1000).toFixed(1)} kB, total ${(totalBytes/1000).toFixed(1)} kB plus designer ${(designerBytes/1000).toFixed(1)} kB history panel ${(historyBytes/1000).toFixed(1)} kB and drilling bench ${(benchBytes/1000).toFixed(1)} kB; ${chunks.length} chunks.`);
+console.log(`Bundle budgets passed: entry ${(entryBytes/1000).toFixed(1)} kB, initial ${(initialBytes/1000).toFixed(1)} kB, total ${(totalBytes/1000).toFixed(1)} kB plus designer ${(designerBytes/1000).toFixed(1)} kB history panel ${(historyBytes/1000).toFixed(1)} kB and workshop benches ${(benchBytes/1000).toFixed(1)} kB; ${chunks.length} chunks.`);

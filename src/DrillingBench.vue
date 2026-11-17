@@ -6,17 +6,28 @@
 // design edit (undo with Ctrl/⌘+Z). Loaded on first use.
 import {ref,computed,watch,onMounted,onBeforeUnmount,onActivated,onDeactivated,nextTick} from 'vue';
 import * as THREE from 'three';
-import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {buildDesignGroup,disposeDesignGroup} from './design-scene.js';
-import {drillHoles} from '../shared/furniture-design-edit.mjs';
+import {createBenchScene,steel,paint} from './bench-scene.js';
+import BenchDesk from './BenchDesk.vue';
+import BenchLayers from './BenchLayers.vue';
+import {drillHoles} from '../shared/bench-edits.mjs';
 import {DRILL_BITS,BIT_KINDS,BENCH_FACES,benchFace,holeAt,holePosition,rowOfHoles,handPosition,benchMatrix} from '../shared/drilling-bench.mjs';
 import {MATERIALS} from '../shared/materials.mjs';
 
-const props=defineProps({design:{type:Object,required:true},partId:{type:String,required:true}});
-const emit=defineEmits(['drill','remove','close','message']);
+const props=defineProps({design:{type:Object,required:true},partId:{type:String,required:true},
+  // The studio's bottom taskbar: the bench's taskbar moves there while it is on screen.
+  taskbar:{type:null,default:undefined},taskbarActive:{type:Boolean,default:true}});
+const emit=defineEmits(['commit','remove','close','message']);
 const part=computed(()=>props.design.parts.find(p=>p.id===props.partId)??null);
 watch(part,value=>{if(!value) emit('close');});
 
+// The bench's windows (BenchDesk.vue), back to front, with where they open.
+const WINDOWS=[
+  {id:'holes',title:'Holes on this face',rect:d=>({x:8,y:Math.max(8,d.height-268),w:330,h:260})},
+  {id:'layers',title:'Layers',rect:d=>({x:8,y:8,w:290,h:Math.min(240,d.height-16)})},
+  {id:'press',title:'Drill press',rect:d=>({x:Math.max(8,d.width-378),y:8,w:370,h:Math.min(d.height-16,680)})},
+  {id:'help',title:'Help',rect:d=>({x:Math.round(d.width/2-220),y:Math.max(8,Math.round(d.height/2-110)),w:440,h:220}),minimized:true},
+];
+const layerId=ref('');   // the layer new holes go on ('' = the drilling layer)
 // ---- Bench settings (kept while the bench is open)
 const face=ref('A'),bitId=ref('brad-8'),diameter=ref(8),depth=ref(12),through=ref(false),step=ref(1);
 const target=ref({a:0,b:0}),row=ref({count:1,spacing:32,along:'a'}),drilling=ref(false);
@@ -53,8 +64,9 @@ const check=computed(()=>{
     const f=faceInfo.value,a=hole[f.a.key],b=hole[f.b.key];
     if(existing.value.some(h=>Math.abs(h.at.a-a)<.01&&Math.abs(h.at.b-b)<.01&&h.feature.diameter===hole.diameter)) return `There is already a Ø${hole.diameter} hole at ${a}, ${b}`;
   }
-  try {let n=0;drillHoles(props.design,props.partId,planned.value,()=>'check-'+(++n));return '';} catch(error) {return error.message;}
+  try {let n=0;drillHoles(props.design,props.partId,planned.value,()=>'check-'+(++n),layerId.value||null);return '';} catch(error) {return error.message;}
 });
+const readout=computed(()=>`${bitLabel(bit.value)} · depth ${depthText.value} · at ${where(target.value.a,target.value.b)} · ${check.value||'ready to drill'}`);
 const depthText=computed(()=>through.value?`through (${faceInfo.value.depthLimit} mm)`:`${depth.value} mm`);
 const where=(a,b)=>`${faceInfo.value.a.key} ${a} · ${faceInfo.value.b.key} ${b}`;
 async function drill() {
@@ -63,96 +75,50 @@ async function drill() {
   drilling.value=true;
   await plunge();
   drilling.value=false;
-  emit('drill',{holes,message:text});
+  // The holes go into the design as it is now (it may have changed meanwhile).
+  try {emit('commit',{design:drillHoles(props.design,props.partId,holes,()=>crypto.randomUUID(),layerId.value||null).design,message:text});} catch(error) {emit('message',error.message);}
 }
 
-// ---- 3D bench
+// ---- 3D bench (bench-scene.js)
 const host=ref(null),webgl=ref(true),topView=ref(false);
-let renderer,scene,camera,controls,frame=0,piece=null,bench=null,bitGroup=null,tipRest=0,observer;
-const TABLE_Y=0;
-function matrix() {
-  const m=benchMatrix(part.value,face.value,target.value);
-  return new THREE.Matrix4().set(...m[0],...m[1],...m[2],0,0,0,1);
-}
+let view=null,bitGroup=null,tipRest=0;
 function buildPiece() {
-  if(!scene||!part.value) return;
-  disposeDesignGroup(piece);
-  const flat={...part.value,x:0,y:0,z:0};delete flat.rotation;
-  piece=buildDesignGroup({layers:props.design.layers,parts:[flat]});
-  piece.matrixAutoUpdate=false;piece.matrix.copy(matrix());scene.add(piece);
-  // Fence behind the panel and stop at its left end move with it.
-  const f=faceInfo.value,backZ=f.bZero==='back'?-target.value.b:-(f.b.length-target.value.b),leftX=-target.value.a;
-  bench.fence.position.set(0,30,backZ-15);bench.stop.position.set(leftX-10,30,backZ+60);
-  bench.laser.position.set(0,f.height+.3,0);
-  placeBit();
+  if(!view||!part.value) return;
+  const f=faceInfo.value;
+  view.setPiece(props.design,part.value,benchMatrix(part.value,face.value,target.value),{height:f.height,backZ:f.bZero==='back'?-target.value.b:-(f.b.length-target.value.b),leftX:-target.value.a});
 }
+// The drill press: bit, chuck, head and column, raised above the piece.
 function placeBit() {
-  if(!scene) return;
-  if(bitGroup) {scene.remove(bitGroup);bitGroup.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});}
-  const f=faceInfo.value,r=diameter.value/2,length=Math.max(60,Math.min(f.depthLimit+30,160)),forstner=bit.value.kind==='forstner';
+  if(!view) return;
+  const f=faceInfo.value,r=diameter.value/2,length=Math.max(60,Math.min(f.depthLimit+30,160)),forstner=bit.value.kind==='forstner',cut=forstner?Math.min(length,20):length;
   bitGroup=new THREE.Group();
-  const steel=new THREE.MeshStandardMaterial({color:0xb8bec4,metalness:.8,roughness:.3});
-  const cutter=new THREE.Mesh(new THREE.CylinderGeometry(r,r*(forstner?1:.4),forstner?Math.min(length,20):length,24),steel);
-  cutter.position.y=(forstner?Math.min(length,20):length)/2;bitGroup.add(cutter);
-  if(forstner) {const shank=new THREE.Mesh(new THREE.CylinderGeometry(5,5,length-20,16),steel.clone());shank.position.y=20+(length-20)/2;bitGroup.add(shank);}
-  const chuck=new THREE.Mesh(new THREE.CylinderGeometry(22,26,60,24),new THREE.MeshStandardMaterial({color:0x555b60,metalness:.6,roughness:.4}));
-  chuck.position.y=length+30;bitGroup.add(chuck);
-  const head=new THREE.Mesh(new THREE.BoxGeometry(180,160,300),new THREE.MeshStandardMaterial({color:0x2f5d50,roughness:.6}));
-  head.position.set(0,length+60+80,-90);bitGroup.add(head);
-  tipRest=f.height+15;bitGroup.position.y=tipRest;scene.add(bitGroup);
-  // The column stands behind the head, on the table.
-  bench.column.scale.y=(tipRest+length+200)/1000;bench.column.position.y=(tipRest+length+200)/2;
+  const add=(geometry,material,y,z=0)=>{const mesh=new THREE.Mesh(geometry,material);mesh.position.set(0,y,z);bitGroup.add(mesh);};
+  add(new THREE.CylinderGeometry(r,r*(forstner?1:.4),cut,24),steel(),cut/2);
+  if(forstner) add(new THREE.CylinderGeometry(5,5,length-20,16),steel(),20+(length-20)/2);
+  add(new THREE.CylinderGeometry(22,26,60,24),paint(0x555b60),length+30);
+  add(new THREE.BoxGeometry(180,160,300),paint(0x2f5d50),length+140,-90);
+  tipRest=f.height+15;
+  const columnHeight=tipRest+length+200;add(new THREE.CylinderGeometry(45,45,columnHeight,24),paint(0x6b7378),columnHeight/2-tipRest,-520);
+  bitGroup.position.y=tipRest;view.setTool(bitGroup);
 }
 // Lowers the bit to the depth stop and back (about half a second).
 function plunge() {
-  if(!bitGroup||!renderer) return Promise.resolve();
+  if(!bitGroup) return Promise.resolve();
   const bottom=faceInfo.value.height-(through.value?faceInfo.value.depthLimit+1:depth.value);
-  return new Promise(resolve=>{
-    const start=performance.now(),duration=520;
-    const tick=now=>{
-      const t=Math.min(1,(now-start)/duration),down=t<.5?t*2:(1-t)*2;
-      bitGroup.position.y=tipRest+(bottom-tipRest)*down;
-      if(t<1) requestAnimationFrame(tick);else {bitGroup.position.y=tipRest;resolve();}
-    };
-    requestAnimationFrame(tick);
-  });
+  return view.play(520,t=>{const down=t<.5?t*2:(1-t)*2;bitGroup.position.y=t<1?tipRest+(bottom-tipRest)*down:tipRest;});
 }
-function buildBench() {
-  const wood=new THREE.MeshStandardMaterial({color:0xc49a62,roughness:.8}),metal=new THREE.MeshStandardMaterial({color:0x6b7378,metalness:.5,roughness:.5});
-  const table=new THREE.Mesh(new THREE.BoxGeometry(2400,40,1200),wood);table.position.y=TABLE_Y-20;scene.add(table);
-  const base=new THREE.Mesh(new THREE.BoxGeometry(2300,500,1100),new THREE.MeshStandardMaterial({color:0x3d4a45,roughness:.9}));base.position.y=-290;scene.add(base);
-  const fence=new THREE.Mesh(new THREE.BoxGeometry(2200,60,30),metal);scene.add(fence);
-  const stop=new THREE.Mesh(new THREE.BoxGeometry(20,60,120),new THREE.MeshStandardMaterial({color:0xd9822b,roughness:.5}));scene.add(stop);
-  const column=new THREE.Mesh(new THREE.CylinderGeometry(45,45,1000,24),metal.clone());column.position.set(0,500,-520);scene.add(column);
-  // Laser cross on the top of the panel, where the bit will go in.
-  const laser=new THREE.Group(),red=new THREE.MeshBasicMaterial({color:0xff3b30});
-  for(const [w,d] of [[300,1.2],[1.2,300]]) laser.add(new THREE.Mesh(new THREE.BoxGeometry(w,.2,d),red));
-  scene.add(laser);
-  return {fence,stop,column,laser};
-}
-function frameCamera() {
-  if(!camera) return;
-  const f=faceInfo.value,size=Math.max(f.a.length,f.b.length,400);
-  controls.target.set(0,f.height,0);
-  if(topView.value) camera.position.set(0,f.height+size*1.6,1);
-  else camera.position.set(size*.55,f.height+size*.9,size*1.25);
-  camera.near=1;camera.far=size*20+5000;camera.updateProjectionMatrix();controls.update();
-}
-watch([face,target,diameter,depth,through,()=>props.design],()=>buildPiece(),{deep:true});
-watch([diameter,bitId],placeBit);
+const frameCamera=()=>view?.frame({height:faceInfo.value.height,size:Math.max(faceInfo.value.a.length,faceInfo.value.b.length,400),top:topView.value});
+watch([face,target,()=>props.design],buildPiece,{deep:true});
+watch([diameter,bitId,face,depth,through],placeBit);
 watch([face,topView],frameCamera);
 // Hand positioning: a click on the panel brings that point under the bit; a drag slides the panel.
 let press=null;
-function topPoint(event) {
-  const rect=renderer.domElement.getBoundingClientRect(),ray=new THREE.Raycaster();
-  ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);
-  return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-faceInfo.value.height),new THREE.Vector3());
-}
+const topPoint=event=>view.topPoint(event,faceInfo.value.height);
 const onFace=p=>{const f=faceInfo.value,a=target.value.a+p.x,b=target.value.b+(f.bZero==='back'?p.z:-p.z);return a>=0&&a<=f.a.length&&b>=0&&b<=f.b.length?{a,b}:null;};
 function pointerDown(event) {
   if(event.button!==0||drilling.value) return;
   const p=topPoint(event),hit=p&&onFace(p);if(!hit) return;
-  event.stopImmediatePropagation();renderer.domElement.setPointerCapture?.(event.pointerId);
+  event.stopImmediatePropagation();view.capture(event.pointerId);
   press={x:event.clientX,y:event.clientY,point:p,start:{...target.value},hit,moved:false,id:event.pointerId};
 }
 function pointerMove(event) {
@@ -169,7 +135,6 @@ function pointerUp(event) {
   press=null;
 }
 function dblclick(event) {const p=topPoint(event),hit=p&&onFace(p);if(hit) {target.value=handPosition(part.value,face.value,hit,step.value);drill();}}
-function resize() {if(!renderer||!host.value?.clientWidth) return;renderer.setSize(host.value.clientWidth,host.value.clientHeight);camera.aspect=host.value.clientWidth/host.value.clientHeight;camera.updateProjectionMatrix();}
 function keydown(event) {
   const tag=event.target?.tagName;
   if(event.key==='Escape') {event.preventDefault();emit('close');return;}
@@ -181,45 +146,29 @@ function keydown(event) {
 onMounted(async()=>{
   window.addEventListener('keydown',keydown);
   await nextTick();
-  try {
-    renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));host.value.appendChild(renderer.domElement);
-    scene=new THREE.Scene();scene.background=new THREE.Color('#22302d');
-    scene.add(new THREE.HemisphereLight(0xffffff,0x4a3c2c,2.4));const sun=new THREE.DirectionalLight(0xfff1da,2);sun.position.set(800,2000,1200);scene.add(sun);
-    camera=new THREE.PerspectiveCamera(40,1,1,1e5);controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
-    bench=buildBench();buildPiece();resize();frameCamera();
-    renderer.domElement.addEventListener('pointerdown',pointerDown,true);renderer.domElement.addEventListener('pointermove',pointerMove);
-    renderer.domElement.addEventListener('pointerup',pointerUp);renderer.domElement.addEventListener('dblclick',dblclick);
-    observer=new ResizeObserver(resize);observer.observe(host.value);
-    const animate=()=>{frame=requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);};animate();
-  } catch {webgl.value=false;renderer=null;}
+  try {view=createBenchScene(host.value,{down:pointerDown,move:pointerMove,up:pointerUp,double:dblclick});buildPiece();placeBit();frameCamera();}
+  catch {webgl.value=false;view=null;}
 });
 // Inside the kept-alive designer: keys only while the designer is shown.
 onActivated(()=>window.addEventListener('keydown',keydown));
 onDeactivated(()=>window.removeEventListener('keydown',keydown));
-onBeforeUnmount(()=>{
-  window.removeEventListener('keydown',keydown);cancelAnimationFrame(frame);observer?.disconnect();controls?.dispose();
-  disposeDesignGroup(piece);scene?.traverse(o=>{o.geometry?.dispose();for(const m of [o.material??[]].flat()) m.dispose?.();});renderer?.dispose();
-});
+onBeforeUnmount(()=>{window.removeEventListener('keydown',keydown);view?.dispose();});
 const faceLabel=k=>benchFace(part.value,k).label;
 const holeText=h=>`Hole ${h.index} · Ø${h.feature.diameter} · ${where(h.at.a,h.at.b)} · ${h.feature.depth} mm`;
 </script>
 <template>
-  <section v-if="part" class="drilling-bench" aria-label="Drilling bench">
-    <div class="bench-stage">
-      <div ref="host" class="bench-canvas"></div>
-      <nav class="bench-views" aria-label="Bench view">
+  <section v-if="part" class="workbench hand-bench drilling-bench" aria-label="Drilling bench">
+    <BenchDesk storage-key="drilling-bench" :windows="WINDOWS" :status="readout" :taskbar-target="taskbar" :taskbar-active="taskbarActive">
+      <template #background><div ref="host" class="bench-canvas"></div><p v-if="!webgl" class="bench-note">The bench view needs WebGL; positions, bits and drilling all work from the windows.</p></template>
+      <template #start>
         <button @click="emit('close')">Back to designer</button>
         <button :aria-pressed="!topView" @click="topView=false">Bench view</button>
         <button :aria-pressed="topView" @click="topView=true">Look down the bit</button>
-      </nav>
-      <p class="bench-readout" data-testid="bench-readout" role="status">{{ bitLabel(bit) }} · depth {{ depthText }} · at {{ where(target.a,target.b) }} · {{ check || 'ready to drill' }}</p>
-      <p v-if="!webgl" class="bench-note">The bench view needs WebGL; positions, bits and drilling all work from the panel.</p>
-    </div>
-    <aside class="bench-panel" aria-label="Drilling controls">
-      <p class="eyebrow">DRILLING BENCH</p>
-      <h2>{{ part.name }}</h2>
-      <p class="hint">{{ part.length }} × {{ part.width }} × {{ part.thickness }} mm · {{ MATERIALS[part.material].label }}</p>
-      <fieldset><legend>Face up</legend>
+      </template>
+      <template #press><div class="bench-panel">
+        <h2>{{ part.name }}</h2>
+        <p class="hint">{{ part.length }} × {{ part.width }} × {{ part.thickness }} mm · {{ MATERIALS[part.material].label }}</p>
+        <fieldset><legend>Face up</legend>
         <div class="bench-choices"><button v-for="k in BENCH_FACES" :key="k" :aria-pressed="face===k" @click="face=k">{{ faceLabel(k) }}</button></div>
       </fieldset>
       <fieldset><legend>Drill rack</legend>
@@ -247,31 +196,16 @@ const holeText=h=>`Hole ${h.index} · Ø${h.feature.diameter} · ${where(h.at.a,
       </fieldset>
       <button class="primary bench-drill" :disabled="drilling||!!check" @click="drill">{{ row.count>1?`Drill ${row.count} holes`:'Drill' }}</button>
       <p v-if="check" class="bench-problem" data-testid="bench-problem" role="alert">{{ check }}</p>
-      <p class="eyebrow">HOLES ON THIS FACE · {{ existing.length }}</p>
+      </div></template>
+      <template #holes><div class="bench-panel"><p class="eyebrow">HOLES ON THIS FACE · {{ existing.length }}</p>
       <ol class="bench-holes">
         <li v-for="h in existing" :key="h.feature.id">
           <button :aria-label="'Go to '+holeText(h)" @click="moveTo(h.at.a,h.at.b)">{{ holeText(h) }}</button>
           <button :aria-label="'Remove '+holeText(h)" @click="emit('remove',h.feature.id)">Remove</button>
         </li>
-      </ol>
-      <p class="hint">By hand: click the panel to bring that point under the bit, drag the panel to slide it, use the arrow keys to nudge it by the hand step (Shift: ×10), and press Enter or double-click to drill. Escape returns to the designer; Ctrl/⌘+Z undoes the last drilling.</p>
-    </aside>
+      </ol></div></template>
+      <template #layers><BenchLayers :design="design" v-model:layer-id="layerId" @commit="emit('commit',$event)" @message="emit('message',$event)"/></template>
+      <template #help><div class="bench-panel"><p class="hint">By hand: click the panel to bring that point under the bit, drag the panel to slide it, use the arrow keys to nudge it by the hand step (Shift: ×10), and press Enter or double-click to drill. Escape returns to the designer; Ctrl/⌘+Z undoes the last drilling.</p></div></template>
+    </BenchDesk>
   </section>
 </template>
-<style>
-.drilling-bench{position:absolute;inset:0;z-index:20;display:grid;grid-template-columns:minmax(0,1fr) 330px;background:#22302d}
-.drilling-bench .bench-stage{position:relative;min-width:0;min-height:0}.drilling-bench .bench-canvas{position:absolute;inset:0}
-.drilling-bench .bench-views{position:absolute;top:14px;left:14px;z-index:2;display:flex;gap:2px;padding:4px;background:#f2f3eb;border-radius:8px}
-.drilling-bench .bench-views button{padding:6px 11px;border:0}.drilling-bench .bench-views button[aria-pressed=true]{background:#263e3c;color:#f2f3eb}
-.drilling-bench .bench-readout{position:absolute;left:14px;right:14px;bottom:12px;z-index:2;margin:0;padding:7px 10px;border-radius:6px;background:#f2f3ebf0;font-size:12px}
-.drilling-bench .bench-note{position:absolute;top:70px;left:14px;z-index:2;margin:0;padding:6px 10px;border-radius:6px;background:#f2f3ebe6;font-size:11px}
-.drilling-bench .bench-panel{overflow:auto;padding:16px;background:#f2f3eb;border-left:1px solid #b9c6b9;font-size:12px}
-.drilling-bench h2{margin:0 0 2px;font-size:18px}.drilling-bench fieldset{margin:8px 0;padding:8px;border:1px solid #becabe;border-radius:6px}
-.drilling-bench legend{font-size:11px;font-weight:700}.drilling-bench label{margin:6px 0;font-size:11px}
-.drilling-bench .bench-choices{display:flex;flex-wrap:wrap;gap:3px}.drilling-bench .bench-choices button{font-size:11px;padding:4px 7px}
-.drilling-bench .bench-choices button[aria-pressed=true],.drilling-bench .bench-choices button[aria-checked=true]{background:#263e3c;color:#f2f3eb}
-.drilling-bench .bench-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.drilling-bench .bench-row input,.drilling-bench .bench-row select{width:100%;min-width:0;padding:5px}
-.drilling-bench .bench-drill{width:100%;margin:8px 0;padding:10px}.drilling-bench .bench-problem{color:#8d2b19;font-weight:700;margin:4px 0}
-.drilling-bench .bench-holes{list-style:none;margin:4px 0;padding:0}.drilling-bench .bench-holes li{display:flex;gap:4px;border-bottom:1px solid #dde3d9}
-.drilling-bench .bench-holes button{border:0;font-size:11px;padding:4px;text-align:left}.drilling-bench .bench-holes button:first-child{flex:1}
-</style>

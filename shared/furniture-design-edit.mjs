@@ -210,17 +210,6 @@ export function addFeature(design,partId,type,makeId) {
   assertEditable(design,part.layer,layer);
   return {design:withParts(design,design.parts.map(p=>p.id===partId?{...p,features:[...p.features,feature]}:p)),featureId:feature.id};
 }
-// Drills holes into a panel in one edit (one undo step): each hole is
-// {face, u, v, t, diameter, depth} as for drill features, on the drilling layer.
-export function drillHoles(design,partId,holes,makeId) {
-  const part=findPart(design,partId);
-  if(part.shape!=='panel') throw Error('Only panels can be drilled');
-  if(!Array.isArray(holes)||!holes.length) throw Error('Nothing to drill');
-  const layer=layerFor(design,'drill');
-  assertEditable(design,part.layer,layer);
-  const features=holes.map(h=>({id:makeId(),type:'drill',layer,face:h.face,u:h.u??0,v:h.v??0,...(h.t!==undefined?{t:h.t}:{}),diameter:h.diameter,depth:h.depth}));
-  return {design:withParts(design,design.parts.map(p=>p.id===partId?{...p,features:[...p.features,...features]}:p)),featureIds:features.map(f=>f.id)};
-}
 function findFeature(design,featureId) {
   for(const part of design.parts) {const feature=part.features?.find(f=>f.id===featureId);if(feature) return {part,feature};}
   throw Error('Feature not found');

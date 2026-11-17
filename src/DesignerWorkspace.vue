@@ -21,14 +21,30 @@ import DesignPartEditor from './DesignPartEditor.vue';
 import DesignLayers from './DesignLayers.vue';
 import DesignCncPanel from './DesignCncPanel.vue';
 import DesignPieceLibrary from './DesignPieceLibrary.vue';
+import BenchDesk from './BenchDesk.vue';
 // The drilling bench loads when first opened.
 const DrillingBench=defineAsyncComponent(()=>import('./DrillingBench.vue'));
+const CuttingBench=defineAsyncComponent(()=>import('./CuttingBench.vue'));
+const Workbench=defineAsyncComponent(()=>import('./Workbench.vue'));
 
 const props=defineProps({designs:{type:Array,required:true},applyDesigns:{type:Function,required:true},cabinet:{type:Object,default:null},
   placeDesign:{type:Function,default:null},placedDesignIds:{type:Array,default:()=>[]},focusDesignId:{type:String,default:null},
-  workspaceKey:{type:String,default:''},projectBytes:{type:Number,default:0},maxBytes:{type:Number,default:65536}});
+  workspaceKey:{type:String,default:''},projectBytes:{type:Number,default:0},maxBytes:{type:Number,default:65536},
+  taskbar:{type:null,default:null}});
 const emit=defineEmits(['message','active']);
 const say=text=>emit('message',text);
+// The designer's desk (BenchDesk.vue): the design view is the canvas; the panels
+// are windows docked at its sides (or floating), with their buttons in the
+// studio's bottom taskbar while the designer is shown and no workshop bench is
+// open; an open bench puts its own taskbar there.
+const half=d=>Math.round((d.height-24)*.6),narrow=d=>d.width<760;
+const WINDOWS=[
+  {id:'designs',title:'Designs and parts',rect:d=>({x:8,y:8,w:290,h:half(d)}),minimized:narrow},
+  {id:'layers',title:'Machining layers',rect:d=>({x:8,y:half(d)+16,w:290,h:d.height-24-half(d)}),minimized:narrow},
+  {id:'properties',title:'Design properties',rect:d=>({x:d.width-348,y:8,w:340,h:half(d)}),minimized:narrow},
+  {id:'cnc',title:'CNC and CAM',rect:d=>({x:d.width-348,y:half(d)+16,w:340,h:d.height-24-half(d)}),minimized:narrow},
+];
+const onScreen=ref(true);
 const makeId=()=>crypto.randomUUID();
 
 // ---- Designs and selection
@@ -303,16 +319,20 @@ function menuCommand(action) {const partId=menu.value?.partId;menu.value=null;ac
 const drillable=part=>part?.shape==='panel';
 
 // ---- Drilling bench (one panel at a time; the design view pauses meanwhile)
-const benchPartId=ref(null);
-function openBench(partId=selection.value.partId) {
+// bench: {kind: 'work' | 'drill' | 'cut', partId}. Drilling takes panels; the others any piece.
+const bench=ref(null),benchPartId=computed(()=>bench.value?.partId??null);
+function openBench(partId=selection.value.partId,kind='drill') {
   const part=design.value?.parts.find(p=>p.id===partId);menu.value=null;
   if(!part) return;
-  if(!drillable(part)) {say(`${part.name} is a ${D.PIECE_FORMS[part.shape].label.toLowerCase()}; the drilling bench takes panels`);return;}
-  cancelDrag();selectPart(partId);benchPartId.value=partId;active=false;say('Drilling bench · '+part.name);
+  if(kind==='drill'&&!drillable(part)) {say(`${part.name} is a ${D.PIECE_FORMS[part.shape].label.toLowerCase()}; the drilling bench takes panels`);return;}
+  cancelDrag();selectPart(partId);bench.value={kind,partId};active=false;say({drill:'Drilling bench · ',cut:'Cutting bench · ',work:'Workbench · '}[kind]+part.name);
 }
-function closeBench() {if(!benchPartId.value) return;benchPartId.value=null;active=true;say('Furniture designer');requestAnimationFrame(resize);}
-const benchDrill=({holes,message})=>run(d=>D.drillHoles(d,benchPartId.value,holes,makeId),message);
-const benchRemove=featureId=>run(d=>D.removeFeature(d,featureId),'Hole removed');
+const openCutting=(partId=selection.value.partId)=>openBench(partId,'cut');
+const openWorkbench=(partId=selection.value.partId)=>openBench(partId,'work');
+function closeBench() {if(!bench.value) return;bench.value=null;active=true;say('Furniture designer');requestAnimationFrame(resize);}
+// The benches hand over the edited design; it is committed as one undo step.
+const benchCommit=({design:next,message})=>{if(run(()=>next,message)) selectPart(benchPartId.value);};
+const benchRemove=featureId=>run(d=>D.removeFeature(d,featureId),bench.value?.kind==='drill'?'Hole removed':'Cut removed');
 watch(activeId,closeBench);
 
 onMounted(()=>{
@@ -357,8 +377,8 @@ function keydown(event) {
   const step=selection.value.partId&&nudgeAxis(view.value,event.key,event.shiftKey);
   if(step) return handled()&&nudge(step.axis,step.sign);
 }
-onActivated(()=>{active=!benchPartId.value;window.addEventListener('keydown',keydown);resize();});
-onDeactivated(()=>{active=false;cancelDrag();window.removeEventListener('keydown',keydown);});
+onActivated(()=>{onScreen.value=true;active=!benchPartId.value;window.addEventListener('keydown',keydown);resize();});
+onDeactivated(()=>{onScreen.value=false;active=false;cancelDrag();window.removeEventListener('keydown',keydown);});
 onBeforeUnmount(()=>{
   window.removeEventListener('keydown',keydown);cancelAnimationFrame(frame);observer?.disconnect();controls?.dispose();
   disposeDesignGroup(group);grid?.geometry.dispose();grid?.material.dispose();
@@ -367,93 +387,106 @@ onBeforeUnmount(()=>{
 </script>
 <template>
   <div class="designer">
-    <aside class="designer-left" aria-label="Designs and parts">
-      <p class="eyebrow">FURNITURE DESIGNER</p>
-      <label v-if="designs.length">Furniture design<select :value="activeId" aria-label="Furniture design" @change="activeId=$event.target.value"><option v-for="d in designs" :key="d.id" :value="d.id">{{ d.name }}</option></select></label>
-      <div class="design-row"><button @click="newDesign('empty')">New empty design</button><button @click="newDesign('box')">New box carcass</button></div>
-      <button :disabled="!cabinet" :title="cabinet?'Convert '+cabinet.name:'Select a cabinet in the room first'" @click="fromCabinet">Design from selected cabinet</button>
-      <template v-if="design">
-        <label>Design name<input :key="formKey+design.id" :value="design.name" maxlength="60" @change="rename"></label>
-        <button v-if="placeDesign" class="place-design" :disabled="!design.parts.length" title="Add this design to the room as furniture at the nearest free spot" @click="placeActive">Place in room{{ placedCount?' ('+placedCount+' placed)':'' }}</button>
-        <div class="design-row"><button @click="duplicateActive">Duplicate design</button>
-          <button v-if="!confirmDelete" @click="confirmDelete=true">Delete design</button><button v-else class="danger" @click="deleteActive">Confirm delete design</button></div>
-        <DesignPieceLibrary @add="addPiece"/>
-        <p class="eyebrow">PARTS · {{ design.parts.length }}</p>
-        <ul class="part-tree" aria-label="Parts">
-          <li v-for="part in design.parts" :key="part.id" :class="{hidden:!layerOf(part.layer).visible}">
-            <button :aria-pressed="selectedIds.includes(part.id)&&!selection.featureId" :class="{active:selection.partId===part.id}" :title="'Layer '+layerOf(part.layer).name+' · Shift/Ctrl-click to add to the selection'" @click="clickPart($event,part.id)"><span class="swatch" :style="{background:part.color}"></span>{{ part.name }}<small>{{ D.PIECE_FORMS[part.shape].short }}</small></button>
-            <ul v-if="part.features?.length"><li v-for="f in part.features" :key="f.id"><button :aria-pressed="selection.featureId===f.id" :aria-label="featureName(part,f)" :title="featureName(part,f)" @click="selectFeature(part.id,f.id)"><span class="swatch" :style="{background:layerOf(f.layer).color}"></span>{{ f.type }} · {{ f.face }} · {{ f.depth }} mm</button></li></ul>
-          </li>
-        </ul>
+    <BenchDesk storage-key="designer" :windows="WINDOWS" dock :taskbar-target="taskbar" :taskbar-active="onScreen&&!bench">
+      <template #background="{insets}">
+        <section class="designer-stage" aria-label="Design view" :style="{left:insets.left+'px',right:insets.right+'px'}">
+        <nav class="designer-views" aria-label="Designer view">
+          <button v-for="mode in DESIGN_VIEWS" :key="mode" :aria-pressed="view===mode" @click="view=mode">{{ mode }}</button>
+          <button @click="fit">Fit design</button>
+          <button :disabled="!history?.past.length" @click="travel('undo')">Undo design</button>
+          <button :disabled="!history?.future.length" @click="travel('redo')">Redo design</button>
+          <span class="tool-sep"></span>
+          <button :aria-pressed="tool==='move'" title="Drag pieces to move them (M). Shift drags vertically in 3D; arrow keys nudge." @click="tool='move'">Move</button>
+          <button :aria-pressed="tool==='rotate'" title="Drag a ring to rotate the selected piece (R)" @click="tool='rotate'">Rotate</button>
+          <label class="tool-select">Grid<select v-model.number="gridStep" aria-label="Move snap"><option :value="0">off</option><option v-for="step in [1,5,10,25,50]" :key="step" :value="step">{{ step }} mm</option></select></label>
+          <label class="tool-select">Angle<select v-model.number="angleStep" aria-label="Angle snap"><option :value="0">off</option><option v-for="step in [5,15,45,90]" :key="step" :value="step">{{ step }}°</option></select></label>
+          <button :aria-pressed="axisMode==='local'" title="Rings and quick turns use the active piece's own axes (L)" @click="axisMode=axisMode==='local'?'world':'local'">Local axes</button>
+          <button :aria-pressed="colorByLayer" title="Shade pieces in their layer colour" @click="colorByLayer=!colorByLayer">Colour by layer</button>
+        </nav>
+        <div ref="canvasHost" class="designer-canvas" @dragover="canvasDragOver" @drop="canvasDrop"></div>
+        <p v-if="dragInfo" class="drag-info" role="status">{{ dragInfo }}</p>
+        <div v-if="selectedPart" class="selection-hud" role="toolbar" aria-label="Selected piece">
+          <span v-if="selectedIds.length>1" class="hud-name" data-testid="selection-count">{{ selectedIds.length }} pieces <small>active: {{ selectedPart.name }}</small></span>
+          <span v-else class="hud-name"><span class="swatch" :style="{background:selectedPart.color}"></span>{{ selectedPart.name }} <small>{{ D.PIECE_FORMS[selectedPart.shape].short }}</small></span>
+          <select :value="selectedParts.every(p=>p.layer===selectedPart.layer)?selectedPart.layer:''" aria-label="Piece layer" @change="setSelectionLayer($event.target.value)">
+            <option v-if="!selectedParts.every(p=>p.layer===selectedPart.layer)" value="" disabled>Mixed layers</option>
+            <option v-for="layer in design.layers" :key="layer.id" :value="layer.id">{{ layer.name }}{{ layer.locked?' · locked':'' }}</option>
+          </select>
+          <button v-for="[axis,degrees] in [['x',90],['y',-15],['y',15],['y',90],['z',90]]" :key="axis+degrees" :aria-label="'Rotate about '+axis+' '+(degrees>0?'+':'')+degrees+'°'" @click="rotateSelected(axis,degrees)">{{ axis.toUpperCase() }} {{ degrees>0?'+':'' }}{{ degrees }}°</button>
+          <button :disabled="!selectedParts.some(p=>p.rotation)" @click="resetRotation">Reset rotation</button>
+          <button :disabled="!drillable(selectedPart)" :title="drillable(selectedPart)?'Open the drilling bench for '+selectedPart.name:'The drilling bench takes panels'" @click="openBench()">Drill…</button>
+          <button :title="'Open the cutting bench (saw and router) for '+selectedPart.name" @click="openCutting()">Cut…</button>
+          <button :title="'Open the workbench (measure, mark, saw, plane, chisel, finish) for '+selectedPart.name" @click="openWorkbench()">Workbench…</button>
+          <button title="Ctrl/⌘+D" @click="duplicateSelectedPart">Duplicate selection</button><button title="Delete" @click="removeSelected">Delete selection</button>
+        </div>
+        <div v-if="menu" class="menu-backdrop" @pointerdown="menu=null" @contextmenu.prevent="menu=null"></div>
+        <div v-if="menu&&menuPart" ref="menuEl" class="piece-menu" role="menu" :aria-label="'Actions for '+menuPart.name" :style="{left:menu.x+'px',top:menu.y+'px'}">
+          <p class="menu-title">{{ selectedIds.length>1?selectedIds.length+' pieces':menuPart.name }}</p>
+          <button role="menuitem" :disabled="!drillable(menuPart)" :title="drillable(menuPart)?'':'The drilling bench takes panels'" @click="menuCommand(openBench)">Drill on the bench…</button>
+          <button role="menuitem" @click="menuCommand(openWorkbench)">Open the workbench…</button>
+          <button role="menuitem" @click="menuCommand(openCutting)">Cut on the bench…</button>
+          <button role="menuitem" :disabled="!drillable(menuPart)" @click="menuCommand(()=>addFeature('drill'))">Add a drill hole</button>
+          <button role="menuitem" @click="menuCommand(duplicateSelectedPart)">{{ selectedIds.length>1?'Duplicate '+selectedIds.length+' pieces':'Duplicate piece' }}</button>
+          <button role="menuitem" :disabled="!selectedParts.some(p=>p.rotation)" @click="menuCommand(resetRotation)">Straighten (reset rotation)</button>
+          <button role="menuitem" class="danger-text" @click="menuCommand(removeSelected)">{{ selectedIds.length>1?'Delete '+selectedIds.length+' pieces':'Delete piece' }}</button>
+        </div>
+        <p v-if="!design" class="designer-empty">Start a design: an empty design, a box carcass, or one converted from the cabinet selected in the room.</p>
+        <p v-else class="designer-summary" data-testid="design-summary">{{ summary }}</p>
+        <p v-if="!webgl" class="designer-empty">3D preview needs WebGL; all editing panels still work.</p>
+        </section>
       </template>
-      <p class="hint" data-testid="project-size">Project size {{ (projectBytes/1024).toFixed(1) }} of {{ maxBytes/1024 }} KiB. Designs are saved with the project.</p>
-    </aside>
-    <section class="designer-stage" aria-label="Design view">
-      <nav class="designer-views" aria-label="Designer view">
-        <button v-for="mode in DESIGN_VIEWS" :key="mode" :aria-pressed="view===mode" @click="view=mode">{{ mode }}</button>
-        <button @click="fit">Fit design</button>
-        <button :disabled="!history?.past.length" @click="travel('undo')">Undo design</button>
-        <button :disabled="!history?.future.length" @click="travel('redo')">Redo design</button>
-        <span class="tool-sep"></span>
-        <button :aria-pressed="tool==='move'" title="Drag pieces to move them (M). Shift drags vertically in 3D; arrow keys nudge." @click="tool='move'">Move</button>
-        <button :aria-pressed="tool==='rotate'" title="Drag a ring to rotate the selected piece (R)" @click="tool='rotate'">Rotate</button>
-        <label class="tool-select">Grid<select v-model.number="gridStep" aria-label="Move snap"><option :value="0">off</option><option v-for="step in [1,5,10,25,50]" :key="step" :value="step">{{ step }} mm</option></select></label>
-        <label class="tool-select">Angle<select v-model.number="angleStep" aria-label="Angle snap"><option :value="0">off</option><option v-for="step in [5,15,45,90]" :key="step" :value="step">{{ step }}°</option></select></label>
-        <button :aria-pressed="axisMode==='local'" title="Rings and quick turns use the active piece's own axes (L)" @click="axisMode=axisMode==='local'?'world':'local'">Local axes</button>
-        <button :aria-pressed="colorByLayer" title="Shade pieces in their layer colour" @click="colorByLayer=!colorByLayer">Colour by layer</button>
-      </nav>
-      <div ref="canvasHost" class="designer-canvas" @dragover="canvasDragOver" @drop="canvasDrop"></div>
-      <DesignLayers v-if="design" :key="'layers'+formKey" class="layers-overlay" :layers="design.layers" :usage="usage" :active-layer-id="activeLayerId" :focus-layer-id="focusLayerId"
-        @add="layerCommands.add" @update="layerCommands.update" @remove="layerCommands.remove" @move="layerCommands.move" @activate="activeLayerId=$event" @focus="focusLayerId=$event"/>
-      <p v-if="dragInfo" class="drag-info" role="status">{{ dragInfo }}</p>
-      <div v-if="selectedPart" class="selection-hud" role="toolbar" aria-label="Selected piece">
-        <span v-if="selectedIds.length>1" class="hud-name" data-testid="selection-count">{{ selectedIds.length }} pieces <small>active: {{ selectedPart.name }}</small></span>
-        <span v-else class="hud-name"><span class="swatch" :style="{background:selectedPart.color}"></span>{{ selectedPart.name }} <small>{{ D.PIECE_FORMS[selectedPart.shape].short }}</small></span>
-        <select :value="selectedParts.every(p=>p.layer===selectedPart.layer)?selectedPart.layer:''" aria-label="Piece layer" @change="setSelectionLayer($event.target.value)">
-          <option v-if="!selectedParts.every(p=>p.layer===selectedPart.layer)" value="" disabled>Mixed layers</option>
-          <option v-for="layer in design.layers" :key="layer.id" :value="layer.id">{{ layer.name }}{{ layer.locked?' · locked':'' }}</option>
-        </select>
-        <button v-for="[axis,degrees] in [['x',90],['y',-15],['y',15],['y',90],['z',90]]" :key="axis+degrees" :aria-label="'Rotate about '+axis+' '+(degrees>0?'+':'')+degrees+'°'" @click="rotateSelected(axis,degrees)">{{ axis.toUpperCase() }} {{ degrees>0?'+':'' }}{{ degrees }}°</button>
-        <button :disabled="!selectedParts.some(p=>p.rotation)" @click="resetRotation">Reset rotation</button>
-        <button :disabled="!drillable(selectedPart)" :title="drillable(selectedPart)?'Open the drilling bench for '+selectedPart.name:'The drilling bench takes panels'" @click="openBench()">Drill…</button>
-        <button title="Ctrl/⌘+D" @click="duplicateSelectedPart">Duplicate selection</button><button title="Delete" @click="removeSelected">Delete selection</button>
-      </div>
-      <div v-if="menu" class="menu-backdrop" @pointerdown="menu=null" @contextmenu.prevent="menu=null"></div>
-      <div v-if="menu&&menuPart" ref="menuEl" class="piece-menu" role="menu" :aria-label="'Actions for '+menuPart.name" :style="{left:menu.x+'px',top:menu.y+'px'}">
-        <p class="menu-title">{{ selectedIds.length>1?selectedIds.length+' pieces':menuPart.name }}</p>
-        <button role="menuitem" :disabled="!drillable(menuPart)" :title="drillable(menuPart)?'':'The drilling bench takes panels'" @click="menuCommand(openBench)">Drill on the bench…</button>
-        <button role="menuitem" :disabled="!drillable(menuPart)" @click="menuCommand(()=>addFeature('drill'))">Add a drill hole</button>
-        <button role="menuitem" @click="menuCommand(duplicateSelectedPart)">{{ selectedIds.length>1?'Duplicate '+selectedIds.length+' pieces':'Duplicate piece' }}</button>
-        <button role="menuitem" :disabled="!selectedParts.some(p=>p.rotation)" @click="menuCommand(resetRotation)">Straighten (reset rotation)</button>
-        <button role="menuitem" class="danger-text" @click="menuCommand(removeSelected)">{{ selectedIds.length>1?'Delete '+selectedIds.length+' pieces':'Delete piece' }}</button>
-      </div>
-      <p v-if="!design" class="designer-empty">Start a design: an empty design, a box carcass, or one converted from the cabinet selected in the room.</p>
-      <p v-else class="designer-summary" data-testid="design-summary">{{ summary }}</p>
-      <p v-if="!webgl" class="designer-empty">3D preview needs WebGL; all editing panels still work.</p>
-    </section>
-    <DrillingBench v-if="benchPartId&&design" :design="design" :part-id="benchPartId" @drill="benchDrill" @remove="benchRemove" @close="closeBench" @message="say"/>
-    <aside class="designer-right" aria-label="Design properties">
-      <p v-if="selectedIds.length>1" class="hint">{{ selectedIds.length }} pieces selected. These properties edit the active piece, {{ selectedPart?.name }}; moving, turning, layers, materials, duplicating and deleting in the view apply to all of them.</p>
-      <DesignPartEditor v-if="selectedPart" :key="formKey" :part="selectedPart" :layers="design.layers" :feature-id="selection.featureId"
-        @update="updatePart" @convert="convertPart" @remove="removeSelected" @duplicate="duplicateSelectedPart" @add-feature="addFeature"
-        @select-feature="id=>selectFeature(selectedPart.id,id)" @update-feature="updateFeature" @remove-feature="removeSelected"/>
-      <p v-else-if="design" class="hint">Select a part in the view or the parts list to edit its shape, material, layer and machining.</p>
-      <DesignCncPanel v-if="plan" :key="'cnc'+formKey" :plan="plan" :cam="camResult" :design="design" @export="exportPlan" @select="selectIssue" @dxf="exportDxf" @gcode="exportGcode" @gcode-all="exportAllGcode" @update-cam="updateCam" @update-tool="updateTool" @update-stock="updateStock"/>
-    </aside>
+      <template #designs>
+        <p class="eyebrow">FURNITURE DESIGNER</p>
+        <label v-if="designs.length">Furniture design<select :value="activeId" aria-label="Furniture design" @change="activeId=$event.target.value"><option v-for="d in designs" :key="d.id" :value="d.id">{{ d.name }}</option></select></label>
+        <div class="design-row"><button @click="newDesign('empty')">New empty design</button><button @click="newDesign('box')">New box carcass</button></div>
+        <button :disabled="!cabinet" :title="cabinet?'Convert '+cabinet.name:'Select a cabinet in the room first'" @click="fromCabinet">Design from selected cabinet</button>
+        <template v-if="design">
+          <label>Design name<input :key="formKey+design.id" :value="design.name" maxlength="60" @change="rename"></label>
+          <button v-if="placeDesign" class="place-design" :disabled="!design.parts.length" title="Add this design to the room as furniture at the nearest free spot" @click="placeActive">Place in room{{ placedCount?' ('+placedCount+' placed)':'' }}</button>
+          <div class="design-row"><button @click="duplicateActive">Duplicate design</button>
+            <button v-if="!confirmDelete" @click="confirmDelete=true">Delete design</button><button v-else class="danger" @click="deleteActive">Confirm delete design</button></div>
+          <DesignPieceLibrary @add="addPiece"/>
+          <p class="eyebrow">PARTS · {{ design.parts.length }}</p>
+          <ul class="part-tree" aria-label="Parts">
+            <li v-for="part in design.parts" :key="part.id" :class="{hidden:!layerOf(part.layer).visible}">
+              <button :aria-pressed="selectedIds.includes(part.id)&&!selection.featureId" :class="{active:selection.partId===part.id}" :title="'Layer '+layerOf(part.layer).name+' · Shift/Ctrl-click to add to the selection'" @click="clickPart($event,part.id)"><span class="swatch" :style="{background:part.color}"></span>{{ part.name }}<small>{{ D.PIECE_FORMS[part.shape].short }}</small></button>
+              <ul v-if="part.features?.length"><li v-for="f in part.features" :key="f.id"><button :aria-pressed="selection.featureId===f.id" :aria-label="featureName(part,f)" :title="featureName(part,f)" @click="selectFeature(part.id,f.id)"><span class="swatch" :style="{background:layerOf(f.layer).color}"></span>{{ f.type }} · {{ f.face }} · {{ f.depth }} mm</button></li></ul>
+            </li>
+          </ul>
+        </template>
+        <p class="hint" data-testid="project-size">Project size {{ (projectBytes/1024).toFixed(1) }} of {{ maxBytes/1024 }} KiB. Designs are saved with the project.</p>
+      </template>
+      <template #layers>
+        <DesignLayers v-if="design" :key="'layers'+formKey" :layers="design.layers" :usage="usage" :active-layer-id="activeLayerId" :focus-layer-id="focusLayerId"
+          @add="layerCommands.add" @update="layerCommands.update" @remove="layerCommands.remove" @move="layerCommands.move" @activate="activeLayerId=$event" @focus="focusLayerId=$event"/>
+        <p v-if="!design" class="hint">Layers belong to a design: they set the machining order and what is shown.</p>
+      </template>
+      <template #properties>
+        <p v-if="selectedIds.length>1" class="hint">{{ selectedIds.length }} pieces selected. These properties edit the active piece, {{ selectedPart?.name }}; moving, turning, layers, materials, duplicating and deleting in the view apply to all of them.</p>
+        <DesignPartEditor v-if="selectedPart" :key="formKey" :part="selectedPart" :layers="design.layers" :feature-id="selection.featureId"
+          @update="updatePart" @convert="convertPart" @remove="removeSelected" @duplicate="duplicateSelectedPart" @add-feature="addFeature"
+          @select-feature="id=>selectFeature(selectedPart.id,id)" @update-feature="updateFeature" @remove-feature="removeSelected"/>
+        <p v-else-if="design" class="hint">Select a part in the view or the parts list to edit its shape, material, layer and machining.</p>
+      </template>
+      <template #cnc>
+        <DesignCncPanel v-if="plan" :key="'cnc'+formKey" :plan="plan" :cam="camResult" :design="design" @export="exportPlan" @select="selectIssue" @dxf="exportDxf" @gcode="exportGcode" @gcode-all="exportAllGcode" @update-cam="updateCam" @update-tool="updateTool" @update-stock="updateStock"/>
+        <p v-if="!plan" class="hint">The CNC plan and CAM programs of the design appear here.</p>
+      </template>
+    </BenchDesk>
+    <DrillingBench :taskbar="taskbar" :taskbar-active="onScreen" v-if="bench?.kind==='drill'&&design" :design="design" :part-id="bench.partId" @commit="benchCommit" @remove="benchRemove" @close="closeBench" @message="say"/>
+    <Workbench :taskbar="taskbar" :taskbar-active="onScreen" v-if="bench?.kind==='work'&&design" :design="design" :part-id="bench.partId" @commit="benchCommit" @open="kind=>openBench(bench.partId,kind)" @close="closeBench" @message="say"/>
+    <CuttingBench :taskbar="taskbar" :taskbar-active="onScreen" v-if="bench?.kind==='cut'&&design" :design="design" :part-id="bench.partId" @commit="benchCommit" @remove="benchRemove" @close="closeBench" @message="say"/>
   </div>
 </template>
 <style>
 /* Not scoped: these rules style the child panels too, namespaced under .designer. */
-.designer{position:relative;grid-column:1/-1;grid-row:2/-2;display:grid;grid-template-columns:270px minmax(0,1fr) 330px;min-height:0;border-top:1px solid #cdd5ca}
-.designer .designer-left,.designer .designer-right{padding:18px;overflow:auto;min-height:0}
-.designer .designer-left{border-right:1px solid #cdd5ca}.designer .designer-right{border-left:1px solid #cdd5ca}
-.designer .designer-stage{position:relative;min-width:0;min-height:0;background:#1b2f31}
+.designer{position:relative;grid-column:1/-1;grid-row:2;min-width:0;min-height:0}
+.designer .designer-stage{position:absolute;top:0;bottom:0;min-width:0;background:#1b2f31}
 .designer .designer-canvas{position:absolute;inset:0}
 .designer .designer-views{position:absolute;top:14px;left:14px;z-index:2;display:flex;flex-wrap:wrap;gap:2px;padding:4px;background:#f2f3eb;border-radius:8px}
 .designer .designer-views button{padding:6px 11px;border:0}.designer .designer-views button[aria-pressed=true]{background:#263e3c;color:#f2f3eb}
 .designer .tool-sep{width:1px;margin:2px 4px;background:#c9d3c8}
 .designer .tool-select{display:flex;align-items:center;gap:4px;margin:0 4px;font-size:10px;text-transform:none}.designer .tool-select select{margin:0;padding:3px;font-size:11px;width:auto}
-.designer .layers-overlay{position:absolute;top:14px;right:14px;z-index:3;width:300px;max-height:calc(100% - 120px);overflow:auto;padding:10px;background:#f2f3ebf2;border:1px solid #b9c6b9;border-radius:8px;box-shadow:0 6px 24px #001c2433}
 .designer .layers-head{display:flex;justify-content:space-between;align-items:center;gap:6px}.designer .layers-head .eyebrow{margin:0}.designer .layers-head button{font-size:10px;padding:3px 6px}
 .designer .layer-row{grid-template-columns:26px 26px 1fr auto}.designer .layer-flags{grid-column:1/5;display:flex;gap:8px;align-items:center}.designer .layer-flags button{font-size:10px;padding:2px 6px;margin-left:auto}
 .designer .layer-flags button[aria-pressed=true]{background:#263e3c;color:#f2f3eb}.designer .layer-row.focused{background:#e9eddd}
@@ -489,7 +522,6 @@ onBeforeUnmount(()=>{
 .designer .cnc-ready{color:#2e7d5b;font-weight:700}.designer .cnc-blocked{color:#8d2b19;font-weight:700}
 .designer .danger{background:#8d2b19;color:#fff}
 .designer .place-design{width:100%;margin:6px 0;background:#263e3c;color:#f2f3eb}
-@media(max-width:1100px){.designer{grid-template-columns:1fr;grid-template-rows:auto 420px auto}.designer .designer-left,.designer .designer-right{border:0}}
 .designer .colour-row{display:flex;gap:6px;align-items:flex-end}.designer .colour-row label{flex:1}.designer .colour-row input{height:34px;padding:2px}.designer .colour-row button{font-size:11px;margin-bottom:8px}
 .designer .menu-backdrop{position:absolute;inset:0;z-index:9}
 .designer .piece-menu{position:absolute;z-index:10;display:flex;flex-direction:column;min-width:200px;padding:4px;background:#f2f3eb;border:1px solid #9fb09f;border-radius:8px;box-shadow:0 8px 28px #001c2455}

@@ -134,24 +134,57 @@ with the reason and the room is unchanged. Walls are never removed implicitly: a
 edit that would shrink another wall to nothing is rejected instead. Each edit is one
 undo step. Corner dragging and endpoint edits keep opening offsets from end A, as before.
 
-### Full-screen editing
+### Top bar
 
-**Full screen** (in the view bar) turns the whole editor into a full-screen
-workspace: the 3D/Plan canvas fills the screen and the editing tools float over it.
-The header becomes a slim top bar with the usual project actions, and the sidebar
-becomes a translucent editor panel with **Furniture**, **Room & walls** and
-**Project** tabs. Selecting furniture or a wall switches to the matching tab. **Hide
-panel** and **Show panel** give the canvas the full width. The view bar, furniture
-toolbar, surfaces list, inspector and status line sit beside the panel. Everything
-is the same live editor as in the normal layout, so edits, selection, undo/redo and
-placement modes carry over when you switch.
+The top bar is one slim line (44 px) that never wraps. From left
+to right: the TerraTec mark, the **Room** / **Furniture designer** switch, the saved
+project (**Saved projects** list, **Open saved**, **Save project**), the workspace
+(**New**, **Duplicate**), files (**Import JSON**, **Export JSON**, **Export SVG**)
+and, at the right, a **● Unsaved** marker while there are unsaved changes,
+**History** and **Full screen**. When the window is too narrow, the bar scrolls
+sideways instead of growing over the workspace.
 
-TerraTec uses the browser Fullscreen API when it is available. Where the browser
-refuses it (for example inside an embedded frame), the editor fills the browser
-window instead and says so. **Exit full screen**, the browser's own Esc, or Escape
-with nothing selected and no placement in progress (first Escape clears a selection)
-returns to the normal layout. Resizing re-fits the camera, keeping an inspected item
-framed.
+### The studio as a desktop application
+
+TerraTec always fills the browser window, like a desktop application: the top bar,
+the desk in the middle and a taskbar at the bottom. On the desk, the
+canvas (the 3D/Plan room view, or the design view in the furniture designer) is
+the core of the view, with its own buttons over it (the view bar, the furniture
+toolbar and the surfaces list in the room; the view and tool bar and the selected
+piece's toolbar in the designer). The editors are windows around it:
+
+- Room: **Furniture** (docked left), **Room & walls** and **Project** (recovery,
+  SVG settings, project name and project manufacturing; both docked right).
+- Furniture designer: **Designs and parts** and **Machining layers** (left),
+  **Design properties** and **CNC and CAM** (right).
+
+A window standing against the left or right edge of the desk, at least 40 % of its
+height and at most 40 % of its width, is *docked*: the canvas gets the free middle
+instead of being covered, and re-fits when a docked window is moved, resized,
+minimised or brought back (when the drag ends, not at every step). Other windows float
+over the canvas. Windows behave as on the workshop benches (see *Bench windows*
+under the furniture designer): drag the title bar to move or snap them, drag an
+edge to resize, ◧ ◨ snap, ⧉ sends to the back, – minimises, □ maximises, and the
+arrow keys move a focused title bar.
+
+**Taskbar.** As on a Windows desktop, the bottom taskbar has a button for every
+window of the perspective on screen; minimised windows wait there. A small mark
+under a button shows an open window, a long bright one the window in front, and a
+minimised window's button is dimmed. A click brings a window forward (and back from
+minimised), or minimises it when it is already in front. **Reset layout** puts the
+windows back. The status message is at the right end of the taskbar. Each perspective keeps its layout in this
+browser. Selecting furniture brings the **Furniture** window forward, and selecting
+a wall (in the canvas or the surfaces list) brings **Room & walls** forward, also
+when they were minimised. On screens narrower than 760 px the windows start minimised so
+the canvas has the whole desk. While a workshop bench is open, the taskbar is the
+bench's: **Back to designer**, its view buttons, its windows, **Reset layout** and
+its readout.
+
+**Full screen** (in the top bar) shows the whole studio (top bar, desk and taskbar)
+full screen with the browser's Fullscreen API; **Exit full screen** or the
+browser's own Esc returns. Where the browser has no full screen or refuses it (for
+example inside an embedded frame), the studio keeps filling the window and says so.
+Resizing re-fits the camera, keeping an inspected item framed.
 
 ### Locking the walls
 
@@ -287,7 +320,7 @@ within 3 seconds (typing a name) updates the last version instead of adding one.
 Drags record one version when they finish. Previews, selection and camera moves
 are not versions.
 
-History in the header opens the version history:
+History in the top bar opens the version history:
 
 - **Jump back**: 5 min, 15 min, 1 h or 3 h ago, the oldest version, or *Go to
   time* with a date and time. Each shows the latest version at or before that time.
@@ -368,7 +401,7 @@ Pagination and printer-specific unprintable-area handling are not implemented.
 
 Add cabinet creates a cabinet at the room centre; Place cabinet switches to Plan
 and places one at a clicked position. Position follows the selected grid snapping.
-Select its footprint in Plan, a visible panel in 3D, or Furniture item in the sidebar.
+Select its footprint in Plan, a visible panel in 3D, or Furniture item in the Furniture window.
 Edit name, width/depth/height, X/Z position, rotation in degrees, panel thickness and
 shelf count, then Apply cabinet. Remove cabinet deletes the selected item.
 
@@ -759,8 +792,8 @@ applies after grid snapping and may produce off-grid coordinates; the actual
 preview position is shown explicitly. Snapped candidates still need to pass
 containment and overlap validation. Guides are non-pickable and transient.
 
-Use keyboard rotation during pointer placement; leaving the canvas to use sidebar
-controls cancels that mode. Numeric previews keep the sidebar rotation controls
+Use keyboard rotation during pointer placement; leaving the canvas to use window
+controls cancels that mode. Numeric previews keep the window's rotation controls
 and can be viewed in Plan or 3D. Guide alignment uses projected body bounds and
 does not imply door-swing, handle or shortest-distance clearance.
 
@@ -840,11 +873,13 @@ These are planning aids, not building-code checks.
 
 ### Furniture designer
 
-**Furniture designer** in the header switches the whole workspace from the room
+**Furniture designer** in the top bar switches the whole workspace from the room
 editor to a designer perspective in the same window; **Room** switches back. The
-room's view and selection are kept. The designer has a design and parts panel, a
-3D view with **Front**, **Top** and **Side** orthographic views, and a properties
-panel with layers and the CNC plan. Designs are measured in millimetres.
+room's view and selection are kept. The designer's canvas is the 3D view (with
+**Front**, **Top** and **Side** orthographic views); around it are the windows
+**Designs and parts**, **Machining layers**, **Design properties** and **CNC and
+CAM** (see *The studio as a desktop application*). Designs are measured in
+millimetres.
 
 Start with **New empty design**, **New box carcass** (a 600 × 720 × 560 mm carcass
 with shelf-pin holes and back-panel grooves) or **Design from selected cabinet**,
@@ -865,7 +900,7 @@ choosing a material sets the colour to the material colour.
 | Rectangular tube | length; section width × height, wall | steel and aluminium frames |
 | L-angle | length; leg width × height, wall | brackets, edge profiles |
 
-Each piece is edited on its own in the properties panel:
+Each piece is edited on its own in the **Design properties** window:
 
 - **Name, Piece form, material and colour.** The colour follows material changes
   until you choose a colour for the piece; **Use material colour** links it again.
@@ -932,7 +967,7 @@ space. Rotation turns a piece about its centre; its position stays the corner of
 the unrotated piece and its machining turns with it.
 
 **Piece menu.** Right-click a piece in the view (or press the Menu key or
-Shift+F10 for the active piece) for **Drill on the bench…**, **Add a drill hole**,
+Shift+F10 for the active piece) for **Drill on the bench…**, **Open the workbench…**, **Cut on the bench…**, **Add a drill hole**,
 **Duplicate piece**, **Straighten (reset rotation)** and **Delete piece**. With
 several pieces selected, duplicate and delete apply to all of them. A right-drag
 still pans the view; Escape or a click elsewhere closes the menu.
@@ -972,6 +1007,104 @@ with the drill above and a laser cross where the bit will go in.
 Bench holes are ordinary drill features: they appear in the design, the CNC plan,
 the NC programs and the DXF like holes added in the properties panel.
 
+**Cutting bench.** **Cut on the bench…** (piece menu) or **Cut…** (selection
+toolbar) opens the same kind of bench with an overhead saw and a router, for any
+piece. Pick a tool from the rack, position the piece by typing or by hand (click,
+drag, arrow keys with the hand step), and press the cut button (**Cut in two**,
+**Trim**, **Saw groove**, **Rout groove** or **Rout pocket**) or Enter. Both tools
+work from above, on the face that is up. A translucent box shows the material the
+tool will remove, red when the cut is not possible (the reason is shown).
+
+- **Saw blades:** 3.2 mm, thin-kerf 2.4 mm and dado sets of 6, 12 and 19 mm.
+  A **crosscut** goes across the length at a position along it; a **rip** (panels)
+  goes along the length at a position across the width. The kerf runs from the
+  cut position onward.
+  - **Through** (default) divides the piece: the part from 0 keeps its name and
+    ID, the rest becomes “name 2” (the next free number) in the same place, also
+    on turned pieces. If less than 1 mm would be left, the cut is a **trim**.
+    Holes go with the side they are on and a cut through a hole is refused;
+    grooves and pockets are cut with the piece. Bars, rods, tubes and angles are
+    crosscut only.
+  - With a **blade height** below the thickness (panels, face A or B up) the saw
+    cuts a groove the width of the kerf right across the face.
+- **Router bits:** straight bits Ø3 to Ø25 on panels. A **groove** runs from the
+  start to the end along the length or across it (whichever is nearer to that
+  line), the bit wide; a **pocket** has the start and end as opposite corners
+  and must be at least the bit wide both ways. By hand, drag across the piece to
+  draw the groove or pocket. A through groove from edge to edge is refused (it
+  would divide the panel; use the saw).
+- The bench lists the grooves and pockets on the face that is up, each with
+  **Remove**; each cut is one undo step.
+
+**Workbench.** **Open the workbench…** (piece menu) or **Workbench…** (selection
+toolbar) is the general carpenter's bench for any piece, with the drilling and
+cutting benches one click away (**Drilling bench…**, **Cutting bench…**). The red
+cross marks the working position; set it by typing, by clicking the piece,
+dragging it or with the arrow keys (hand step, Shift ×10). Enter uses the tool.
+
+The **tool chest** on the left holds the hand tools of a traditional hand-tool
+workshop, grouped as they are usually kept. Picking a tool puts it in hand with
+its own settings; tools whose work the design cannot show yet are listed (in
+italics) with the reason.
+
+| Group | Tools and what they do here |
+| --- | --- |
+| Measuring and marking | Folding rule and tape (distances from the cross); try square and marking knife (mark across or along through the cross); combination square, marking gauge and cutting gauge (a line a set distance from an edge or end); mortise gauge (both sides of a mortise); dividers (equal spacings); awl (a point). *Sliding bevel, winding sticks and straightedge* |
+| Saws | Crosscut and rip panel saws (1.6 mm kerf), carcass and tenon saws (0.9 mm), dovetail saw (0.6 mm): cut to length or width, offcut discarded or kept as “name 2”. *Coping saw* |
+| Planes | Jack plane (1 mm), smoothing plane (0.1 mm) and card scraper (0.05 mm) on the face up; jointer plane (0.5 mm) on an edge; block plane (0.5 mm) on an end; rabbet plane (rebates along an edge); plough plane (a groove along the grain, 3–12 mm irons, set from either edge); router plane (a groove or pocket to an exact depth, or a housing across the face); shoulder plane (trim a groove's or pocket's wall). Any side and amount can be chosen |
+| Chisels and boring | Bench, mortise and paring chisels (mortises and notches, widths per chisel); brace and auger bits (Ø6–25), hand drill (Ø2–8) and gimlet (Ø2–4): one hole at the cross, to a depth or through. *Mallet* |
+| Shaping and finishing | Finishing brush (stains and paints, previewed on the piece). *Spokeshave, rasps and files* |
+| Workholding and sharpening | Shooting board (square an end with a 0.2 mm pass). *Bench hook, vise and holdfasts, clamps, sharpening stones and strop* |
+
+The selection follows the essential hand-tool kit as commonly taught for
+hand-tool woodworking (for example by Shannon Rogers, The Renaissance Woodworker).
+It was compiled from general knowledge, not copied from a published list; check
+it against the source you follow.
+
+Planing keeps the piece in place (also turned) and machining follows the wood:
+holes, pockets and grooves on the planed face get shallower and are gone once
+planed away; through holes and grooves from the other face stay through; grooves
+and pockets running off a planed edge get shorter; planing that would cut into a
+hole is refused. At least 1 mm must remain. The brush changes the colour shown in
+the designer and the room, not the material (weight and price are unchanged).
+A see-through box shows what the saw, plane, chisel or rebate plane will remove,
+red with the reason when it is not possible. Each change is one undo step.
+
+**Bench windows.** All three benches work like a desktop. The 3D bench fills the
+whole screen as the background and resizes with it; the bench's panels are
+windows on top (Workbench: *Tool chest*, *Tool in hand*, *Layers*, *Help*; drilling
+bench: *Drill press*, *Holes on this face*, *Layers*, *Help*; cutting bench: *Saw
+and router*, *Grooves and pockets*, *Layers*, *Help*).
+
+- Windows overlap in layers: clicking a window brings it to the front; ⧉ sends it
+  behind the others; – minimises it to the taskbar.
+- Drag a title bar to move a window. Drag it to the left or right edge to snap it
+  to that half, to a corner for a quarter, or to the top edge to fill the desk
+  (a blue outline shows where it will go); dragging it away gives it back its own
+  size. ◧ and ◨ snap left and right, □ maximises (or double-click the title).
+- Drag any edge or corner to resize (at least 220 × 120 px). Windows always keep
+  their title bar on the desk, also when the browser window gets smaller; snapped
+  windows follow their half or quarter.
+- With a title bar focused (Tab), the arrow keys move the window by 10 px,
+  Shift+arrows resize it and Enter maximises it.
+- The desk code is shared with the room editor and the furniture designer (see
+  *The studio as a desktop application*).
+- The studio's taskbar at the bottom becomes the bench's: its own buttons (**Back
+  to designer**, the view), a button per window (brings it forward, or minimises it
+  when it is already in front), **Reset layout** and the bench's readout, with the
+  status message at the right.
+- Each bench keeps its window layout in this browser.
+
+The **Layers** window lists the design's layers: **Show** hides or shows a layer
+(hidden machining is not cut or drawn), and **New cuts go on** puts the next
+holes, grooves and pockets on a chosen layer instead of the layer for their
+operation. A cut on a layer whose CNC operation does not match is flagged in the
+CNC plan.
+
+Bench grooves and pockets are ordinary machining features, square-ended as the
+CNC plan models them; the NC programs cut them with the layer's tool, not the
+bench bit, so check the tool sizes under CAM settings.
+
 **Depth work.** Panels take machining features on face A (the positive side of the
 thickness axis) or face B (turned over): **drill holes** (centre and diameter),
 **pockets** and **grooves** (rectangles). Positions use the panel's own sheet frame:
@@ -991,7 +1124,7 @@ clicking into a hole or pocket selects that feature. Features on hidden layers a
 not cut. Cut-outs are computed per panel region and cached, so moving or turning a
 panel does not recompute them; a panel with 64 holes takes well under a second.
 
-**Layers.** The layer panel floats in the design view and can be hidden. Every part
+**Layers.** The layers are in the **Machining layers** window (and can be folded there). Every part
 and feature is on a layer with a name, colour, visibility, lock and CNC operation
 (profile, drill, pocket, groove or none). Make a layer **Active** to put new pieces
 on it (**Automatic layers** returns to choosing by type). **Focus** a layer to dim
@@ -1143,11 +1276,12 @@ server, not the production deployment setup.
 
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
 Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 180 kB for
-the entry, 400 kB for each JavaScript chunk, 860 kB for initial JavaScript and
-990 kB for all JavaScript apart from the furniture designer and the version-history
-panel, which must load lazily and have their own budgets (80 kB and 12 kB), measured
+the entry, 400 kB for each JavaScript chunk, 870 kB for initial JavaScript and
+1000 kB for all JavaScript apart from the furniture designer and the version-history
+panel, which must load lazily and have their own budgets (82 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
-The drilling bench is budgeted the same way (lazy, 25 kB).
+The workshop benches (workbench, drilling and cutting, with the code only they use)
+are budgeted the same way (lazy, 100 kB).
 `test-results/bundle-report.json` records raw/gzip sizes and initial versus lazy
 chunks. The default Vite size warning remains enabled. These checks do not claim
 that splitting alone reduces total downloads or guarantees faster rendering.

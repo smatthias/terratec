@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as D from './furniture-design-edit.mjs';
+import {drillHoles} from './bench-edits.mjs';
 import {benchFace,holeAt,holePosition,rowOfHoles,handPosition,benchTransform,BENCH_FACES,DRILL_BITS} from './drilling-bench.mjs';
 const ids=p=>{let n=0;return ()=>p+(++n);};
 const box=()=>D.createDesign({id:'box',name:'Box',template:'box',makeId:ids('b')});
@@ -48,15 +49,15 @@ test('rows, hand positions and drilling holes into the design',()=>{
   assert.deepEqual(handPosition(part,'A',{a:9999,b:7.3},0),{a:560,b:7.3});
   let design=box();const before=side(design).features.length;
   const holes=rowOfHoles({a:37,b:50},{count:3}).map(p=>holeAt(side(design),'A',{...p,diameter:5,depth:12}));
-  const result=D.drillHoles(design,side(design).id,holes,ids('h'));
+  const result=drillHoles(design,side(design).id,holes,ids('h'));
   assert.equal(side(result.design).features.length,before+3);assert.equal(result.featureIds.length,3);
   assert.ok(side(result.design).features.slice(-3).every(f=>f.type==='drill'&&f.layer===design.layers.find(l=>l.operation==='drill').id));
-  assert.throws(()=>D.drillHoles(design,side(design).id,[holeAt(side(design),'A',{a:2,b:50,diameter:8,depth:12})],ids('x')),/within the panel face/);
-  assert.throws(()=>D.drillHoles(design,side(design).id,[holeAt(side(design),'A',{a:50,b:50,diameter:8,depth:19})],ids('x')),/depth/);
-  const edge=D.drillHoles(design,side(design).id,[holeAt(side(design),'v1',{a:100,b:9,diameter:8,depth:30})],ids('e')).design;
+  assert.throws(()=>drillHoles(design,side(design).id,[holeAt(side(design),'A',{a:2,b:50,diameter:8,depth:12})],ids('x')),/within the panel face/);
+  assert.throws(()=>drillHoles(design,side(design).id,[holeAt(side(design),'A',{a:50,b:50,diameter:8,depth:19})],ids('x')),/depth/);
+  const edge=drillHoles(design,side(design).id,[holeAt(side(design),'v1',{a:100,b:9,diameter:8,depth:30})],ids('e')).design;
   assert.deepEqual(side(edge).features.at(-1),{id:'e1',type:'drill',face:'v1',layer:side(edge).features.at(-1).layer,u:100,v:720,t:9,depth:30,diameter:8});
   const bar=D.addPart(design,'bar',{makeId:ids('r')});
-  assert.throws(()=>D.drillHoles(bar.design,bar.partId,[{face:'A',u:1,v:1,diameter:5,depth:5}],ids('y')),/Only panels/);
+  assert.throws(()=>drillHoles(bar.design,bar.partId,[{face:'A',u:1,v:1,diameter:5,depth:5}],ids('y')),/Only panels/);
 });
 
 import {benchMatrix} from './drilling-bench.mjs';

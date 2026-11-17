@@ -31,7 +31,9 @@ try {
   start(['node_modules/vite/bin/vite.js',...(production?['preview']:[]),'--host','127.0.0.1','--port','5173','--strictPort']);
   await Promise.all([ready('http://127.0.0.1:3001/api/health'),ready('http://127.0.0.1:5173')]);
   browser = await chromium.launch({args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-  page = await browser.newPage({viewport:{width:1440,height:1000}});
+  // Full HD: with the editor windows docked at both sides, the canvas keeps about the
+  // size it had beside the old sidebar (the canvas clicks below project onto it).
+  page = await browser.newPage({viewport:{width:1920,height:1080}});
   const errors = [],assetRequests=[]; page.on('pageerror',error => errors.push(error.message));
   page.on('request',request=>{if(request.url().includes('/assets/'))assetRequests.push(request.url());});
   page.on('response',response=>{if(response.url().includes('/assets/')&&response.status()>=400)errors.push('Asset '+response.status()+': '+response.url());});
@@ -1345,7 +1347,31 @@ try {
   const benchRegion=page.getByRole('region',{name:'Drilling bench'});await benchRegion.waitFor();
   await benchRegion.getByRole('button',{name:'Drill',exact:true}).click();
   await page.locator('footer').getByText('Drilled Ø8 × 12 mm at u 280 · v 360',{exact:true}).waitFor();
-  await benchRegion.getByRole('button',{name:'Back to designer',exact:true}).click();await benchRegion.waitFor({state:'detached'});
+  // The bench's taskbar (Back to designer, its windows) is the studio's bottom taskbar.
+  const taskbar=page.locator('footer');
+  await taskbar.getByRole('button',{name:'Back to designer',exact:true}).click();await benchRegion.waitFor({state:'detached'});
+  // Cutting bench: saw the left side in two at the middle.
+  await page.keyboard.press('ContextMenu');
+  await page.getByRole('menuitem',{name:'Cut on the bench…',exact:true}).click();
+  const cutRegion=page.getByRole('region',{name:'Cutting bench'});await cutRegion.waitFor();
+  await cutRegion.getByLabel('Cut position',{exact:true}).fill('150');await cutRegion.getByLabel('Cut position',{exact:true}).press('Tab');
+  await cutRegion.getByRole('button',{name:'Cut in two',exact:true}).click();
+  await page.locator('footer').getByText('Cut Left side in two: 150 mm and 406.8 mm (3.2 mm kerf)',{exact:true}).waitFor();
+  await taskbar.getByRole('button',{name:'Back to designer',exact:true}).click();await cutRegion.waitFor({state:'detached'});
+  // Workbench: plane 1 mm off face A.
+  await page.keyboard.press('ContextMenu');
+  await page.getByRole('menuitem',{name:'Open the workbench…',exact:true}).click();
+  const workRegion=page.getByRole('region',{name:'Workbench'});await workRegion.waitFor();
+  await workRegion.getByRole('navigation',{name:'Hand tools'}).getByText('Planes',{exact:true}).click();
+  await workRegion.getByRole('button',{name:/^Jack plane/}).click();
+  await workRegion.getByRole('button',{name:'Plane off 1 mm',exact:true}).click();
+  await page.locator('footer').getByText('Jack plane (No. 5): 1 mm off face A of Left side',{exact:true}).waitFor();
+  // Windows on the desk: drag the tool window to the left edge to snap it to the left half, then reset the layout.
+  const toolWindow=workRegion.getByRole('region',{name:'Tool in hand'}),deskBox=await workRegion.boundingBox(),titleBox=await toolWindow.locator('header').boundingBox();
+  await page.mouse.move(titleBox.x+40,titleBox.y+12);await page.mouse.down();await page.mouse.move(deskBox.x+120,deskBox.y+200,{steps:6});await page.mouse.move(deskBox.x+2,deskBox.y+200,{steps:4});await page.mouse.up();
+  const snapped=await toolWindow.boundingBox();assert.ok(Math.abs(snapped.x-(deskBox.x+8))<=2&&snapped.width>deskBox.width/2-30,'the tool window snapped to the left half');
+  await taskbar.getByRole('button',{name:'Reset layout',exact:true}).click();
+  await taskbar.getByRole('button',{name:'Back to designer',exact:true}).click();await workRegion.waitFor({state:'detached'});
   await page.getByRole('button',{name:'Room',exact:true}).click();
   // ---- Version history: preview an earlier version read-only, keep the history across a reload (IndexedDB), restore.
   await page.getByRole('button',{name:'New',exact:true}).click();await page.locator('footer').getByText('New project',{exact:true}).waitFor();
