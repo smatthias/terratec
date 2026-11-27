@@ -210,7 +210,7 @@ watch(()=>project.value.room,room=>{dimensionDraft.value={width:room.width,depth
 const history=ref(createHistory(project.value.room)), dragging=ref(false), cornerHandles=ref([]);
 const roomHistories=createRoomHistories();
 function resetRoomHistory() {floorPlanOpen.value=false;roomHistories.clear();history.value=createHistory(project.value.room);}
-function changeRooms({project:next,label}) {
+function changeRooms({project:next,label,wall}) {
   if(editingLocked.value) return;
   try {
     next=validateProject(next);
@@ -218,6 +218,7 @@ function changeRooms({project:next,label}) {
     stopPlacementModes();exitInspection();selected.value=null;selectedOpeningId.value=null;
     project.value=next;
     history.value=roomHistories.load(next);
+    if(wall&&isWallId(next.room,wall)) selectSurface(wall);
     resetView();message.value=label;
   } catch(error) {message.value=error.message;}
 }

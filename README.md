@@ -216,6 +216,31 @@ and timeline restoration retain placement. The overview is lazy-loaded and pause
 the local WebGL render loop while open. Local room exports retain local coordinates;
 combined floor-plan export and shared walls/openings remain future work.
 
+### Shared-wall adjacency candidates
+
+The floor-plan overview highlights candidate shared wall spans in cyan. The
+**Shared-wall candidates** register identifies both rooms and stable wall IDs,
+shared length and common height. **Inspect … wall** selects that room and brings
+its wall controls forward; the chosen span is highlighted in amber. Heights are
+measured from the current common floor plane (zero); differing room heights are
+reported explicitly.
+
+Detection uses transformed wall segments and requires opposite directions,
+normalized cross-product magnitude at most 0.0000001, both endpoints within
+0.00001 m of the other's wall line, and overlapping length greater than
+0.00001 m. It rejects corner-only contacts, gaps beyond tolerance and room pairs
+with overlapping interiors. Partial spans and rotated rooms are supported. Each
+side records its interval in metres from that wall's local A endpoint, ready for
+explicit opening alignment in a later increment.
+
+Candidates recompute after geometry, placement or naming edits. Their keys use
+room/wall identities and are independent of collection order. This is derived
+read-only information and introduces no new schema. It does not merge wall
+meshes, change quantities, snap geometry or create/link doors and windows.
+Coincident room interior boundary lines are a planning hint, not proof of a shared
+physical wall: wall thickness, material, structural compatibility, elevation and
+accessibility remain outside this check.
+
 ### Wall construction
 
 Rooms are built from their walls (`shared/room-construction.mjs`): every wall is
@@ -1558,7 +1583,7 @@ server, not the production deployment setup.
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
 Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 190 kB for
 the entry, 400 kB for each JavaScript chunk, 875 kB for initial JavaScript and
-1020 kB for all JavaScript apart from the furniture designer and the version-history
+1025 kB for all JavaScript apart from the furniture designer and the version-history
 panel, which must load lazily and have their own budgets (82.5 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
 The workshop benches (workbench, drilling and cutting, with the code only they use)
