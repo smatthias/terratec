@@ -1,7 +1,8 @@
 <script setup>
 // Machining plan, CAM settings (per design), tools (per machining layer) and exports.
-import {computed} from 'vue';
+import {defineAsyncComponent,computed} from 'vue';
 import {CAM_DEFAULTS,TOOL_DEFAULTS,POSTS} from '../shared/design-cam.mjs';
+const MachineLimitsPanel=defineAsyncComponent(()=>import('./MachineLimitsPanel.vue'));
 const props=defineProps({plan:{type:Object,required:true},cam:{type:Object,default:null},design:{type:Object,required:true}});
 const emit=defineEmits(['export','select','dxf','gcode','gcode-all','update-cam','update-tool','update-stock','machine']);
 const stock=computed(()=>({stockLengthMm:2440,stockWidthMm:1220,stockTrimMm:0,stockKerfMm:3,stockAllowRotation:true,...props.design.stock}));
@@ -10,7 +11,7 @@ const machining=computed(()=>props.design.layers.filter(l=>l.operation!=='none')
 const TOOL_FIELDS=[['diameter','Ø mm',.1],['feed','Feed',10],['plunge','Plunge',10],['rpm','rpm',500],['stepdown','Step mm',.5]];
 // Empty fields clear the setting, falling back to the default for the operation.
 const value=event=>event.target.value===''?null:Number(event.target.value);
-const issues=computed(()=>[...(props.plan.issues??[]),...(props.cam?.issues??[]).filter(i=>i.code==='TOOL_TOO_LARGE'||i.code==='TABS')]);
+const issues=computed(()=>[...(props.plan.issues??[]),...(props.cam?.issues??[]).filter(i=>i.code==='TOOL_TOO_LARGE'||i.code==='TABS'||i.code.startsWith('MACHINE_'))]);
 const set=(key,v)=>emit('update-cam',{[key]:v});
 const ready=computed(()=>props.plan.ready&&!!props.cam?.ready);
 </script>
@@ -56,6 +57,7 @@ const ready=computed(()=>props.plan.ready&&!!props.cam?.ready);
         </div>
         <p class="hint">When the design is placed in the room, its panels are nested on these sheets with cabinet panels of the same material, thickness and stock, and its bars, rods and tubes are listed as a profile cut list. Both feed workshop jobs and quotes.</p>
       </details>
+      <MachineLimitsPanel :settings="settings" @update="emit('update-cam',$event)"/>
       <div class="design-row">
         <button v-if="cam?.programs.length" class="primary" title="Run the NC programs on the CNC machine, with its tool rack and a simulated cut" @click="emit('machine',cam.programs[0].partId,cam.programs[0].face)">Run on the CNC machine</button>
         <button @click="emit('dxf')">Export DXF</button>

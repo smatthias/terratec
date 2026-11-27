@@ -1346,6 +1346,12 @@ try {
   // ---- Furniture designer: the lazy designer and CAM export chunks load; a Fanuc program downloads.
   await page.getByRole('button',{name:'Furniture designer',exact:true}).click();
   await page.getByRole('button',{name:'New box carcass',exact:true}).click();await page.locator('footer').getByText('Box carcass design created',{exact:false}).waitFor();
+  await page.getByText('Machine limits',{exact:true}).click();
+  await page.getByLabel('Enforce machine limits',{exact:true}).check();await page.locator('footer').getByText('CAM settings updated',{exact:true}).waitFor();
+  await page.getByText('Machine limits',{exact:true}).click();
+  await page.getByLabel('Machine Maximum feed mm/min',{exact:true}).fill('100');await page.getByLabel('Machine Maximum feed mm/min',{exact:true}).dispatchEvent('change');
+  await page.getByTestId('cnc-issues').filter({hasText:'machine limit'}).waitFor();assert.equal(await page.getByRole('button',{name:'Export NC program (all panels)',exact:true}).isDisabled(),true);
+  await page.getByText('Machine limits',{exact:true}).click();await page.getByLabel('Enforce machine limits',{exact:true}).uncheck();await page.locator('footer').getByText('CAM settings updated',{exact:true}).waitFor();
   await page.getByText('CAM settings and tools',{exact:true}).click();
   await page.getByLabel('Post-processor',{exact:true}).selectOption('fanuc');await page.locator('footer').getByText('CAM settings updated',{exact:true}).waitFor();
   const ncPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export NC program (all panels)',exact:true}).click();

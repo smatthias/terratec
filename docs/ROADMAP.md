@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **approximately 68% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
+Overall: **approximately 69% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
 
 | Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
@@ -10,7 +10,7 @@ Overall: **approximately 68% across the full roadmap** (equal-weight mean of mil
 | Building design | 75% | Shared floor plan, linked openings and whole-building quantities with overlap handling | Building-level drawings and export |
 | Interiors and furniture | 88% | Cabinet editing, furniture designer, placement tools, cutting/drilling benches, workbench and material rendering | Verify complete editing workflows |
 | Drawings and exchange | 88% | Combined SVG, A4/A3 sheets and numbered tiled HTML with 10 mm overlaps | Browser verification of tiled output and alignment |
-| Manufacturing | 88% | Parts, nesting, stock pricing, handoff validation and a simulated CNC machine that runs the exported NC programs with a tool rack | Machine-specific constraints |
+| Manufacturing | 90% | Persisted machine limits block incompatible panel and combined NC exports | Machine setup and fixture validation |
 | Distributed production | 75% | Workshop assignment and fulfilment tracking | Workshop capacity planning |
 | Customer and business tools | 70% | Customers, quotes, pricing presets and backups | Billing exchange |
 | Assisted design | 0% | Not implemented | Structured design commands |
@@ -33,3 +33,5 @@ Next verification step: run `npm run test:browser:production` with an installed,
 Release follow-up: startup checks and configuration validation. Storage diagnostics now probe writes and validate project files, and unreadable project records return actionable HTTP 422 feedback without being overwritten. Synthetic schema 1–12 fixtures now verify normalization without rewriting source files, explicit-save upgrade preserving IDs and rejected future-version overwrites. Historical release binaries and job/customer cross-version migrations remain unverified.
 
 Startup diagnostics increment (27 November 2026): 471 Node tests and all extracted-package recovery checks passed locally. Corrected a duplicate variable declaration in the new tiled-output browser test; `node --check scripts/browser-smoke.mjs` now passes. Remote browser verification of this revision is pending. Startup validates port/path configuration, runs a bounded native-core sample, checks the production entry and probes storage. Corrupt records warn without preventing recovery. Next: machine-specific manufacturing constraints after CI verification.
+
+Machine-limit increment: 475 Node tests pass, production build and bundle checks pass. Machine settings load in a separate lazy component. Designer budget is 85 kB (actual 83.5 kB); total allowance is 1065 kB (actual 1060.1 kB). Entry and initial limits remain 195/880 kB (actual 193.8/879.9 kB). Browser coverage enables limits, verifies blocked NC export and disables them again. CI verification is pending. The preceding startup/tiled-output revision passed both complete CI runs. Next increment: workshop capacity planning.

@@ -1,3 +1,4 @@
+import {machineLimitIssues} from './machine-limit-checks.mjs';
 // CAM toolpaths for furniture designs: 3-axis machining per panel face, built on
 // the machining plan (design-cnc.mjs). Machine output (G-code dialects, Heidenhain
 // and DXF) is written by cam-export.mjs, which loads on first export.
@@ -154,6 +155,7 @@ export function camPlan(input) {
       programs.push({partId:part.partId,name:part.name,face,material:part.materialLabel,sheet:part.sheet,blocks,tabs,edgeHoles:face==='A'?part.operations.filter(op=>op.edge).length:0});
     }
   }
+  issues.push(...machineLimitIssues(programs,cam.machine));
   return {cam,tools,programs,issues:[...plan.issues.filter(i=>i.severity==='error'),...issues],ready:plan.ready&&!issues.some(i=>i.severity==='error')};
 }
 

@@ -1,3 +1,4 @@
+import {validateMachineLimits} from './machine-limits.mjs';
 // Furniture designer model. Designs are measured in millimetres, the CNC unit.
 //
 // World axes match room cabinets: x to the right, y up, z toward the front. Each
@@ -124,6 +125,7 @@ function validateTool(tool) {
 function validateCam(cam) {
   if(!cam||typeof cam!=='object'||Array.isArray(cam)) throw Error('CAM settings are invalid');
   const out={};
+  if(cam.machine!==undefined)out.machine=validateMachineLimits(cam.machine);
   if(cam.post!==undefined) {if(!CAM_POSTS.includes(cam.post)) throw Error('Choose a listed post-processor');out.post=cam.post;}
   const choice=(key,values,label)=>{if(cam[key]!==undefined) {if(!values.includes(cam[key])) throw Error(label);out[key]=cam[key];}};
   const whole=(key,min,max,label)=>{if(cam[key]!==undefined) {if(!Number.isInteger(cam[key])||cam[key]<min||cam[key]>max) throw Error(label);out[key]=cam[key];}};

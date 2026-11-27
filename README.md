@@ -1785,3 +1785,17 @@ beside the app. The storage probe can create a missing data directory.
 Corrupt existing records are reported but do not stop the recovery UI from starting
 when storage remains writable. The diagnostics command exits with code 1 for either
 errors or warnings. Saved records are never repaired or overwritten by these checks.
+
+### Machine-specific CAM limits
+
+In the furniture designer, open **Machine limits** and enable enforcement. Enter
+XY travel, the panel-corner work offset, work-relative Z limits, maximum feed,
+spindle speed and cutter diameter for your setup. Values persist with the design.
+Exceeding a limit adds a part-specific CAM error and blocks the affected panel's
+NC export and the combined export. Disabling enforcement restores neutral CAM.
+
+XY checks include the panel and cutter envelope, with conservative full-circle
+bounds for arcs. Feed checks include plunge rates; depth includes through allowance.
+These are user-entered planning limits, not manufacturer presets. Clamp/holder
+collisions, controller configuration and tool-change motions are excluded. The CNC
+simulation retains its separate fixed machine setup.
