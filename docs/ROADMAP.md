@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **approximately 74% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
+Overall: **approximately 75% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
 
 | Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
@@ -14,7 +14,7 @@ Overall: **approximately 74% across the full roadmap** (equal-weight mean of mil
 | Distributed production | 80% | Persistent daily sheet capacity, active due-date reservations and proposed assignment previews | Working calendars and duration estimates |
 | Customer and business tools | 78% | Accepted-quote billing JSON/CSV with exact amounts, provenance and deduplication keys | Receiving-system adapters and import receipts |
 | Assisted design | 15% | Bounded JSON furniture commands with preview, validation and atomic undo | Proposal adapters and additional operations |
-| TerraFlux integration | 35% | Isolated receiver scene preview with explicit placement, camera controls and reference compatibility fixtures | Material mapping and simulation handoff validation |
+| TerraFlux integration | 45% | Explicit material registry, scoped mappings and validated reference handoff export | Round-trip handoff verification and engine adapter acceptance |
 | Release readiness | 70% | Startup checks shared by development and packaged releases, recovery-safe warnings and configuration validation | Broader platform validation |
 
 This iteration adds a platform archive containing the production frontend, API and native executable. Node.js is required on the target; npm dependencies, Vite and a compiler are not. CI uploads a Linux x64 archive. Other operating systems and Linux distributions remain unverified.
@@ -47,3 +47,5 @@ TerraFlux contract increment: PR #3 was confirmed merged into main at 1a5093b; d
 Reference receiver increment: 504 Node tests pass. Frozen v1 fixtures check triangle counts, transformed bounds and normals independently of current export generation. Reference conversion verifies source integrity, triangulates surface apertures and furniture bounds, preserves scoped links and supports explicit rigid placement; overlapping rooms require opt-in. Browser/CLI checks remain local and do not connect a physics engine. Production build and packaged recovery pass. Total bundle allowance is 1095 kB (1090 kB before), actual 1092.4 kB; entry 194.8 kB and initial 881.0 kB remain within unchanged ceilings. Production browser CI is pending. Next increment: receiver scene preview and placement controls.
 
 Receiver-preview increment: 508 Node tests pass, including mesh topology/normals, camera framing, large-offset precision and geometry/material disposal. The lazy isolated 3D preview supports explicit X/Y/Z/yaw, fit, ceilings and wireframe; invalid placement retains the last valid scene. Preview settings do not change the project or file. Production build and packaged recovery checks pass. Total bundle allowance is 1105 kB (1095 kB before), actual 1098.4 kB; entry/initial remain 194.8/881.0 kB within unchanged ceilings. Browser rendering, placement, rejection and workspace-isolation checks are pending CI. Live simulation remains disconnected. Next increment: material mapping and simulation handoff validation.
+
+Material-handoff increment: 513 Node tests pass, including explicit physical-value validation, reference binding, missing mappings, geometry acknowledgements, scoped overrides and mixed-material designs. Export revalidates source geometry and mappings, includes the original model, and infers no mass. Production build and packaged recovery pass. The lazy panel raises the total budget to 1115 kB (1105 kB before); measured 1107.1 kB before final source-model inclusion. Entry/initial remain within unchanged limits. Browser blocked/valid handoff download checks are pending CI. Live simulation is disconnected; solver-specific material acceptance remains pending. Next increment: read-only round-trip handoff verification.

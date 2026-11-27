@@ -1863,3 +1863,12 @@ explicit opt-in. A source-checkout CLI is available through `npm run check:terra
 Set receiver X/Y/Z and yaw, apply the placement, toggle ceilings or wireframe, and
 fit the camera. These controls do not alter the project or exchange file. Invalid
 placement keeps the last valid preview; closing releases its rendering resources.
+
+### Simulation material mapping
+
+After verifying a TerraFlux model, open **Simulation material mapping**. Enter
+user-supplied target materials and map source IDs or scoped furniture overrides.
+Validation reports missing/unknown mappings and requires explicit acknowledgement
+of zero-thickness surfaces and bounding-box furniture. Export includes the original
+model, reference scene, mapping and validation; it never starts a solver or infers
+mass. See [Reference simulation handoff v1](docs/SIMULATION_HANDOFF.md).
