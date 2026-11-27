@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **approximately 71% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
+Overall: **approximately 72% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
 
 | Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
@@ -14,7 +14,7 @@ Overall: **approximately 71% across the full roadmap** (equal-weight mean of mil
 | Distributed production | 80% | Persistent daily sheet capacity, active due-date reservations and proposed assignment previews | Working calendars and duration estimates |
 | Customer and business tools | 78% | Accepted-quote billing JSON/CSV with exact amounts, provenance and deduplication keys | Receiving-system adapters and import receipts |
 | Assisted design | 15% | Bounded JSON furniture commands with preview, validation and atomic undo | Proposal adapters and additional operations |
-| TerraFlux integration | 0% | Not implemented | Model exchange contract |
+| TerraFlux integration | 15% | Versioned geometry export, source hashes and read-only integrity verification | Receiver adapter and end-to-end compatibility checks |
 | Release readiness | 70% | Startup checks shared by development and packaged releases, recovery-safe warnings and configuration validation | Broader platform validation |
 
 This iteration adds a platform archive containing the production frontend, API and native executable. Node.js is required on the target; npm dependencies, Vite and a compiler are not. CI uploads a Linux x64 archive. Other operating systems and Linux distributions remain unverified.
@@ -41,3 +41,5 @@ Workshop capacity increment: 482 Node tests pass, including aggregation, persist
 Billing exchange increment: 487 Node tests pass, including saved-snapshot integrity, exact reconciliation, currency handling, profile/edging rounding, repeat exports and CSV formula protection. A lazy panel exports accepted saved quotes; unsaved form changes are excluded. Export keys survive job-backup restoration by using the preserved quote UUID. The generic v1 adapter contract is documented in BILLING_EXCHANGE.md. No invoice, tax or payment record is created. Total JavaScript allowance is 1078 kB (1070 kB before); actual total 1074.8 kB before final build. Initial/entry limits remain unchanged. Browser download verification is pending; the preceding capacity revision passed both CI runs. Next increment: structured assisted-design commands.
 
 Structured-command increment: 493 Node tests pass, including atomic swaps, failure isolation, stale/tampered preview rejection, strict input limits, active-room isolation, locked shells and one-step undo/redo. The command panel is lazy; no language model or external service is connected. Production build passes with entry 194.5 kB and initial 880.6 kB. Initial allowance is 882 kB (880 kB before); entry remains 195 kB. Total allowance is 1085 kB (1078 kB before), actual 1081.8 kB. Browser coverage previews without mutation, rejects stale application and checks exported model state across undo/redo. Remote CI verification is pending; the preceding billing revision passed both full CI runs. Next increment: TerraFlux model exchange contract.
+
+TerraFlux contract increment: PR #3 was confirmed merged into main at 1a5093b; development stays on feature/toolset. This increment adds TerraTec-side geometry exchange only. 499 Node tests pass, covering transformed world coordinates, polygon winding, opening cutouts, scoped links, placed-design metre conversion and tamper rejection. Build, bundle and package recovery checks pass. Lazy export/verifier UI adds a 1090 kB total allowance (1085 kB before); actual 1087.6 kB, entry 194.8 kB, initial 880.9 kB. Entry/initial ceilings remain 195/882 kB. Browser export/read-only verification tests are pending CI. No TerraFlux receiver or simulation is connected. Next increment: receiver adapter fixtures and compatibility checks.

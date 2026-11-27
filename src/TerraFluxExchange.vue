@@ -1,0 +1,15 @@
+<script setup>
+import {ref} from 'vue';
+import {exportTerraFluxModel,verifyTerraFluxModel,MAX_TERRAFLUX_MODEL_BYTES} from '../shared/terraflux-model.mjs';
+const props=defineProps({project:{type:Object,required:true},disabled:Boolean}),busy=ref(false),message=ref('');
+async function run(action){if(busy.value)return;busy.value=true;try{await action();}catch(error){message.value=error.message;}finally{busy.value=false;}}
+const exportModel=()=>run(async()=>{
+ const source=JSON.parse(JSON.stringify(props.project)),text=await exportTerraFluxModel(source),url=URL.createObjectURL(new Blob([text],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download=(source.name.replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,70)||'terratec')+'_terraflux-model.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);message.value='TerraFlux model snapshot exported';
+});
+function verifyFile(event){const file=event.target.files?.[0];event.target.value='';if(!file)return;return run(async()=>{if(file.size>MAX_TERRAFLUX_MODEL_BYTES)throw Error('TerraFlux model exceeds 2 MiB');const model=await verifyTerraFluxModel(await file.text());message.value='Verified TerraFlux model: '+model.source.project.name+' · '+model.rooms.length+' rooms · '+model.rooms.reduce((n,r)=>n+r.furniture.length,0)+' furniture bounds · '+model.overlaps.length+' overlapping room pairs. Workspace unchanged.';});}
+</script>
+<template>
+  <section aria-label="TerraFlux model exchange"><h3>TerraFlux model exchange</h3><p class="hint">Export all rooms in project-local metres, right-handed coordinates with Y up. Openings cut the wall planes; furniture uses oriented bounding boxes. Shared boundaries remain separate. No geographic location, physical properties or simulation parameters are inferred. A receiving TerraFlux adapter is still required.</p>
+    <button :disabled="busy||disabled" @click="exportModel">Export TerraFlux model JSON</button><label>Verify TerraFlux model file<input :disabled="busy" type="file" accept=".json,application/json" @change="verifyFile"></label><p class="hint">Verification checks the saved source and derived geometry without importing or changing the workspace. Maximum 2 MiB. Hashes detect altered data; they do not authenticate its author.</p><p data-testid="terraflux-message" role="status">{{ message }}</p>
+  </section>
+</template>

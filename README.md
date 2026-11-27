@@ -1840,3 +1840,15 @@ the active room. The preview shows before/after values; valid batches apply as
 one undo step. Changes after preview require a new preview. No language model or
 external service is connected. See [Design commands v1](docs/DESIGN_COMMANDS.md)
 for the bounded request format and supported operations.
+
+### TerraFlux model exchange
+
+Open **TerraFlux model exchange** in Project to export all rooms or verify an
+exchange file without importing it. The versioned contract carries transformed
+wall/floor/ceiling planes, opening voids, furniture bounds and source hashes in
+project-local metres with Y up. It reports overlapping rooms and preserves linked
+opening references. Geographic placement and physical simulation parameters are
+unset. The receiving TerraFlux adapter is still pending.
+
+See [TerraFlux model contract v1](docs/TERRAFLUX_MODEL.md) for coordinates, geometry,
+provenance, validation and receiving-adapter requirements.
