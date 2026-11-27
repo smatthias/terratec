@@ -1,5 +1,5 @@
 <script setup>
-import {computed,ref,defineAsyncComponent} from 'vue';
+import {computed,ref,shallowRef,watch,defineAsyncComponent} from 'vue';
 import {openingConnectionSegments} from '../shared/opening-connections.mjs';
 const OpeningConnections=defineAsyncComponent(()=>import('./OpeningConnections.vue'));
 const BuildingQuantities=defineAsyncComponent(()=>import('./BuildingQuantities.vue'));
@@ -11,13 +11,25 @@ const emit=defineEmits(['change','close']);
 const layout=computed(()=>floorPlanLayout(roomEntries(props.project))),active=computed(()=>activeRoomId(props.project));
 const adjacencies=computed(()=>roomAdjacencies(roomEntries(props.project))),focused=ref(null);
 const connected=computed(()=>openingConnectionSegments(roomEntries(props.project),props.project.openingLinks));
-const exportScale=ref(0),exporting=ref(false),exportError=ref('');
+const exportScale=ref(0),exporting=ref(false),exportError=ref(''),paperSize=ref('auto'),paperOrientation=ref('landscape'),svgTools=shallowRef(null);
+let svgToolsPromise;
+function loadSvgTools() {
+  if(!svgToolsPromise) svgToolsPromise=import('../shared/building-plan-svg.mjs').then(module=>{svgTools.value=module;return module;}).catch(error=>{svgToolsPromise=null;throw error;});
+  return svgToolsPromise;
+}
+watch(paperSize,paper=>{if(paper!=='auto')loadSvgTools().catch(error=>{exportError.value=error.message;});});
+const sheetFeedback=computed(()=>{
+  if(paperSize.value==='auto') return null;
+  if(!svgTools.value) return {pending:true};
+  try {return svgTools.value.buildingPlanSheetLayout(props.project,{scale:exportScale.value||null,paper:paperSize.value,orientation:paperOrientation.value});}
+  catch(error) {return {fits:false,error:error.message};}
+});
 async function exportSvg() {
-  const source=JSON.parse(JSON.stringify(props.project)),scale=exportScale.value||null;
+  const source=JSON.parse(JSON.stringify(props.project)),options={scale:exportScale.value||null,paper:paperSize.value,orientation:paperOrientation.value};
   exporting.value=true;
   try {
-    const {exportBuildingPlanSvg}=await import('../shared/building-plan-svg.mjs');
-    const url=URL.createObjectURL(new Blob([exportBuildingPlanSvg(source,{scale})],{type:'image/svg+xml;charset=utf-8'})),link=document.createElement('a');
+    const {exportBuildingPlanSvg}=await loadSvgTools();
+    const url=URL.createObjectURL(new Blob([exportBuildingPlanSvg(source,options)],{type:'image/svg+xml;charset=utf-8'})),link=document.createElement('a');
     link.href=url;link.download=(source.name.replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,70)||'terratec')+'_building-plan.svg';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);exportError.value='';
   }catch(error){exportError.value=error.message;}finally{exporting.value=false;}
 }
@@ -28,7 +40,8 @@ function select(id) {if(!props.disabled) emit('change',{project:switchProjectRoo
 </script>
 <template>
   <section class="floor-plan-overview" aria-label="Building floor plan">
-    <div class="floor-plan-toolbar"><strong>Floor plan · {{ layout.rooms.length }} rooms</strong><label>SVG print scale<select v-model.number="exportScale"><option :value="0">Unscaled</option><option v-for="scale in [20,50,100,200]" :key="scale" :value="scale">1:{{ scale }}</option></select></label><button :disabled="exporting" @click="exportSvg">Export building plan SVG</button><button @click="emit('close')">Back to room</button></div>
+    <div class="floor-plan-toolbar"><strong>Floor plan · {{ layout.rooms.length }} rooms</strong><label>SVG print scale<select v-model.number="exportScale" aria-label="Building SVG print scale"><option :value="0">Unscaled</option><option v-for="scale in [20,50,100,200]" :key="scale" :value="scale">1:{{ scale }}</option></select></label><label>Paper size<select v-model="paperSize" aria-label="Building SVG paper size"><option value="auto">Drawing bounds</option><option value="A4">A4</option><option value="A3">A3</option></select></label><label v-if="paperSize!=='auto'">Orientation<select v-model="paperOrientation" aria-label="Building SVG orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></label><button :disabled="exporting || (sheetFeedback && (sheetFeedback.pending || !sheetFeedback.fits))" @click="exportSvg">Export building plan SVG</button><button @click="emit('close')">Back to room</button></div>
+    <div v-if="sheetFeedback" class="building-sheet-fit" data-testid="building-sheet-fit" role="status"><span v-if="sheetFeedback.pending">Checking building sheet…</span><span v-else-if="sheetFeedback.error">{{ sheetFeedback.error }}</span><template v-else><strong>{{ sheetFeedback.fits?'Building plan fits':'Building plan does not fit' }} {{ paperSize }} {{ paperOrientation }} at 1:{{ exportScale }}.</strong><span>Drawing {{ sheetFeedback.requiredWidth.toFixed(1) }} × {{ sheetFeedback.requiredHeight.toFixed(1) }} mm; usable {{ sheetFeedback.usableWidth }} × {{ sheetFeedback.usableHeight }} mm.</span><button v-if="!sheetFeedback.fits && sheetFeedback.suggestedScale" @click="exportScale=sheetFeedback.suggestedScale">Use suggested scale 1:{{ sheetFeedback.suggestedScale }}</button></template></div>
     <p v-if="exportError" role="alert">{{ exportError }}</p>
     <p class="floor-plan-note">Room footprints · metres · select a room, then edit its placement in Room &amp; walls. Overlaps are advisory. Cyan: candidate walls. Green: linked openings. Wall meshes remain independent.</p>
     <svg :viewBox="layout.viewBox" class="floor-plan-map" role="group" aria-label="Room footprints">
@@ -50,4 +63,5 @@ function select(id) {if(!props.disabled) emit('change',{project:switchProjectRoo
 .floor-plan-overview{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;background:#edf1e8;color:#263e3c;padding:12px;overflow:auto}.floor-plan-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}.floor-plan-note,.floor-plan-feedback{font-size:12px;line-height:1.5}.floor-plan-map{flex:1;min-height:240px;width:100%;background:#f9faf5}.floor-plan-map polygon{fill:#dbe5d4;stroke:#607d70}.floor-plan-map g{cursor:pointer}.floor-plan-map g.overlap polygon{fill:#edcfc3;stroke:#a04430}.floor-plan-map g.active polygon,.floor-plan-map g:focus polygon{stroke:#126e83;stroke-width:3px;vector-effect:non-scaling-stroke}.floor-plan-map text{text-anchor:middle;dominant-baseline:middle;fill:#263e3c;pointer-events:none}.floor-plan-feedback ul{margin:4px 0;padding-left:20px;max-height:80px;overflow:auto}
  .shared-wall-spans{pointer-events:none}.shared-wall-spans line{stroke:#087e94;stroke-width:3px;vector-effect:non-scaling-stroke}.shared-wall-spans line.focused{stroke:#b56500;stroke-width:5px}.adjacency-register{font-size:12px}.adjacency-register h3{font-size:13px;margin:8px 0}.adjacency-register ul{padding:0;list-style:none;max-height:140px;overflow:auto}.adjacency-register li{padding:8px;border:1px solid #bbc7bd;margin:4px 0}.adjacency-register li.focused{border-color:#b56500}.adjacency-register span{display:block;margin:4px 0}.adjacency-register button{font-size:11px;padding:5px;margin-right:6px}
 .connected-opening-spans{pointer-events:none}.connected-opening-spans line{stroke:#278130;stroke-width:7px;vector-effect:non-scaling-stroke}
+.building-sheet-fit{font-size:12px;padding:8px;border:1px solid #bbc7bd}.building-sheet-fit span{display:block;margin-top:4px}
 </style>

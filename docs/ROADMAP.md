@@ -9,7 +9,7 @@ Overall: **approximately 67% across the full roadmap** (equal-weight mean of mil
 | Parametric geometry | 75% | Locked points, fixed lengths and parallel/perpendicular wall relationships with bounded solving and schema-9 persistence | Constraint UI browser verification |
 | Building design | 75% | Shared floor plan, linked openings and whole-building quantities with overlap handling | Building-level drawings and export |
 | Interiors and furniture | 88% | Cabinet editing, furniture designer, placement tools, cutting/drilling benches, workbench and material rendering | Verify complete editing workflows |
-| Drawings and exchange | 75% | Combined room-plan SVG with transformed opening symbols, print scales and quantity JSON/CSV | A4/A3 building sheet layout and fit checks |
+| Drawings and exchange | 80% | Combined SVG, A4/A3 sheets, exact scale mapping and fit/suggestion checks | Printable building sheet preview |
 | Manufacturing | 88% | Parts, nesting, stock pricing, handoff validation and a simulated CNC machine that runs the exported NC programs with a tool rack | Machine-specific constraints |
 | Distributed production | 75% | Workshop assignment and fulfilment tracking | Workshop capacity planning |
 | Customer and business tools | 70% | Customers, quotes, pricing presets and backups | Billing exchange |
@@ -19,15 +19,15 @@ Overall: **approximately 67% across the full roadmap** (equal-weight mean of mil
 
 This iteration adds a platform archive containing the production frontend, API and native executable. Node.js is required on the target; npm dependencies, Vite and a compiler are not. CI uploads a Linux x64 archive. Other operating systems and Linux distributions remain unverified.
 
-Validation on `feature/toolset` with combined building SVG export (27 November 2026):
+Validation on `feature/toolset` with A4/A3 building sheets and fit checks (27 November 2026):
 
-- 449 Node tests passed, with no failures or skips.
-- Standalone SVG XML parsing passed, including escaped labels and invalid-control replacement.
+- 457 Node tests passed, with no failures or skips.
+- Standalone A4/A3 SVG XML parsing passed in portrait/landscape, including escaped labels.
 - All 5 CMake/CTest checks passed; the native core linked statically.
-- Production build and configured bundle budgets passed. The export-only building SVG module uses a 1050 kB total JavaScript allowance; the 195 kB entry and 880 kB initial-load limits are unchanged. Per-chunk and lazy workspace limits are unchanged.
+- Production build and configured bundle budgets passed. Building sheet layout and fit feedback use a 1055 kB total JavaScript allowance; the 195 kB entry and 880 kB initial-load limits are unchanged. Per-chunk and lazy workspace limits are unchanged.
 - Release archive creation and extracted-package checks passed: fresh installation, restart, replacement with external data, and offline backup recovery.
 - Production browser verification remains pending. The system Chromium launcher points to a missing executable, and the Playwright browser download returned HTTP 403 in this environment. No browser workflow pass is claimed for this revision. The suite includes furniture designer, workshop benches and CNC playback checks.
 
-Next verification step: run `npm run test:browser:production` with an installed, working Chromium (install using `npm run test:browser:install`, or set `TERRATEC_CHROMIUM`). Keep development on `feature/toolset`. Then verify SVG download controls and the exported drawing in a browser alongside the building summary and connections. The next increment is A4/A3 building sheet layout with scale/fit feedback. Boundary-line deduplication and linked-opening counts are planning summaries; wall-face areas retain both room-facing surfaces. Shared meshes and material take-offs remain unimplemented. UI browser verification remains pending.
+Next verification step: run `npm run test:browser:production` with an installed, working Chromium (install using `npm run test:browser:install`, or set `TERRATEC_CHROMIUM`). Keep development on `feature/toolset`. Then verify paper/orientation controls, fit feedback and scaled sheet downloads in a browser. The next increment is a printable building sheet preview, keeping selected scale and scope notes intact. Boundary-line deduplication and linked-opening counts are planning summaries; wall-face areas retain both room-facing surfaces. Shared meshes and material take-offs remain unimplemented. UI browser verification remains pending.
 
 Release follow-up: startup checks and configuration validation. Storage diagnostics now probe writes and validate project files, and unreadable project records return actionable HTTP 422 feedback without being overwritten. Synthetic schema 1–12 fixtures now verify normalization without rewriting source files, explicit-save upgrade preserving IDs and rejected future-version overwrites. Historical release binaries and job/customer cross-version migrations remain unverified.

@@ -324,11 +324,31 @@ Furniture and construction thickness are not part of this building drawing.
 
 Unscaled output uses a world-coordinate viewBox in metres and pixel display size.
 Scales 1:20, 1:50, 1:100 and 1:200 set physical width/height in millimetres; print at
-100% without fit-to-page. This iteration does not choose A4/A3 sheets or paginate
-oversize plans. Names and metadata are XML-escaped, XML-invalid control characters
+100% without fit-to-page. Fixed A4/A3 sheets and fit checks are described below; oversize plans are not paginated. Names and metadata are XML-escaped, XML-invalid control characters
 are replaced, and there are no scripts, external images or remote fonts. The
 metadata identifies `terratec-building-plan` version 1 and symbol/overlap counts.
 This is a read-only drawing export, not editable BIM/manufacturing exchange.
+
+### A4/A3 building sheets and fit checks
+
+The floor-plan export controls offer **Drawing bounds**, **A4** and **A3**, with
+portrait/landscape orientation for fixed sheets. A4 is 210 × 297 mm and A3 is
+297 × 420 mm; each reserves a 10 mm margin on all sides. Choose a print scale
+before using fixed paper. Fit feedback shows the drawing's required dimensions
+and the usable sheet dimensions, including room geometry, outward door arcs,
+title and legends.
+
+If the drawing does not fit, export is disabled and the exporter also rejects it.
+When possible, **Use suggested scale** selects the first supported denominator
+(20, 50, 100 or 200) that fits that sheet. Suggestions account for scale-dependent
+annotation sizes. If none fits, use Drawing bounds or change paper/orientation;
+this iteration does not tile an oversized building across multiple sheets.
+
+A fitting drawing is centred at exactly its selected scale. Fixed-sheet SVGs use
+physical millimetres, an A4/A3 frame and print instructions; no silent shrink-to-fit
+is applied. Print at 100% without fit-to-page or additional print margins. Actual
+printer unprintable regions are not queried. Paper/scale/orientation are workspace
+export settings and do not modify the saved project.
 
 ### Wall construction
 
@@ -1672,7 +1692,7 @@ server, not the production deployment setup.
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
 Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 195 kB for
 the entry, 400 kB for each JavaScript chunk, 880 kB for initial JavaScript and
-1050 kB for all JavaScript apart from the furniture designer and the version-history
+1055 kB for all JavaScript apart from the furniture designer and the version-history
 panel, which must load lazily and have their own budgets (82.5 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
 The workshop benches (workbench, drilling and cutting, with the code only they use)
