@@ -533,6 +533,168 @@
           ]
         }
       }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "project": {
+        "schemaVersion": 7,
+        "units": "m",
+        "name": "Schema 7 locked compatibility",
+        "presets": [],
+        "workshopProfiles": [],
+        "room": {
+          "width": 6,
+          "depth": 4,
+          "height": 2.8,
+          "outline": [
+            {
+              "x": -3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": 2
+            },
+            {
+              "x": -3,
+              "z": 2
+            }
+          ],
+          "openings": [],
+          "furniture": [],
+          "locked": true
+        }
+      },
+      "expected": {
+        "schemaVersion": 7,
+        "units": "m",
+        "name": "Schema 7 locked compatibility",
+        "presets": [],
+        "workshopProfiles": [],
+        "room": {
+          "width": 6,
+          "depth": 4,
+          "height": 2.8,
+          "outline": [
+            {
+              "x": -3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": 2
+            },
+            {
+              "x": -3,
+              "z": 2
+            }
+          ],
+          "openings": [],
+          "furniture": [],
+          "locked": true
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000008",
+      "project": {
+        "schemaVersion": 8,
+        "units": "m",
+        "name": "Schema 8 constraints compatibility",
+        "presets": [],
+        "workshopProfiles": [],
+        "room": {
+          "width": 6,
+          "depth": 4,
+          "height": 2.8,
+          "outline": [
+            {
+              "x": -3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": 2
+            },
+            {
+              "x": -3,
+              "z": 2
+            }
+          ],
+          "openings": [],
+          "furniture": [],
+          "constraints": [
+            {
+              "type": "point",
+              "corner": "north-west",
+              "x": -3,
+              "z": -2
+            },
+            {
+              "type": "length",
+              "wall": "north",
+              "length": 6
+            }
+          ]
+        }
+      },
+      "expected": {
+        "schemaVersion": 8,
+        "units": "m",
+        "name": "Schema 8 constraints compatibility",
+        "presets": [],
+        "workshopProfiles": [],
+        "room": {
+          "width": 6,
+          "depth": 4,
+          "height": 2.8,
+          "outline": [
+            {
+              "x": -3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": 2
+            },
+            {
+              "x": -3,
+              "z": 2
+            }
+          ],
+          "openings": [],
+          "furniture": [],
+          "constraints": [
+            {
+              "type": "point",
+              "corner": "north-west",
+              "x": -3,
+              "z": -2
+            },
+            {
+              "type": "length",
+              "wall": "north",
+              "length": 6
+            }
+          ]
+        }
+      }
     }
   ]
 }

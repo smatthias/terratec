@@ -135,6 +135,32 @@ Cabinet footprints use `back-left`, `back-right`, `front-right`, `front-left`
 corners and `back`, `right`, `front`, `left` sides (`cabinetCorners`,
 `cabinetSides`). Left and right are as seen when facing the cabinet front.
 
+### Persistent room constraints
+
+Select a wall in Room & walls to lock or unlock either endpoint at its current
+coordinates. Enter **Fixed wall length (m)** and choose **Set fixed length** to
+retain that wall length through later edits; **Remove fixed length** releases it.
+Each constraint change is one undo step. Constraints travel with saved projects,
+JSON transfer, duplication, recovery and version history.
+
+Corner dragging keeps the dragged corner at its snapped position and adjusts free
+neighbours to satisfy lengths. Numeric endpoint edits hold both entered endpoints;
+if these conflict with a saved length or locked point, the edit is rejected.
+Dimension scaling also respects constraints, so the resulting span may differ
+from the requested span. Free corners may end up off-grid. Locks take precedence
+and the normal convexity, opening-fit and furniture-fit checks still apply.
+
+The solver uses at most 256 projection iterations and accepts a maximum residual
+of 0.000001 m. Inconsistent or nonconverging edits leave the project and history
+unchanged. Wall construction rejects edits that violate constraints or remove
+referenced corner/wall IDs; release the affected constraints first. Up to 64
+point/length constraints are supported. Parallel/perpendicular constraints are
+future work.
+
+Constrained projects use schema 8. Schemas 1–7 retain their previous normalization
+when no constraints are present. Older releases must reject schema 8; keep JSON
+backups before opening constrained projects in a different release.
+
 ### Wall construction
 
 Rooms are built from their walls (`shared/room-construction.mjs`): every wall is

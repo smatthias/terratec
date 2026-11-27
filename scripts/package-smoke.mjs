@@ -111,9 +111,9 @@ try{
   assert.deepEqual(upgraded.project,oldest.expected);
   const upgradedBytes=await readFile(join(restored,'projects',oldest.id+'.json'),'utf8');
   assert.equal(JSON.parse(upgradedBytes).project.schemaVersion,6);
-  await json('/api/projects/'+oldest.id,{...oldest.expected,schemaVersion:8},'PUT',400);
+  await json('/api/projects/'+oldest.id,{...oldest.expected,schemaVersion:9},'PUT',400);
   assert.equal(await readFile(join(restored,'projects',oldest.id+'.json'),'utf8'),upgradedBytes);
   assert.equal(await readFile(join(backupDir,'projects',oldest.id+'.json'),'utf8'),frozenRecords[0].bytes);
   await mkdir('test-results' ,{recursive:true});
-  await writeFile('test-results/package-recovery.json',JSON.stringify({platform:process.platform,architecture:process.arch,phases,collections:Object.keys(records),projectSchemaVersions:compatibility.map(f=>f.project.schemaVersion),explicitSaveUpgrade:true,scope:'Synthetic project schema 1–6 compatibility, non-destructive reads, explicit schema-6 save and current-archive recovery. Historical release binaries are not tested.'},null,2)+'\n');
+  await writeFile('test-results/package-recovery.json',JSON.stringify({platform:process.platform,architecture:process.arch,phases,collections:Object.keys(records),projectSchemaVersions:compatibility.map(f=>f.project.schemaVersion),explicitSaveUpgrade:true,scope:'Synthetic project schema 1–8 compatibility, non-destructive reads, explicit schema-6 save and current-archive recovery. Historical release binaries are not tested.'},null,2)+'\n');
 }finally{await stop();await rm(temporary,{recursive:true,force:true});}

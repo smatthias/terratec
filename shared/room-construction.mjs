@@ -1,3 +1,4 @@
+import {validateConstraints} from './room-constraints.mjs';
 // Builds rooms from their walls. Each wall is an infinite line with a stable ID;
 // corner i is where wall i-1 meets wall i. Moving, exchanging or removing a
 // wall therefore redefines the neighbouring corners automatically, while every
@@ -64,6 +65,7 @@ function rebuild(room,lines,hosts,action) {
     const stored=validateWalls(walls,walls.length),geometry={outline,walls:stored};
     const {walls:_previous,...rest}=room;
     const openings=validateOpenings(rehostOpenings(room,geometry,hosts),geometry,room.height);
+    validateConstraints(room.constraints,geometry);
     const furniture=validateFurniture(room.furniture??[],outline,room.height);
     return {...rest,width,depth,outline,...(stored?{walls:stored}:{}),openings,furniture};
   } catch(error) { throw Error(`Cannot ${action}: ${error.message}`); }

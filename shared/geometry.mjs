@@ -1,3 +1,4 @@
+import {solveConstraints} from './room-constraints.mjs';
 import { cornerIndex, MIN_WALLS, MAX_WALLS } from './room-topology.mjs';
 import { assertUnlocked } from './room-lock.mjs';
 export const rectangle = (width, depth) => [
@@ -34,7 +35,7 @@ export function moveCorners(room,moves,spacing,enabled) {
   if(!Array.isArray(room)) assertUnlocked(room,'move corners');
   const outline=Array.isArray(room)?room:room.outline,next=outline.map(p=>({...p}));
   for(const [corner,point] of Object.entries(moves)) next[cornerIndex(room,corner)]=snapPoint(point,spacing,enabled);
-  return validateOutline(next);
+  return validateOutline(Array.isArray(room)?next:solveConstraints(room,next,Object.keys(moves)));
 }
 export const moveCorner=(room,corner,point,spacing,enabled)=>moveCorners(room,{[corner]:point},spacing,enabled);
 export function scaleOutline(outline,axis,size) {
