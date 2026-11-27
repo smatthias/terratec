@@ -151,14 +151,23 @@ from the requested span. Free corners may end up off-grid. Locks take precedence
 and the normal convexity, opening-fit and furniture-fit checks still apply.
 
 The solver uses at most 256 projection iterations and accepts a maximum residual
-of 0.000001 m. Inconsistent or nonconverging edits leave the project and history
+of 0.000001 m for point/length rules. Inconsistent or nonconverging edits leave the project and history
 unchanged. Wall construction rejects edits that violate constraints or remove
 referenced corner/wall IDs; release the affected constraints first. Up to 64
-point/length constraints are supported. Parallel/perpendicular constraints are
-future work.
+constraints are supported.
 
-Constrained projects use schema 8. Schemas 1–7 retain their previous normalization
-when no constraints are present. Older releases must reject schema 8; keep JSON
+Choose a **Reference wall**, then **Make parallel** or **Make perpendicular** to
+save a relationship between it and the selected wall. **Saved relationship** shows
+that pair's current rule; **Remove relationship** removes only that pair's rule.
+The wall pair is unordered, and a new relationship replaces the previous one for
+that pair. Both walls can adjust at free corners, including their shared endpoint.
+The solver checks normalized cross-product (parallel) or dot-product
+(perpendicular) residuals against 0.000001, independent of wall lengths. Parallel
+includes opposite directions. Existing point locks and fixed lengths still apply;
+conflicting rules or invalid room geometry reject the complete edit.
+
+Point/length projects use schema 8; projects with wall relationships use schema 9. Schemas 1–7 retain their previous normalization
+when no constraints are present. Older releases must reject unsupported schema versions; keep JSON
 backups before opening constrained projects in a different release.
 
 ### Wall construction
@@ -1468,7 +1477,7 @@ server, not the production deployment setup.
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
 Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 180 kB for
 the entry, 400 kB for each JavaScript chunk, 870 kB for initial JavaScript and
-1000 kB for all JavaScript apart from the furniture designer and the version-history
+1005 kB for all JavaScript apart from the furniture designer and the version-history
 panel, which must load lazily and have their own budgets (82 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
 The workshop benches (workbench, drilling and cutting, with the code only they use)
@@ -1498,9 +1507,9 @@ Use an external `TERRATEC_DATA_DIR` for data that must survive application repla
 
 ### Project compatibility policy
 
-Project schemas 1–7 are supported on read. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
+Project schemas 1–9 are supported on read. Point/length constraints require schema 8 and wall relationships require schema 9; unconstrained projects retain the older normalization described below. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
 
-`fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets and cabinet defaults. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
+`fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets, cabinet defaults, wall locks and geometry constraints. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
 
 These fixtures establish compatibility with the documented project formats. They are not exports from historical application releases; old release binaries, job/customer cross-version migration, rollback after newer-format writes and automatic bulk migration are not covered.
 

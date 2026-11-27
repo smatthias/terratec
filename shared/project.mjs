@@ -9,8 +9,8 @@ import { validateWalls, usesDefaultWalls } from './room-topology.mjs';
 import { validateDesigns } from './furniture-design.mjs';
 import { syncPlacedDesign } from './design-placement.mjs';
 export function validateProject(value) {
-  if (!value || ![1,2,3,4,5,6,7,8].includes(value.schemaVersion) || value.units !== 'm')
-    throw new Error('Expected schemaVersion 1, 2, 3, 4, 5, 6, 7 or 8 and units m');
+  if (!value || ![1,2,3,4,5,6,7,8,9].includes(value.schemaVersion) || value.units !== 'm')
+    throw new Error('Expected schemaVersion 1, 2, 3, 4, 5, 6, 7, 8 or 9 and units m');
   if (typeof value.name !== 'string' || !value.name.trim() || value.name.length > 120)
     throw new Error('Project name must contain 1–120 characters');
   const dimension=v=>typeof v==='number' && Number.isFinite(v) && v>=.1 && v<=1000;
@@ -30,6 +30,7 @@ export function validateProject(value) {
   // Schema 7 stores wall IDs; rooms with the original four walls are written as schema 6.
   const walls=validateWalls(value.schemaVersion>=7?value.room.walls:undefined,outline.length);
   if(value.schemaVersion<8 && value.room.constraints!==undefined) throw Error('Room constraints require schemaVersion 8');
+  if(value.schemaVersion<9 && value.room.constraints?.some?.(c=>c?.type==='parallel'||c?.type==='perpendicular')) throw Error('Wall relationships require schemaVersion 9');
   const constraints=validateConstraints(value.room.constraints,{outline,walls});
   const {width,depth}=bounds(outline);
   const openings=validateOpenings(value.schemaVersion>=3?value.room.openings:[],{outline,walls},value.room.height);
@@ -37,5 +38,5 @@ export function validateProject(value) {
   // Placed designs take their size from the design they refer to.
   const designsById=new Map(designs.map(d=>[d.id,d])),rawFurniture=value.schemaVersion>=6?value.room.furniture:[];
   const furniture=validateFurniture(Array.isArray(rawFurniture)?rawFurniture.map(item=>item?.type==='design'?syncPlacedDesign(item,designsById):item):rawFurniture,outline,value.room.height);
-  return {...(value.furniturePresets!==undefined?{furniturePresets:validateFurniturePresets(value.furniturePresets)}:{}),schemaVersion:constraints?8:(walls||locked||designs.length?7:6),presets,...(designs.length?{furnitureDesigns:designs}:{}),workshopProfiles:validateWorkshopProfiles(value.workshopProfiles??[]),units:'m',name:value.name.trim(),room:{width,depth,height:value.room.height,outline,...(constraints?{constraints}:{}),...(walls?{walls}:{}),...(locked?{locked}:{}),openings,furniture}};
+  return {...(value.furniturePresets!==undefined?{furniturePresets:validateFurniturePresets(value.furniturePresets)}:{}),schemaVersion:constraints?(constraints.some(c=>c.other)?9:8):(walls||locked||designs.length?7:6),presets,...(designs.length?{furnitureDesigns:designs}:{}),workshopProfiles:validateWorkshopProfiles(value.workshopProfiles??[]),units:'m',name:value.name.trim(),room:{width,depth,height:value.room.height,outline,...(constraints?{constraints}:{}),...(walls?{walls}:{}),...(locked?{locked}:{}),openings,furniture}};
 }
