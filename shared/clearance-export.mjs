@@ -1,9 +1,10 @@
+import {roomScope,roomScopedTitle} from './room-scope.mjs';
 import {validateProject} from './project.mjs';
 import {clearanceSettings,reviewFurnitureClearance} from './furniture-clearance.mjs';
 export function clearanceSnapshot(project,options,generatedAt=new Date().toISOString()){
  const source=validateProject(project),settings=clearanceSettings(options);
  if(typeof generatedAt!=='string'||!Number.isFinite(Date.parse(generatedAt)))throw Error('Expected a valid review timestamp');
- return JSON.parse(JSON.stringify({schemaVersion:1,kind:'terratec-clearance-review',generatedAt,units:'m',project:{name:source.name},settings,review:reviewFurnitureClearance(source.room,settings),room:source.room,scope:'Applied geometry and workspace planning settings at export time. Advisory review, not building-code certification. Handles, door thickness and installation tolerances are excluded.'}));
+ return JSON.parse(JSON.stringify({schemaVersion:1,kind:'terratec-clearance-review',generatedAt,units:'m',project:{name:roomScopedTitle(source),...(roomScope(source)?{activeRoom:roomScope(source)}:{})},settings,review:reviewFurnitureClearance(source.room,settings),room:source.room,scope:'Applied geometry and workspace planning settings at export time. Advisory review, not building-code certification. Handles, door thickness and installation tolerances are excluded.'}));
 }
 export function clearanceJson(project,options){return JSON.stringify(clearanceSnapshot(project,options),null,2);}
 const cell=value=>'"'+String(value??'').replace(/^[=+\-@\t\r]/,"'$&").replace(/"/g,'""')+'"';

@@ -8,9 +8,9 @@ import { validateFurniture } from './furniture.mjs';
 import { validateWalls, usesDefaultWalls } from './room-topology.mjs';
 import { validateDesigns } from './furniture-design.mjs';
 import { syncPlacedDesign } from './design-placement.mjs';
-export function validateProject(value) {
+function validateSingleProject(value) {
   if (!value || ![1,2,3,4,5,6,7,8,9].includes(value.schemaVersion) || value.units !== 'm')
-    throw new Error('Expected schemaVersion 1, 2, 3, 4, 5, 6, 7, 8 or 9 and units m');
+    throw new Error('Expected schemaVersion 1, 2, 3, 4, 5, 6, 7, 8, 9 or 10 and units m');
   if (typeof value.name !== 'string' || !value.name.trim() || value.name.length > 120)
     throw new Error('Project name must contain 1–120 characters');
   const dimension=v=>typeof v==='number' && Number.isFinite(v) && v>=.1 && v<=1000;
@@ -39,4 +39,27 @@ export function validateProject(value) {
   const designsById=new Map(designs.map(d=>[d.id,d])),rawFurniture=value.schemaVersion>=6?value.room.furniture:[];
   const furniture=validateFurniture(Array.isArray(rawFurniture)?rawFurniture.map(item=>item?.type==='design'?syncPlacedDesign(item,designsById):item):rawFurniture,outline,value.room.height);
   return {...(value.furniturePresets!==undefined?{furniturePresets:validateFurniturePresets(value.furniturePresets)}:{}),schemaVersion:constraints?(constraints.some(c=>c.other)?9:8):(walls||locked||designs.length?7:6),presets,...(designs.length?{furnitureDesigns:designs}:{}),workshopProfiles:validateWorkshopProfiles(value.workshopProfiles??[]),units:'m',name:value.name.trim(),room:{width,depth,height:value.room.height,outline,...(constraints?{constraints}:{}),...(walls?{walls}:{}),...(locked?{locked}:{}),openings,furniture}};
+}
+
+// Schema 10 keeps the legacy room field as a checked active-room alias. All
+// collection entries are validated, including rooms that are not being edited.
+export function validateProject(value) {
+  if(value?.schemaVersion!==10) {
+    if(value?.rooms!==undefined||value?.activeRoomId!==undefined) throw Error('Room collections require schemaVersion 10');
+    return validateSingleProject(value);
+  }
+  if(!Array.isArray(value.rooms)||value.rooms.length<1||value.rooms.length>16) throw Error('Projects need 1–16 rooms');
+  const seen=new Set();
+  const rooms=value.rooms.map(entry=>{
+    if(!entry||typeof entry.id!=='string'||!/^room-[a-z0-9-]{1,64}$/.test(entry.id)||seen.has(entry.id)) throw Error('Room IDs must be unique room- identifiers');
+    seen.add(entry.id);
+    if(typeof entry.name!=='string'||!entry.name.trim()||entry.name.length>60) throw Error('Room name must contain 1–60 characters');
+    const room=validateSingleProject({...value,schemaVersion:9,room:entry.room}).room;
+    return {id:entry.id,name:entry.name.trim(),room};
+  });
+  const active=rooms.find(entry=>entry.id===value.activeRoomId);
+  if(!active) throw Error('Active room must exist in the project');
+  const single=validateSingleProject({...value,schemaVersion:9});
+  if(JSON.stringify(single.room)!==JSON.stringify(active.room)) throw Error('Active room alias differs from its saved room');
+  return {...single,schemaVersion:10,rooms,activeRoomId:active.id,room:active.room};
 }

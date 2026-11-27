@@ -798,6 +798,267 @@
           ]
         }
       }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "project": {
+        "schemaVersion": 10,
+        "units": "m",
+        "name": "Schema 10 room collection compatibility",
+        "presets": [],
+        "workshopProfiles": [],
+        "room": {
+          "width": 6,
+          "depth": 4,
+          "height": 2.8,
+          "outline": [
+            {
+              "x": -3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": 2
+            },
+            {
+              "x": -3,
+              "z": 2
+            }
+          ],
+          "openings": [],
+          "furniture": [],
+          "constraints": [
+            {
+              "type": "point",
+              "corner": "north-west",
+              "x": -3,
+              "z": -2
+            },
+            {
+              "type": "length",
+              "wall": "north",
+              "length": 6
+            },
+            {
+              "type": "perpendicular",
+              "wall": "east",
+              "other": "north"
+            }
+          ]
+        },
+        "rooms": [
+          {
+            "id": "room-1",
+            "name": "Bedroom",
+            "room": {
+              "width": 6,
+              "depth": 4,
+              "height": 2.8,
+              "outline": [
+                {
+                  "x": -3,
+                  "z": -2
+                },
+                {
+                  "x": 3,
+                  "z": -2
+                },
+                {
+                  "x": 3,
+                  "z": 2
+                },
+                {
+                  "x": -3,
+                  "z": 2
+                }
+              ],
+              "openings": [],
+              "furniture": [],
+              "constraints": [
+                {
+                  "type": "point",
+                  "corner": "north-west",
+                  "x": -3,
+                  "z": -2
+                },
+                {
+                  "type": "length",
+                  "wall": "north",
+                  "length": 6
+                },
+                {
+                  "type": "perpendicular",
+                  "wall": "east",
+                  "other": "north"
+                }
+              ]
+            }
+          },
+          {
+            "id": "room-2",
+            "name": "Kitchen",
+            "room": {
+              "width": 6,
+              "depth": 4,
+              "height": 2.8,
+              "outline": [
+                {
+                  "x": -3,
+                  "z": -2
+                },
+                {
+                  "x": 3,
+                  "z": -2
+                },
+                {
+                  "x": 3,
+                  "z": 2
+                },
+                {
+                  "x": -3,
+                  "z": 2
+                }
+              ],
+              "openings": [],
+              "furniture": []
+            }
+          }
+        ],
+        "activeRoomId": "room-1"
+      },
+      "expected": {
+        "schemaVersion": 10,
+        "units": "m",
+        "name": "Schema 10 room collection compatibility",
+        "presets": [],
+        "workshopProfiles": [],
+        "room": {
+          "width": 6,
+          "depth": 4,
+          "height": 2.8,
+          "outline": [
+            {
+              "x": -3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": -2
+            },
+            {
+              "x": 3,
+              "z": 2
+            },
+            {
+              "x": -3,
+              "z": 2
+            }
+          ],
+          "openings": [],
+          "furniture": [],
+          "constraints": [
+            {
+              "type": "point",
+              "corner": "north-west",
+              "x": -3,
+              "z": -2
+            },
+            {
+              "type": "length",
+              "wall": "north",
+              "length": 6
+            },
+            {
+              "type": "perpendicular",
+              "wall": "east",
+              "other": "north"
+            }
+          ]
+        },
+        "rooms": [
+          {
+            "id": "room-1",
+            "name": "Bedroom",
+            "room": {
+              "width": 6,
+              "depth": 4,
+              "height": 2.8,
+              "outline": [
+                {
+                  "x": -3,
+                  "z": -2
+                },
+                {
+                  "x": 3,
+                  "z": -2
+                },
+                {
+                  "x": 3,
+                  "z": 2
+                },
+                {
+                  "x": -3,
+                  "z": 2
+                }
+              ],
+              "openings": [],
+              "furniture": [],
+              "constraints": [
+                {
+                  "type": "point",
+                  "corner": "north-west",
+                  "x": -3,
+                  "z": -2
+                },
+                {
+                  "type": "length",
+                  "wall": "north",
+                  "length": 6
+                },
+                {
+                  "type": "perpendicular",
+                  "wall": "east",
+                  "other": "north"
+                }
+              ]
+            }
+          },
+          {
+            "id": "room-2",
+            "name": "Kitchen",
+            "room": {
+              "width": 6,
+              "depth": 4,
+              "height": 2.8,
+              "outline": [
+                {
+                  "x": -3,
+                  "z": -2
+                },
+                {
+                  "x": 3,
+                  "z": -2
+                },
+                {
+                  "x": 3,
+                  "z": 2
+                },
+                {
+                  "x": -3,
+                  "z": 2
+                }
+              ],
+              "openings": [],
+              "furniture": []
+            }
+          }
+        ],
+        "activeRoomId": "room-1"
+      }
     }
   ]
 }

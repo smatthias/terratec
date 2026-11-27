@@ -1,0 +1,20 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {validateProject} from './project.mjs';
+import {addProjectRoom,switchProjectRoom,withActiveRoom} from './project-rooms.mjs';
+import {createJobManifest,verifyJobManifest} from './job-manifest.mjs';
+import {exportPlanSvg} from './plan-svg.mjs';
+import {workshopHandoff} from './workshop-handoff.mjs';
+import {clearanceSnapshot} from './clearance-export.mjs';
+import {roomScope,roomScopedTitle} from './room-scope.mjs';
+test('drawing and manufacturing exports identify and include only the active room',async()=>{
+ const base=validateProject({schemaVersion:1,units:'m',name:'House',room:{width:6,depth:4,height:2.8}});
+ assert.equal(roomScope(base),undefined);assert.equal(roomScopedTitle(base),'House');
+ let p=addProjectRoom(base,{id:'room-kitchen',name:'Kitchen <A>'});
+ p=validateProject(withActiveRoom(p,{...p.room,furniture:[{id:'cab',type:'cabinet',name:'Kitchen cabinet',width:1,depth:.5,height:1,thickness:.018,shelves:1,x:0,z:0,rotation:0}]}));
+ const manifest=await createJobManifest(p);assert.deepEqual(manifest.scope,{roomId:'room-kitchen',roomName:'Kitchen <A>'});assert.equal(manifest.summary.cabinets,1);
+ assert.equal((await verifyJobManifest(JSON.stringify(manifest),p)).matchesCurrent,true);
+ const other=await createJobManifest(switchProjectRoom(p,'room-1'));assert.equal(other.summary.cabinets,0);assert.equal(other.scope.roomName,'Room 1');
+ assert.match(exportPlanSvg(p),/House · Kitchen &lt;A&gt;/);assert.match(workshopHandoff(p),/House · Kitchen &lt;A&gt;/);
+ const review=clearanceSnapshot(p,{});assert.equal(review.project.name,'House · Kitchen <A>');assert.equal(review.project.activeRoom.roomId,'room-kitchen');
+});

@@ -1,3 +1,4 @@
+import {roomScopedTitle} from './room-scope.mjs';
 import {validateProject} from './project.mjs';
 import {bounds} from './geometry.mjs';
 import {roomWalls} from './room-topology.mjs';
@@ -62,17 +63,17 @@ export function exportPlanSvg(input,options={}) {
   const layout=planSheetLayout(input,options),{scale}=layout;
   const {project,room,font,minX,minZ,width,height,items}=layout.drawing;
   if(!layout.fits) throw Error('Plan does not fit '+layout.paper+' '+layout.orientation+' at 1:'+scale+(layout.suggestedScale?'; try 1:'+layout.suggestedScale:''));
-  const title=project.name+(scale?' · 1:'+scale:'');
+  const title=roomScopedTitle(project)+(scale?' · 1:'+scale:'');
   const content=`<text x="${minX+font}" y="${minZ+font*2}" font-family="sans-serif" font-size="${font*1.5}" textLength="${Math.min(title.length*font*.9,width-font*2)}" lengthAdjust="spacingAndGlyphs">${escapeXml(title)}</text>${items.join('')}`;
   if(layout.paper!=='auto') {
     const factor=1000/scale;
     const x=10+(layout.availableWidth-layout.requiredWidth)/2-minX*factor;
     const y=10+(layout.availableHeight-layout.requiredHeight)/2-minZ*factor;
-    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}mm" height="${layout.height}mm" viewBox="0 0 ${layout.width} ${layout.height}" data-paper-size="${layout.paper}" data-orientation="${layout.orientation}" data-print-scale="1:${scale}" role="img"><title>${escapeXml(project.name)} · ${layout.paper} · 1:${scale}</title><metadata>Model coordinates in metres inside scaled group. Print at 100% without fit-to-page.</metadata><rect width="${layout.width}" height="${layout.height}" fill="white"/><rect x="10" y="10" width="${layout.width-20}" height="${layout.height-20}" fill="none" stroke="#263e3c" stroke-width="0.2"/><g data-plan="true" transform="translate(${x} ${y}) scale(${factor})">${content}</g><text x="14" y="${layout.height-14}" font-family="sans-serif" font-size="3">TerraTec · ${layout.paper} ${layout.orientation} · 1:${scale} · Print at 100%</text></svg>\n`;
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}mm" height="${layout.height}mm" viewBox="0 0 ${layout.width} ${layout.height}" data-paper-size="${layout.paper}" data-orientation="${layout.orientation}" data-print-scale="1:${scale}" role="img"><title>${escapeXml(roomScopedTitle(project))} · ${layout.paper} · 1:${scale}</title><metadata>Model coordinates in metres inside scaled group. Print at 100% without fit-to-page.</metadata><rect width="${layout.width}" height="${layout.height}" fill="white"/><rect x="10" y="10" width="${layout.width-20}" height="${layout.height-20}" fill="none" stroke="#263e3c" stroke-width="0.2"/><g data-plan="true" transform="translate(${x} ${y}) scale(${factor})">${content}</g><text x="14" y="${layout.height-14}" font-family="sans-serif" font-size="3">TerraTec · ${layout.paper} ${layout.orientation} · 1:${scale} · Print at 100%</text></svg>\n`;
   }
   const svgWidth=scale?(width*1000/scale).toFixed(6)+'mm':'1200';
   const svgHeight=scale?(height*1000/scale).toFixed(6)+'mm':String(Math.round(1200*height/width));
   const printLabel=scale?'Scale 1:'+scale+'; print at 100% without fit-to-page.':'Drawing is not assigned a print scale.';
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minZ} ${width} ${height}" width="${svgWidth}" height="${svgHeight}" data-print-scale="${scale?'1:'+scale:'unscaled'}" role="img"><title>${escapeXml(project.name)} · Plan</title><metadata>TerraTec plan; model coordinates in metres; section height ${sliceHeight(room)} m. ${printLabel}</metadata><rect x="${minX}" y="${minZ}" width="${width}" height="${height}" fill="white"/><text x="${minX+font}" y="${minZ+font*2}" font-family="sans-serif" font-size="${font*1.5}" textLength="${Math.min(title.length*font*.9,width-font*2)}" lengthAdjust="spacingAndGlyphs">${escapeXml(title)}</text>${items.join('')}</svg>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minZ} ${width} ${height}" width="${svgWidth}" height="${svgHeight}" data-print-scale="${scale?'1:'+scale:'unscaled'}" role="img"><title>${escapeXml(roomScopedTitle(project))} · Plan</title><metadata>TerraTec plan; model coordinates in metres; section height ${sliceHeight(room)} m. ${printLabel}</metadata><rect x="${minX}" y="${minZ}" width="${width}" height="${height}" fill="white"/><text x="${minX+font}" y="${minZ+font*2}" font-family="sans-serif" font-size="${font*1.5}" textLength="${Math.min(title.length*font*.9,width-font*2)}" lengthAdjust="spacingAndGlyphs">${escapeXml(title)}</text>${items.join('')}</svg>\n`;
 }
 function sliceHeight(room) {return Math.min(1.2,room.height/2);}

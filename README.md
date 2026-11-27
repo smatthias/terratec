@@ -342,12 +342,47 @@ build is not a production deployment; public hosting and authentication are futu
 
 ## Current limits
 
-Each project contains one convex room with 3–32 walls. Multiple named projects can be saved and selected. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
-BIM exchange, manufacturing, AI design or physics integration yet. Frames, glazing and door leaves are illustrative; there is no collision, hinge animation or door-swing clearance validation. Preview is a footprint marker rather than a full 3D opening. Geometry
+Each project supports up to 16 independent convex rooms with 3–32 walls each. Multiple named projects can be saved and selected. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
+BIM exchange, AI design or physics integration yet. Frames, glazing and door leaves are illustrative; there is no collision, hinge animation or door-swing clearance validation. Preview is a footprint marker rather than a full 3D opening. Geometry
 quantities come from the native core; Three.js constructs the preview from the same
 validated outline. The optional Google font falls back to the system sans-serif.
 
 Progress and next steps are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Multiple rooms
+
+**Rooms** in Room & walls adds, renames and switches between up to 16 independent
+rooms. New rooms start at 6 × 4 × 2.8 m; edit their dimensions normally. Each
+retains its own outline, stable wall IDs, openings, furniture, constraints and wall
+lock. Opening/furniture presets, designs and workshop profiles belong to the
+project and are shared. No room deletion is provided in this iteration.
+
+Geometry undo/redo is kept separately per room for this editing session and
+survives switching rooms. Opening/importing/recovering a project or restoring a
+whole timeline version resets these stacks. A cached stack is discarded if shared
+design changes have altered that room. Switching rooms cancels placement and
+selection and fits the new view. Unapplied form fields are not saved model edits.
+
+Adding, renaming or switching rooms is saved project state and appears in version
+history. In multi-room projects, element restoration tracks whole room entries by
+room ID, so equal wall/furniture IDs in different rooms do not mix. Restoring room
+entries resets session geometry history. Older single-room element restoration
+cannot be applied to a multi-room project; restore its whole version instead.
+
+Schema 10 persists `rooms: [{id, name, room}]` and `activeRoomId`. The root `room`
+is a checked alias of the active entry for existing geometry/export consumers;
+imports with conflicting copies are rejected. All rooms are validated on save,
+including inactive rooms. Old single-room projects remain unchanged until a room
+is added or named. Save, recovery, duplication and JSON transfer include every
+room and the active selection. The existing 64 KiB project transfer limit applies
+to the entire project; older releases must reject schema 10.
+
+The canvas, quantities, plan SVG, clearance review and manufacturing batches use
+only the active room. Plan/workshop titles and job manifests identify this scope;
+job manifests retain the full project as source context, so any project change
+invalidates their source hash. Rooms currently have independent local coordinates:
+there is no combined floor plan, room placement, shared wall/opening connection or
+whole-building quantity aggregation yet.
 
 ## Projects and plan export
 
@@ -1490,9 +1525,9 @@ and `npm run preview` in separate terminals. Preview is a local verification
 server, not the production deployment setup.
 
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
-Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 180 kB for
-the entry, 400 kB for each JavaScript chunk, 870 kB for initial JavaScript and
-1010 kB for all JavaScript apart from the furniture designer and the version-history
+Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 190 kB for
+the entry, 400 kB for each JavaScript chunk, 875 kB for initial JavaScript and
+1015 kB for all JavaScript apart from the furniture designer and the version-history
 panel, which must load lazily and have their own budgets (82.5 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
 The workshop benches (workbench, drilling and cutting, with the code only they use)
@@ -1522,7 +1557,7 @@ Use an external `TERRATEC_DATA_DIR` for data that must survive application repla
 
 ### Project compatibility policy
 
-Project schemas 1–9 are supported on read. Point/length constraints require schema 8 and wall relationships require schema 9; unconstrained projects retain the older normalization described below. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
+Project schemas 1–10 are supported on read. Room collections require schema 10. Point/length constraints require schema 8 and wall relationships require schema 9; unconstrained projects retain the older normalization described below. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
 
 `fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets, cabinet defaults, wall locks and geometry constraints. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
 

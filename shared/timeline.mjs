@@ -70,14 +70,19 @@ export function applyPatch(a,patch) {
 }
 
 // ---- Project elements: the units whose versions are tracked and restorable.
-export const ELEMENT_KINDS=Object.freeze({project:'Project',room:'Room shell',opening:'Opening',furniture:'Furniture',design:'Design',preset:'Opening preset',furniturePreset:'Furniture preset',workshopProfile:'Workshop profile'});
+export const ELEMENT_KINDS=Object.freeze({project:'Project',roomEntry:'Room',activeRoom:'Active room',room:'Room shell',opening:'Opening',furniture:'Furniture',design:'Design',preset:'Opening preset',furniturePreset:'Furniture preset',workshopProfile:'Workshop profile'});
 const SHELL_KEYS=['width','depth','height','outline','walls','locked'];
 export function projectElements(project) {
   const elements=new Map(),add=(kind,id,name,value)=>elements.set(id===null?kind:kind+':'+id,{kind,id,name,value});
   add('project',null,project.name,{name:project.name});
+  if(project.rooms) {
+    for(const entry of project.rooms) add('roomEntry',entry.id,entry.name,entry);
+    add('activeRoom',null,'Active room',{id:project.activeRoomId});
+  } else {
   add('room',null,'Room shell',Object.fromEntries(SHELL_KEYS.filter(k=>project.room[k]!==undefined).map(k=>[k,project.room[k]])));
   for(const o of project.room.openings??[]) add('opening',o.id,`${o.type==='door'?'Door':'Window'} on ${o.wall}`,o);
   for(const f of project.room.furniture??[]) add('furniture',f.id,f.name,f);
+  }
   for(const d of project.furnitureDesigns??[]) add('design',d.id,d.name,d);
   for(const p of project.presets??[]) add('preset',p.id,p.name,p);
   for(const p of project.furniturePresets??[]) add('furniturePreset',p.id,p.name,p);
@@ -105,7 +110,10 @@ export function describeChanges(changes) {
 export function withElement(project,key,value) {
   const [kind,...rest]=key.split(':'),id=rest.join(':'),next=clone(project);
   const setIn=(list,item)=>{const index=list.findIndex(x=>x.id===id);if(item===undefined) {if(index>=0) list.splice(index,1);} else if(index>=0) list[index]=clone(item);else list.push(clone(item));return list;};
+  if(next.rooms&&['room','opening','furniture'].includes(kind)) throw Error('Use room entry history for multi-room projects');
   if(kind==='project') {if(value) next.name=value.name;}
+  else if(kind==='roomEntry') {if(!next.rooms) throw Error('Room entry requires a multi-room project');setIn(next.rooms,value);}
+  else if(kind==='activeRoom') next.activeRoomId=value?.id;
   else if(kind==='room') {for(const k of SHELL_KEYS) delete next.room[k];Object.assign(next.room,clone(value));}
   else if(kind==='opening') setIn(next.room.openings,value);
   else if(kind==='furniture') setIn(next.room.furniture,value);
@@ -114,6 +122,7 @@ export function withElement(project,key,value) {
   else if(kind==='furniturePreset') next.furniturePresets=setIn(next.furniturePresets??[],value);
   else if(kind==='workshopProfile') setIn(next.workshopProfiles,value);
   else throw Error('Unknown project element');
+  if(next.rooms) {const active=next.rooms.find(r=>r.id===next.activeRoomId);if(!active) throw Error('Cannot restore a missing active room');next.room=clone(active.room);}
   return next;
 }
 

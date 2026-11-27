@@ -1,3 +1,4 @@
+import {roomScope} from './room-scope.mjs';
 import {validateProject} from './project.mjs';
 import {manufacturingBatches,designProfiles} from './manufacturing.mjs';
 export const MAX_MANIFEST_BYTES=2097152;
@@ -26,7 +27,7 @@ export async function createJobManifest(input,generatedAt=new Date().toISOString
   const sourceSha256=await digest(source);
   const summary={cabinets:source.room.furniture.filter(item=>item.type!=='design').length,panels:batches.reduce((n,b)=>n+b.panelCount,0),sheets:batches.reduce((n,b)=>n+b.layout.sheets.length,0),unplaced:batches.reduce((n,b)=>n+b.layout.unplaced.length,0),
     ...(placedDesigns?{designs:placedDesigns,profilePieces:profiles.reduce((n,g)=>n+g.count,0)}:{})};
-  const payload={format:'terratec-workshop-job',version:1,algorithm:'guillotine-v1',units:'mm',generatedAt,sourceSha256,source,batches,...(placedDesigns?{profiles}:{}),
+  const payload={format:'terratec-workshop-job',version:1,algorithm:'guillotine-v1',units:'mm',generatedAt,sourceSha256,source,...(roomScope(source)?{scope:roomScope(source)}:{}),batches,...(placedDesigns?{profiles}:{}),
     summary,validation:handoffValidation(batches,{profiles,designs:placedDesigns})};
   return {...payload,manifestSha256:await digest(payload)};
 }
