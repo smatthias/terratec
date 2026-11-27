@@ -80,3 +80,50 @@ A TerraFlux adapter still needs coordinate placement, geometry ingestion and
 physical-parameter mapping, with fixtures and end-to-end validation in the receiving
 application. This increment changes only TerraTec; it does not modify the physics
 engine or run environmental, structural, fire or fluid simulation.
+
+## Reference receiver compatibility
+
+`shared/terraflux-receiver.mjs` exports `receiveTerraFluxModel(text, options)`.
+It verifies the exchange before converting geometry into a reference scene:
+
+- `surfaces`: indexed floor/ceiling/wall meshes, each with flat XYZ `positions`,
+  equally sized unit `normals`, integer triangle `indices`, scoped IDs and bounds.
+- `bodies`: triangulated oriented furniture boxes with outward normals and an
+  explicit approximation flag; no rigid-body mass or material properties.
+- `openings`: aperture metadata with transformed base endpoints and scoped IDs.
+- `openingLinks`: source references retained without welding geometry.
+- `summary`: room/surface/body/triangle counts and overall min/max bounds.
+- `source`: verified model and project hashes; `simulationConnected` is false.
+
+Surface winding follows the model contract; furniture normals face outward. Vertex
+arrays use metres; indices address XYZ triples. Shared room boundaries remain
+separate. The scene is geometry for an adapter, not running solver state.
+
+Optional `placement: {x,y,z,yaw}` applies one explicit receiver-local rigid transform
+in metres/degrees after room placement has already been applied. Defaults are zero.
+This is not a geographic anchor. `allowOverlaps: true` is required when room floor
+interiors overlap; otherwise conversion rejects the model. No welding or clipping
+is performed when overlaps are allowed. Invalid options and degenerate faces fail.
+
+In the Project panel, verify a file and select **Check receiver compatibility**.
+Overlaps require the explicit checkbox. Changing or rejecting the file clears its
+previous compatibility result. These checks never modify the project.
+
+From a source checkout:
+
+```sh
+npm run check:terraflux -- fixtures/terraflux/model-v1.json
+npm run check:terraflux -- model.json --allow-overlaps
+node scripts/check-terraflux.mjs model.json --scene
+```
+
+The default CLI output is a JSON compatibility summary. `--scene` writes the full
+reference scene to stdout. Invalid files/options exit with code 1. No files are
+created. The CLI itself is not included in the packaged application.
+
+`fixtures/terraflux/model-v1.json` is a frozen v1 exchange file. Its companion
+`expected-v1.json` records independently specified triangle counts and transformed
+bounds for a 6 × 4 m room, a 1 × 2 m door and a rotated cabinet. Tests consume the
+frozen file directly; they do not regenerate it. Contract changes therefore need
+an explicit compatibility decision before fixtures are updated. Separate tests
+check aperture area, normals, index bounds, overlap policy and CLI behaviour.

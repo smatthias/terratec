@@ -1852,3 +1852,9 @@ unset. The receiving TerraFlux adapter is still pending.
 
 See [TerraFlux model contract v1](docs/TERRAFLUX_MODEL.md) for coordinates, geometry,
 provenance, validation and receiving-adapter requirements.
+
+After verifying a TerraFlux model file, **Check receiver compatibility** converts
+it into a reference triangle-mesh scene without loading a physics engine. Room
+apertures remain open, furniture uses boxes, and overlapping rooms require an
+explicit opt-in. A source-checkout CLI is available through `npm run check:terraflux
+-- model.json`; see the contract documentation for scene output and placement.
