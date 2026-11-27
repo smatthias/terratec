@@ -11,6 +11,16 @@ const emit=defineEmits(['change','close']);
 const layout=computed(()=>floorPlanLayout(roomEntries(props.project))),active=computed(()=>activeRoomId(props.project));
 const adjacencies=computed(()=>roomAdjacencies(roomEntries(props.project))),focused=ref(null);
 const connected=computed(()=>openingConnectionSegments(roomEntries(props.project),props.project.openingLinks));
+const exportScale=ref(0),exporting=ref(false),exportError=ref('');
+async function exportSvg() {
+  const source=JSON.parse(JSON.stringify(props.project)),scale=exportScale.value||null;
+  exporting.value=true;
+  try {
+    const {exportBuildingPlanSvg}=await import('../shared/building-plan-svg.mjs');
+    const url=URL.createObjectURL(new Blob([exportBuildingPlanSvg(source,{scale})],{type:'image/svg+xml;charset=utf-8'})),link=document.createElement('a');
+    link.href=url;link.download=(source.name.replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,70)||'terratec')+'_building-plan.svg';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);exportError.value='';
+  }catch(error){exportError.value=error.message;}finally{exporting.value=false;}
+}
 const metres=value=>Number(value.toFixed(6))+' m';
 function inspect(link,side) {if(props.disabled)return;focused.value=link.id;emit('change',{project:switchProjectRoom(props.project,side.roomId),label:'Adjacent wall selected',wall:side.wallId});}
 const conflicts=computed(()=>new Set(layout.value.overlaps.flatMap(pair=>[pair.a,pair.b])));
@@ -18,7 +28,8 @@ function select(id) {if(!props.disabled) emit('change',{project:switchProjectRoo
 </script>
 <template>
   <section class="floor-plan-overview" aria-label="Building floor plan">
-    <div class="floor-plan-toolbar"><strong>Floor plan · {{ layout.rooms.length }} rooms</strong><button @click="emit('close')">Back to room</button></div>
+    <div class="floor-plan-toolbar"><strong>Floor plan · {{ layout.rooms.length }} rooms</strong><label>SVG print scale<select v-model.number="exportScale"><option :value="0">Unscaled</option><option v-for="scale in [20,50,100,200]" :key="scale" :value="scale">1:{{ scale }}</option></select></label><button :disabled="exporting" @click="exportSvg">Export building plan SVG</button><button @click="emit('close')">Back to room</button></div>
+    <p v-if="exportError" role="alert">{{ exportError }}</p>
     <p class="floor-plan-note">Room footprints · metres · select a room, then edit its placement in Room &amp; walls. Overlaps are advisory. Cyan: candidate walls. Green: linked openings. Wall meshes remain independent.</p>
     <svg :viewBox="layout.viewBox" class="floor-plan-map" role="group" aria-label="Room footprints">
       <g v-for="room in layout.rooms" :key="room.id" role="button" :tabindex="disabled?-1:0" :aria-disabled="disabled" :aria-pressed="active===room.id" :aria-label="'Select room '+room.name" :class="{active:active===room.id,overlap:conflicts.has(room.id)}" @click="select(room.id)" @keydown.enter="select(room.id)" @keydown.space.prevent="select(room.id)">
@@ -36,7 +47,7 @@ function select(id) {if(!props.disabled) emit('change',{project:switchProjectRoo
   </section>
 </template>
 <style>
-.floor-plan-overview{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;background:#edf1e8;color:#263e3c;padding:12px;overflow:auto}.floor-plan-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px}.floor-plan-note,.floor-plan-feedback{font-size:12px;line-height:1.5}.floor-plan-map{flex:1;min-height:240px;width:100%;background:#f9faf5}.floor-plan-map polygon{fill:#dbe5d4;stroke:#607d70}.floor-plan-map g{cursor:pointer}.floor-plan-map g.overlap polygon{fill:#edcfc3;stroke:#a04430}.floor-plan-map g.active polygon,.floor-plan-map g:focus polygon{stroke:#126e83;stroke-width:3px;vector-effect:non-scaling-stroke}.floor-plan-map text{text-anchor:middle;dominant-baseline:middle;fill:#263e3c;pointer-events:none}.floor-plan-feedback ul{margin:4px 0;padding-left:20px;max-height:80px;overflow:auto}
+.floor-plan-overview{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;background:#edf1e8;color:#263e3c;padding:12px;overflow:auto}.floor-plan-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}.floor-plan-note,.floor-plan-feedback{font-size:12px;line-height:1.5}.floor-plan-map{flex:1;min-height:240px;width:100%;background:#f9faf5}.floor-plan-map polygon{fill:#dbe5d4;stroke:#607d70}.floor-plan-map g{cursor:pointer}.floor-plan-map g.overlap polygon{fill:#edcfc3;stroke:#a04430}.floor-plan-map g.active polygon,.floor-plan-map g:focus polygon{stroke:#126e83;stroke-width:3px;vector-effect:non-scaling-stroke}.floor-plan-map text{text-anchor:middle;dominant-baseline:middle;fill:#263e3c;pointer-events:none}.floor-plan-feedback ul{margin:4px 0;padding-left:20px;max-height:80px;overflow:auto}
  .shared-wall-spans{pointer-events:none}.shared-wall-spans line{stroke:#087e94;stroke-width:3px;vector-effect:non-scaling-stroke}.shared-wall-spans line.focused{stroke:#b56500;stroke-width:5px}.adjacency-register{font-size:12px}.adjacency-register h3{font-size:13px;margin:8px 0}.adjacency-register ul{padding:0;list-style:none;max-height:140px;overflow:auto}.adjacency-register li{padding:8px;border:1px solid #bbc7bd;margin:4px 0}.adjacency-register li.focused{border-color:#b56500}.adjacency-register span{display:block;margin:4px 0}.adjacency-register button{font-size:11px;padding:5px;margin-right:6px}
 .connected-opening-spans{pointer-events:none}.connected-opening-spans line{stroke:#278130;stroke-width:7px;vector-effect:non-scaling-stroke}
 </style>

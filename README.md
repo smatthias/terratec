@@ -214,7 +214,7 @@ placements use the origin with zero rotation, preserving schema 10 compatibility
 Older schemas reject explicit placement data. Save, JSON, duplication, recovery
 and timeline restoration retain placement. The overview is lazy-loaded and pauses
 the local WebGL render loop while open. Local room exports retain local coordinates;
-combined floor-plan export and shared walls/openings remain future work.
+combined SVG export is available below; shared-wall mesh merging remains future work.
 
 ### Shared-wall adjacency candidates
 
@@ -305,6 +305,30 @@ The JSON report uses `terratec-building-quantities` version 1. CSV includes raw
 room sums, combined/withheld metrics, per-room rows and scope notes, and escapes
 quoted/formula-like user names. Room geometry is validated before reporting; the
 measurements are planning quantities, not building-code or structural certification.
+
+### Combined floor-plan SVG export
+
+In **Floor plan**, choose **SVG print scale** and **Export building plan SVG**.
+The standalone vector drawing includes every transformed room footprint and name,
+shared-wall candidate spans, door/window symbols, linked-opening markers and
+explicit overlap warnings. The active room and camera do not affect the drawing.
+The export captures the project and scale before loading its export-only module,
+so changes during loading cannot alter that download.
+
+Only explicitly linked opening pairs share one symbol; unlinked coincident
+records remain separate. Doors show their hinge, open leaf and quarter-circle
+swing in world space. Bounds include the exact extrema of rotated/outward door
+arcs. Windows use a schematic double line. These symbols include all saved
+openings, regardless of sill/section height; they are not a physical wall section.
+Furniture and construction thickness are not part of this building drawing.
+
+Unscaled output uses a world-coordinate viewBox in metres and pixel display size.
+Scales 1:20, 1:50, 1:100 and 1:200 set physical width/height in millimetres; print at
+100% without fit-to-page. This iteration does not choose A4/A3 sheets or paginate
+oversize plans. Names and metadata are XML-escaped, XML-invalid control characters
+are replaced, and there are no scripts, external images or remote fonts. The
+metadata identifies `terratec-building-plan` version 1 and symbol/overlap counts.
+This is a read-only drawing export, not editable BIM/manufacturing exchange.
 
 ### Wall construction
 
@@ -503,7 +527,7 @@ only the active room. The floor-plan overview shows all room footprints. Plan/wo
 job manifests retain the full project as source context, so any project change
 invalidates their source hash. Rooms currently have independent local coordinates:
 schema 11 placements position their footprints in a shared overview. Shared wall/opening
-connections and whole-building quantity aggregation are not implemented yet.
+mesh merging and construction material take-offs are not implemented yet. Opening links and a scoped building quantity summary are available as described above.
 
 ## Projects and plan export
 
@@ -1648,7 +1672,7 @@ server, not the production deployment setup.
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
 Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 195 kB for
 the entry, 400 kB for each JavaScript chunk, 880 kB for initial JavaScript and
-1040 kB for all JavaScript apart from the furniture designer and the version-history
+1050 kB for all JavaScript apart from the furniture designer and the version-history
 panel, which must load lazily and have their own budgets (82.5 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
 The workshop benches (workbench, drilling and cutting, with the code only they use)
@@ -1680,7 +1704,7 @@ Use an external `TERRATEC_DATA_DIR` for data that must survive application repla
 
 Project schemas 1–12 are supported on read. Room collections require schema 10, placement schema 11 and opening connections schema 12. Point/length constraints require schema 8 and wall relationships require schema 9; unconstrained projects retain the older normalization described below. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
 
-`fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets, cabinet defaults, wall locks and geometry constraints. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
+`fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets, cabinet defaults, wall locks, geometry constraints, room collections, placement and opening links. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
 
 These fixtures establish compatibility with the documented project formats. They are not exports from historical application releases; old release binaries, job/customer cross-version migration, rollback after newer-format writes and automatic bulk migration are not covered.
 
