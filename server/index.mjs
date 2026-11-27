@@ -1,3 +1,4 @@
+import {startupConfig,checkStartup} from './startup-check.mjs';
 import {checkStorage,parseStoredProject,storageError} from './storage-check.mjs';
 import { createServer } from 'node:http';
 import { readFile, mkdir, rename, writeFile, rm } from 'node:fs/promises';
@@ -118,8 +119,14 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
     }
   });
 }
+export async function startConfiguredServer(options={}) {
+  const config=startupConfig(process.env,options),report=await checkStartup(config);
+  for(const issue of report.issues)console.error(`Startup ${issue.code}: ${issue.message}`);
+  if(report.status==='error')throw Error('Startup checks failed. Correct the configuration before restarting.');
+  const server=makeServer(config);
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(config.port,'127.0.0.1',resolve);});
+  console.log(`${options.production?'TerraTec':'TerraTec API'}: http://127.0.0.1:${config.port}`);return server;
+}
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const port = Number(process.env.PORT || 3001);
-  makeServer({ dataDir: process.env.TERRATEC_DATA_DIR, corePath: process.env.TERRATEC_CORE, staticDir: process.env.TERRATEC_STATIC_DIR })
-    .listen(port, '127.0.0.1', () => console.log(`TerraTec API: http://127.0.0.1:${port}`));
+  try{await startConfiguredServer();}catch(error){console.error(error.code==='EADDRINUSE'?'Startup: PORT is already in use. Stop the other service or choose another PORT.':error.message);process.exitCode=1;}
 }

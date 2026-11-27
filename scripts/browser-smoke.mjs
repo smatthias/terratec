@@ -36,7 +36,7 @@ try {
   const tiled=buildingSheetPreview({schemaVersion:1,units:'m',name:'Tiled browser plan',room:{width:6,depth:4,height:2.8}},{paper:'A4',orientation:'landscape',scale:20,tiled:true});
   const printPage=await browser.newPage();await printPage.setContent(tiled.html);await printPage.emulateMedia({media:'print'});
   assert.equal(await printPage.locator('main.sheet').count(),tiled.pageCount);
-  const physical=await printPage.locator('main.sheet').first().boundingBox();assert.ok(Math.abs(physical.width-297*96/25.4)<1);assert.ok(Math.abs(physical.height-210*96/25.4)<1);
+  const tiledPhysical=await printPage.locator('main.sheet').first().boundingBox();assert.ok(Math.abs(tiledPhysical.width-297*96/25.4)<1);assert.ok(Math.abs(tiledPhysical.height-210*96/25.4)<1);
   assert.equal(await printPage.locator('main.sheet').evaluateAll(pages=>pages.every(p=>p.scrollWidth<=p.clientWidth+1&&p.scrollHeight<=p.clientHeight+1)),true);
   await mkdir('test-results',{recursive:true});await printPage.pdf({path:'test-results/tiled-building-plan.pdf',preferCSSPageSize:true,printBackground:true});await printPage.close();
   // Full HD: with the editor windows docked at both sides, the canvas keeps about the

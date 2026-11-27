@@ -1765,3 +1765,23 @@ Run `TERRATEC_DATA_DIR=/path/to/terratec-data npm run check:storage` from the so
 The check creates the directory if missing, writes/renames/deletes a uniquely named temporary probe, counts records, checks JSON readability and validates supported project formats and saved version histories. It never repairs or rewrites saved records. Job/customer checks cover JSON readability only. `POST /api/storage/check` returns the same report for local tooling; `status: attention` and the issues list indicate problems even when the HTTP request succeeds. Permission, read-only, full-storage and invalid-directory errors include recovery guidance. A successful probe describes the check time and does not guarantee future saves will succeed.
 
 Unsupported, invalid or damaged stored projects return HTTP 422 with a specific project error code and guidance to use a compatible release or restore a known-good backup. Existing records that cannot be read are protected from replacement saves. The project list also reports the affected record rather than silently hiding it. Stop the app and preserve a copy of the affected file before restoring data.
+
+### Startup diagnostics
+
+Both `npm run api` and the packaged `start.mjs` check configuration before listening.
+`PORT` must be an integer from 1 to 65535; explicit path overrides must not be empty.
+The geometry core must run and return the expected sample area. Production startup
+also requires a readable, nonempty `index.html`. Storage is probed for write, rename
+and cleanup access. Failures stop startup with corrective guidance; an occupied port
+reports that another service must be stopped or a different `PORT` selected.
+
+Run `npm run check:startup` for a JSON report without opening a server, or
+`npm run check:startup -- --production` to also check the frontend. In an extracted
+release use `node server/startup-check.mjs --production`. These checks use the same
+`PORT`, `TERRATEC_DATA_DIR`, `TERRATEC_CORE` and `TERRATEC_STATIC_DIR` overrides as
+startup. Relative paths resolve from the current working directory; defaults resolve
+beside the app. The storage probe can create a missing data directory.
+
+Corrupt existing records are reported but do not stop the recovery UI from starting
+when storage remains writable. The diagnostics command exits with code 1 for either
+errors or warnings. Saved records are never repaired or overwritten by these checks.
