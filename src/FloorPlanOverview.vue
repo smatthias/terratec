@@ -3,6 +3,7 @@ import {computed,ref,shallowRef,watch,defineAsyncComponent} from 'vue';
 import {openingConnectionSegments} from '../shared/opening-connections.mjs';
 const OpeningConnections=defineAsyncComponent(()=>import('./OpeningConnections.vue'));
 const BuildingQuantities=defineAsyncComponent(()=>import('./BuildingQuantities.vue'));
+const BuildingSheetPreview=defineAsyncComponent(()=>import('./BuildingSheetPreview.vue'));
 import {roomAdjacencies} from '../shared/room-adjacency.mjs';
 import {roomEntries,activeRoomId,switchProjectRoom} from '../shared/project-rooms.mjs';
 import {floorPlanLayout} from '../shared/room-placement.mjs';
@@ -12,6 +13,7 @@ const layout=computed(()=>floorPlanLayout(roomEntries(props.project))),active=co
 const adjacencies=computed(()=>roomAdjacencies(roomEntries(props.project))),focused=ref(null);
 const connected=computed(()=>openingConnectionSegments(roomEntries(props.project),props.project.openingLinks));
 const exportScale=ref(0),exporting=ref(false),exportError=ref(''),paperSize=ref('auto'),paperOrientation=ref('landscape'),svgTools=shallowRef(null);
+const previewSnapshot=shallowRef(null),preparingPreview=ref(false),overviewEl=ref(null);
 let svgToolsPromise;
 function loadSvgTools() {
   if(!svgToolsPromise) svgToolsPromise=import('../shared/building-plan-svg.mjs').then(module=>{svgTools.value=module;return module;}).catch(error=>{svgToolsPromise=null;throw error;});
@@ -33,14 +35,22 @@ async function exportSvg() {
     link.href=url;link.download=(source.name.replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,70)||'terratec')+'_building-plan.svg';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);exportError.value='';
   }catch(error){exportError.value=error.message;}finally{exporting.value=false;}
 }
+async function preparePreview() {
+  const source=JSON.parse(JSON.stringify(props.project)),options={scale:exportScale.value||null,paper:paperSize.value,orientation:paperOrientation.value};
+  preparingPreview.value=true;
+  try {const {buildingSheetPreview}=await import('../shared/building-sheet-preview.mjs');previewSnapshot.value=buildingSheetPreview(source,options);if(overviewEl.value)overviewEl.value.scrollTop=0;exportError.value='';}
+  catch(error) {exportError.value=error.message;}finally{preparingPreview.value=false;}
+}
 const metres=value=>Number(value.toFixed(6))+' m';
 function inspect(link,side) {if(props.disabled)return;focused.value=link.id;emit('change',{project:switchProjectRoom(props.project,side.roomId),label:'Adjacent wall selected',wall:side.wallId});}
 const conflicts=computed(()=>new Set(layout.value.overlaps.flatMap(pair=>[pair.a,pair.b])));
 function select(id) {if(!props.disabled) emit('change',{project:switchProjectRoom(props.project,id),label:'Room selected in floor plan'});}
 </script>
 <template>
-  <section class="floor-plan-overview" aria-label="Building floor plan">
-    <div class="floor-plan-toolbar"><strong>Floor plan · {{ layout.rooms.length }} rooms</strong><label>SVG print scale<select v-model.number="exportScale" aria-label="Building SVG print scale"><option :value="0">Unscaled</option><option v-for="scale in [20,50,100,200]" :key="scale" :value="scale">1:{{ scale }}</option></select></label><label>Paper size<select v-model="paperSize" aria-label="Building SVG paper size"><option value="auto">Drawing bounds</option><option value="A4">A4</option><option value="A3">A3</option></select></label><label v-if="paperSize!=='auto'">Orientation<select v-model="paperOrientation" aria-label="Building SVG orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></label><button :disabled="exporting || (sheetFeedback && (sheetFeedback.pending || !sheetFeedback.fits))" @click="exportSvg">Export building plan SVG</button><button @click="emit('close')">Back to room</button></div>
+  <section ref="overviewEl" class="floor-plan-overview" :class="{'sheet-preview-open':!!previewSnapshot}" aria-label="Building floor plan">
+    <BuildingSheetPreview v-if="previewSnapshot" :snapshot="previewSnapshot" @close="previewSnapshot=null"/>
+    <div class="floor-plan-toolbar"><strong>Floor plan · {{ layout.rooms.length }} rooms</strong><label>SVG print scale<select v-model.number="exportScale" aria-label="Building SVG print scale"><option :value="0">Unscaled</option><option v-for="scale in [20,50,100,200]" :key="scale" :value="scale">1:{{ scale }}</option></select></label><label>Paper size<select v-model="paperSize" aria-label="Building SVG paper size"><option value="auto">Drawing bounds</option><option value="A4">A4</option><option value="A3">A3</option></select></label><label v-if="paperSize!=='auto'">Orientation<select v-model="paperOrientation" aria-label="Building SVG orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></label><button :disabled="exporting || (sheetFeedback && (sheetFeedback.pending || !sheetFeedback.fits))" @click="exportSvg">Export building plan SVG</button><button :disabled="preparingPreview || paperSize==='auto' || !sheetFeedback || sheetFeedback.pending || !sheetFeedback.fits" @click="preparePreview">Preview printable sheet</button><button @click="emit('close')">Back to room</button></div>
+    <p v-if="paperSize==='auto'" class="floor-plan-note">Choose A4/A3 and a fitting print scale to preview a printable sheet.</p>
     <div v-if="sheetFeedback" class="building-sheet-fit" data-testid="building-sheet-fit" role="status"><span v-if="sheetFeedback.pending">Checking building sheet…</span><span v-else-if="sheetFeedback.error">{{ sheetFeedback.error }}</span><template v-else><strong>{{ sheetFeedback.fits?'Building plan fits':'Building plan does not fit' }} {{ paperSize }} {{ paperOrientation }} at 1:{{ exportScale }}.</strong><span>Drawing {{ sheetFeedback.requiredWidth.toFixed(1) }} × {{ sheetFeedback.requiredHeight.toFixed(1) }} mm; usable {{ sheetFeedback.usableWidth }} × {{ sheetFeedback.usableHeight }} mm.</span><button v-if="!sheetFeedback.fits && sheetFeedback.suggestedScale" @click="exportScale=sheetFeedback.suggestedScale">Use suggested scale 1:{{ sheetFeedback.suggestedScale }}</button></template></div>
     <p v-if="exportError" role="alert">{{ exportError }}</p>
     <p class="floor-plan-note">Room footprints · metres · select a room, then edit its placement in Room &amp; walls. Overlaps are advisory. Cyan: candidate walls. Green: linked openings. Wall meshes remain independent.</p>

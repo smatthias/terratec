@@ -350,6 +350,29 @@ is applied. Print at 100% without fit-to-page or additional print margins. Actua
 printer unprintable regions are not queried. Paper/scale/orientation are workspace
 export settings and do not modify the saved project.
 
+### Printable building-sheet preview
+
+Choose A4/A3, orientation and a fitting print scale in Floor plan, then
+**Preview printable sheet**. The preview is a fixed snapshot of those settings
+and the project when prepared; close and reopen it to include later edits. It
+shows the exact exported vector sheet, including title, scope notes, room labels
+and linked-opening symbols. No saved project fields or schema change.
+
+**Print / Save PDF** opens the browser print dialog for the sheet document only,
+not the surrounding application. **Download HTML sheet** saves a standalone copy
+that can be opened and printed separately. Use 100% scale, no fit-to-page, no
+additional print margins and no browser headers/footers. Screen display adapts to
+the preview window; print CSS restores the selected A4/A3 size and physical scale.
+The HTML uses an explicit page size and zero page margin around the SVG's own
+10 mm drawing margins. Oversize or unscaled fixed sheets cannot be prepared.
+
+The embedded preview permits browser print dialogs but runs no document scripts;
+the standalone HTML has no scripts or remote assets. The print button waits for
+the document to load, and HTML download remains available if printing is blocked.
+Close sheet preview (or Escape while a preview control has focus) returns to the
+floor plan. Actual browser/printer behaviour still requires browser verification;
+this feature does not implement its own PDF renderer or automatic printer setup.
+
 ### Wall construction
 
 Rooms are built from their walls (`shared/room-construction.mjs`): every wall is
@@ -1692,7 +1715,7 @@ server, not the production deployment setup.
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
 Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 195 kB for
 the entry, 400 kB for each JavaScript chunk, 880 kB for initial JavaScript and
-1055 kB for all JavaScript apart from the furniture designer and the version-history
+1060 kB for all JavaScript apart from the furniture designer and the version-history
 panel, which must load lazily and have their own budgets (82.5 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
 The workshop benches (workbench, drilling and cutting, with the code only they use)
