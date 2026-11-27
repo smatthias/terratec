@@ -241,6 +241,42 @@ Coincident room interior boundary lines are a planning hint, not proof of a shar
 physical wall: wall thickness, material, structural compatibility, elevation and
 accessibility remain outside this check.
 
+### Connected doors and windows
+
+In the floor-plan overview, use **Connected openings** to choose a shared-wall
+candidate, source room and an existing source opening, then **Connect opening**.
+Create the source opening through the wall inspector first. Both rooms must be
+unlocked. The operation creates a counterpart in the other room, or reuses one
+with matching geometry. It validates the entire result before committing either
+room or the connection; a failure leaves the project intact.
+
+Offsets are mirrored along the two walls' A→B directions. Type, width, height,
+sill, horizontal endpoints and top height must align within 0.00001 m, and both
+openings must lie within the shared interval and fit their own wall clearances.
+Doors also mirror hinge A/B and inward/outward swing so their symbolic orientation
+agrees in world space. A conflicting target opening is not overwritten. Green
+segments in the overview mark linked openings.
+
+Schema 12 stores up to 64 `openingLinks`, each with a stable ID and two
+`{roomId, openingId}` endpoints. An opening may participate in only one link.
+Missing openings, lost wall adjacency or misaligned geometry reject saves/imports
+and in-editor edits. There is no automatic propagation of later edits: unlink,
+edit the rooms/openings and reconnect. **Unlink** removes only the relationship and
+retains both openings. Whole-room placement changes that would break a link are
+also rejected; group movement is not implemented.
+
+Connection creation/removal is project history, not a local geometry undo step.
+Undo/redo validates before moving its cursor; a change that would break a live
+connection is rejected without changing either history or project state. Project
+and per-link timeline restoration, save/load, JSON, duplication and recovery
+retain links. Restoring an incompatible room entry requires unlinking first.
+Schemas 1–11 retain their previous normalization and reject explicit link data.
+
+These links establish geometric consistency between two independent opening
+records. They do not merge wall meshes, remove duplicate frames/leaves, animate
+physical doors, certify clearances or deduplicate whole-building quantities.
+The local canvas, plan and manufacturing exports continue to use the active room.
+
 ### Wall construction
 
 Rooms are built from their walls (`shared/room-construction.mjs`): every wall is
@@ -1581,9 +1617,9 @@ and `npm run preview` in separate terminals. Preview is a local verification
 server, not the production deployment setup.
 
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
-Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 190 kB for
-the entry, 400 kB for each JavaScript chunk, 875 kB for initial JavaScript and
-1025 kB for all JavaScript apart from the furniture designer and the version-history
+Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 195 kB for
+the entry, 400 kB for each JavaScript chunk, 880 kB for initial JavaScript and
+1035 kB for all JavaScript apart from the furniture designer and the version-history
 panel, which must load lazily and have their own budgets (82.5 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
 The workshop benches (workbench, drilling and cutting, with the code only they use)
@@ -1613,7 +1649,7 @@ Use an external `TERRATEC_DATA_DIR` for data that must survive application repla
 
 ### Project compatibility policy
 
-Project schemas 1–11 are supported on read. Room collections require schema 10; placement requires schema 11. Point/length constraints require schema 8 and wall relationships require schema 9; unconstrained projects retain the older normalization described below. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
+Project schemas 1–12 are supported on read. Room collections require schema 10, placement schema 11 and opening connections schema 12. Point/length constraints require schema 8 and wall relationships require schema 9; unconstrained projects retain the older normalization described below. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
 
 `fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets, cabinet defaults, wall locks and geometry constraints. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
 

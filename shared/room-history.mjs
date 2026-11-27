@@ -1,5 +1,6 @@
-import {createHistory} from './history.mjs';
-import {activeRoomId} from './project-rooms.mjs';
+import {createHistory,undoHistory,redoHistory} from './history.mjs';
+import {validateProject} from './project.mjs';
+import {activeRoomId,withActiveRoom} from './project-rooms.mjs';
 const copy=value=>JSON.parse(JSON.stringify(value));
 export function createRoomHistories() {
   const rooms=new Map();
@@ -11,4 +12,12 @@ export function createRoomHistories() {
     },
     clear() {rooms.clear();}
   };
+}
+
+// Validate before committing either the project or its undo cursor.
+export function travelRoomHistory(project,history,direction) {
+  if(!['undo','redo'].includes(direction)) throw Error('Unknown history direction');
+  const next=direction==='undo'?undoHistory(history):redoHistory(history);
+  const validated=validateProject(withActiveRoom(project,copy(next.present)));
+  return {project:validated,history:{...next,present:copy(validated.room)}};
 }

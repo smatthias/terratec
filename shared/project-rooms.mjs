@@ -32,5 +32,5 @@ export function renameProjectRoom(input,id,name) {
 export function setProjectRoomPlacement(input,id,placement) {
   const project=validateProject(input),rooms=roomEntries(project);
   if(!rooms.some(r=>r.id===id)) throw Error('Unknown room');
-  return assemble({...project,schemaVersion:11},rooms.map(r=>r.id===id?{...r,placement}:r),activeRoomId(project));
+  return assemble({...project,schemaVersion:Math.max(11,project.schemaVersion)},rooms.map(r=>r.id===id?{...r,placement}:r),activeRoomId(project));
 }

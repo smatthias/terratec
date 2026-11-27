@@ -11,5 +11,5 @@ for(const fixture of cases)test(`schema ${fixture.project.schemaVersion} matches
   assert.deepEqual(validateProject(actual),fixture.expected);
 });
 test('unsupported versions are rejected rather than interpreted as current',()=>{
-  for(const schemaVersion of [0,12,'11',null])assert.throws(()=>validateProject({...cases[0].project,schemaVersion}),/schemaVersion/);
+  for(const schemaVersion of [0,13,'12',null])assert.throws(()=>validateProject({...cases[0].project,schemaVersion}),/schemaVersion/);
 });

@@ -14,7 +14,7 @@ const RoomConstraints=defineAsyncComponent(()=>import('./RoomConstraints.vue'));
 const ProjectRooms=defineAsyncComponent(()=>import('./ProjectRooms.vue'));
 const FloorPlanOverview=defineAsyncComponent(()=>import('./FloorPlanOverview.vue'));
 import {withActiveRoom} from '../shared/project-rooms.mjs';
-import {createRoomHistories} from '../shared/room-history.mjs';
+import {createRoomHistories,travelRoomHistory} from '../shared/room-history.mjs';
 const ConstraintOverlay=defineAsyncComponent(()=>import('./ConstraintOverlay.vue'));
 import { createTimeline, appendVersion, stateAt, headState, elementAt, withElement, deepEqual, TIMELINE_FORMAT } from '../shared/timeline.mjs';
 import { createTimelineStore } from './timeline-store.js';
@@ -152,7 +152,7 @@ import { isLocked, lockRoom, unlockRoom, checkRoomEdit, LOCKED_MESSAGE } from '.
 import { dimensionLayout, openingChainLayout } from './dimensions.js';
 import { createPlacementPreview } from './placement-preview.js';
 import { wallLength, openingAtPoint, previewOpening, openingPreset } from '../shared/openings.mjs';
-import { createHistory, commitHistory, undoHistory, redoHistory } from '../shared/history.mjs';
+import { createHistory, commitHistory } from '../shared/history.mjs';
 const blankProject=()=>validateProject({schemaVersion:1,units:'m',name:'Untitled studio',room:{width:6,depth:4,height:2.8}});
 const project=ref(blankProject());
 // The version of the history shown read-only, if any (see Version history below).
@@ -255,8 +255,8 @@ function travel(direction) {
   if(editingLocked.value) return;
   furniturePlacing.value=false;placementType.value=null;
   const wasLocked=wallsLocked.value;
-  history.value=direction==='undo'?undoHistory(history.value):redoHistory(history.value);
-  setRoom(JSON.parse(JSON.stringify(history.value.present)));
+  try {const next=travelRoomHistory(project.value,history.value,direction);project.value=next.project;history.value=next.history;}
+  catch(error) {message.value=error.message;return;}
   if(wasLocked!==wallsLocked.value) message.value=(direction==='undo'?'Undo':'Redo')+': walls '+(wallsLocked.value?'locked · interior editing':'unlocked · wall editing');
   else message.value=direction==='undo'?'Geometry edit undone':'Geometry edit redone';
 }

@@ -70,7 +70,7 @@ export function applyPatch(a,patch) {
 }
 
 // ---- Project elements: the units whose versions are tracked and restorable.
-export const ELEMENT_KINDS=Object.freeze({project:'Project',roomEntry:'Room',activeRoom:'Active room',room:'Room shell',opening:'Opening',furniture:'Furniture',design:'Design',preset:'Opening preset',furniturePreset:'Furniture preset',workshopProfile:'Workshop profile'});
+export const ELEMENT_KINDS=Object.freeze({project:'Project',roomEntry:'Room',activeRoom:'Active room',openingLink:'Opening connection',room:'Room shell',opening:'Opening',furniture:'Furniture',design:'Design',preset:'Opening preset',furniturePreset:'Furniture preset',workshopProfile:'Workshop profile'});
 const SHELL_KEYS=['width','depth','height','outline','walls','locked'];
 export function projectElements(project) {
   const elements=new Map(),add=(kind,id,name,value)=>elements.set(id===null?kind:kind+':'+id,{kind,id,name,value});
@@ -83,6 +83,7 @@ export function projectElements(project) {
   for(const o of project.room.openings??[]) add('opening',o.id,`${o.type==='door'?'Door':'Window'} on ${o.wall}`,o);
   for(const f of project.room.furniture??[]) add('furniture',f.id,f.name,f);
   }
+  for(const link of project.openingLinks??[]) {const a=project.rooms.find(r=>r.id===link.a.roomId),b=project.rooms.find(r=>r.id===link.b.roomId);add('openingLink',link.id,a.name+' ↔ '+b.name,link);}
   for(const d of project.furnitureDesigns??[]) add('design',d.id,d.name,d);
   for(const p of project.presets??[]) add('preset',p.id,p.name,p);
   for(const p of project.furniturePresets??[]) add('furniturePreset',p.id,p.name,p);
@@ -117,6 +118,7 @@ export function withElement(project,key,value) {
   else if(kind==='room') {for(const k of SHELL_KEYS) delete next.room[k];Object.assign(next.room,clone(value));}
   else if(kind==='opening') setIn(next.room.openings,value);
   else if(kind==='furniture') setIn(next.room.furniture,value);
+  else if(kind==='openingLink') next.openingLinks=setIn(next.openingLinks??[],value);
   else if(kind==='design') next.furnitureDesigns=setIn(next.furnitureDesigns??[],value);
   else if(kind==='preset') setIn(next.presets,value);
   else if(kind==='furniturePreset') next.furniturePresets=setIn(next.furniturePresets??[],value);
