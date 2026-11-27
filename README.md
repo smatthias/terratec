@@ -1858,3 +1858,8 @@ it into a reference triangle-mesh scene without loading a physics engine. Room
 apertures remain open, furniture uses boxes, and overlapping rooms require an
 explicit opt-in. A source-checkout CLI is available through `npm run check:terraflux
 -- model.json`; see the contract documentation for scene output and placement.
+
+**Preview receiver scene** opens a separate orbitable 3D view of a verified file.
+Set receiver X/Y/Z and yaw, apply the placement, toggle ceilings or wireframe, and
+fit the camera. These controls do not alter the project or exchange file. Invalid
+placement keeps the last valid preview; closing releases its rendering resources.

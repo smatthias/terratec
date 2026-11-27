@@ -127,3 +127,23 @@ bounds for a 6 × 4 m room, a 1 × 2 m door and a rotated cabinet. Tests consume
 frozen file directly; they do not regenerate it. Contract changes therefore need
 an explicit compatibility decision before fixtures are updated. Separate tests
 check aperture area, normals, index bounds, overlap policy and CLI behaviour.
+
+## Receiver scene preview
+
+After verifying an exchange file, **Preview receiver scene** opens an isolated 3D
+view of its reference receiver meshes. Drag to orbit and use the wheel to zoom.
+**Fit receiver scene** frames the last valid scene. Ceilings start hidden for
+interior visibility; ceiling and wireframe toggles only affect rendering.
+
+Enter receiver X/Y/Z translations in metres and yaw in degrees, then select
+**Apply receiver placement**. This uses the same validated rigid transform as the
+reference receiver. Invalid values leave the last valid scene intact. Controls
+start at zero on each opening and are not saved to the project or exchange file.
+The preview does not modify room placements, source hashes or the main camera.
+
+Rendering recentres verified geometry around its bounds before conversion to
+Float32 GPU buffers, preserving local detail at large receiver offsets. The bounds
+readout remains in receiver coordinates. Closing the preview releases its GPU
+geometry/materials, renderer, controls, resize observer and animation loop. A new
+file or overlap-policy change closes an existing preview. This is geometry review;
+there is no live physics, material-property mapping or simulation in this view.
