@@ -277,6 +277,35 @@ records. They do not merge wall meshes, remove duplicate frames/leaves, animate
 physical doors, certify clearances or deduplicate whole-building quantities.
 The local canvas, plan and manufacturing exports continue to use the active room.
 
+### Whole-building quantity summary
+
+The floor-plan overview includes **Whole-building quantities** for every room,
+with per-room floor area, interior volume, perimeter and net room-facing wall area.
+**Export building quantities JSON/CSV** downloads a read-only report of the current
+project, including units, scope and overlap status. It does not change saved data
+or create a manufacturing order. No new project schema is introduced.
+
+- Areas use the actual convex outlines, not their bounding rectangles; volumes
+  use each room's own height. Placement and rotation do not change room quantities.
+- Room area/volume/perimeter sums remain visible when rooms overlap. Combined
+  floor area, interior volume and boundary lengths are withheld (`null` in JSON,
+  empty with an explicit withheld status in CSV). No polygon union is calculated.
+- Without overlaps, shared-span lengths come from adjacency detection. Boundary
+  lines counted once equal room perimeter sum minus shared length; exposed boundary
+  estimates subtract shared length twice. These use interior outlines and the
+  adjacency tolerance, excluding wall thickness and structural construction.
+- Wall-face areas count room-facing finish surfaces. Shared walls retain both
+  faces; openings are deducted on both room faces. This is not a deduplicated wall
+  material area, wall volume or bill of materials.
+- Each explicit linked pair reduces its door/window record count by one. Unlinked
+  coincident openings remain separate. Furniture totals count placed cabinet/design
+  instances; manufacturing panel and stock calculations remain active-room scoped.
+
+The JSON report uses `terratec-building-quantities` version 1. CSV includes raw
+room sums, combined/withheld metrics, per-room rows and scope notes, and escapes
+quoted/formula-like user names. Room geometry is validated before reporting; the
+measurements are planning quantities, not building-code or structural certification.
+
 ### Wall construction
 
 Rooms are built from their walls (`shared/room-construction.mjs`): every wall is
@@ -1619,7 +1648,7 @@ server, not the production deployment setup.
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
 Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 195 kB for
 the entry, 400 kB for each JavaScript chunk, 880 kB for initial JavaScript and
-1035 kB for all JavaScript apart from the furniture designer and the version-history
+1040 kB for all JavaScript apart from the furniture designer and the version-history
 panel, which must load lazily and have their own budgets (82.5 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
 The workshop benches (workbench, drilling and cutting, with the code only they use)

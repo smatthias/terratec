@@ -2,6 +2,7 @@
 import {computed,ref,defineAsyncComponent} from 'vue';
 import {openingConnectionSegments} from '../shared/opening-connections.mjs';
 const OpeningConnections=defineAsyncComponent(()=>import('./OpeningConnections.vue'));
+const BuildingQuantities=defineAsyncComponent(()=>import('./BuildingQuantities.vue'));
 import {roomAdjacencies} from '../shared/room-adjacency.mjs';
 import {roomEntries,activeRoomId,switchProjectRoom} from '../shared/project-rooms.mjs';
 import {floorPlanLayout} from '../shared/room-placement.mjs';
@@ -30,6 +31,7 @@ function select(id) {if(!props.disabled) emit('change',{project:switchProjectRoo
     </svg>
     <section class="adjacency-register" aria-label="Shared-wall candidates"><h3>Shared-wall candidates · {{ adjacencies.length }}</h3><p v-if="!adjacencies.length">No coincident, oppositely facing wall spans detected.</p><ul v-else><li v-for="link in adjacencies" :key="link.id" :class="{focused:focused===link.id}"><strong>{{ link.a.roomName }} · {{ link.a.wallName }} ↔ {{ link.b.roomName }} · {{ link.b.wallName }}</strong><span>{{ metres(link.length) }} shared span · {{ metres(link.height) }} common height{{ link.heightMismatch?' · room heights differ':'' }}</span><button :disabled="disabled" @click="inspect(link,link.a)">Inspect {{ link.a.roomName }} wall</button><button :disabled="disabled" @click="inspect(link,link.b)">Inspect {{ link.b.roomName }} wall</button></li></ul><p>Wall meshes remain independent. Manage explicit opening links below; thickness and structural compatibility are not verified.</p></section>
     <OpeningConnections v-if="adjacencies.length||project.openingLinks?.length" :project="project" :adjacencies="adjacencies" :disabled="disabled" @change="emit('change',$event)"/>
+    <BuildingQuantities :project="project"/>
     <div class="floor-plan-feedback" role="status"><template v-if="layout.overlaps.length"><strong>{{ layout.overlaps.length }} overlapping pairs</strong><ul><li v-for="pair in layout.overlaps" :key="pair.a+':'+pair.b">{{ pair.names.join(' / ') }}</li></ul></template><span v-else>No overlapping room interiors. Wall thickness and structural compatibility are not checked.</span></div>
   </section>
 </template>
