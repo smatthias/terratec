@@ -1,6 +1,7 @@
 import {furnitureClearance,clearanceSettings} from './furniture-clearance.mjs';
 import {previewFurnitureInsertion} from './furniture-library.mjs';
 import {cabinetInterval} from './cabinet-arrange.mjs';
+import {snapFurniture} from './furniture-snap.mjs';
 export function placementRotation(value){if(typeof value!=='number'||!Number.isFinite(value))throw Error('Enter a finite placement rotation');return ((value%360)+360)%360;}
 export function placementGuides(candidate,furniture,tolerance=.08){
   if(!candidate)return [];
@@ -22,12 +23,21 @@ export function placementGuides(candidate,furniture,tolerance=.08){
   }
   return guides;
 }
-export function evaluateFurniturePlacement(room,request,spacing,snap=true,guideSnap=false,clearanceOptions){
+// `connect`: snap the preview to nearby walls and furniture (furniture-snap.mjs)
+// after the grid and guides, when that gives a valid position.
+export function evaluateFurniturePlacement(room,request,spacing,snap=true,guideSnap=false,clearanceOptions,connect=false){
   let result=previewFurnitureInsertion(room,request,spacing,snap);
   let guides=placementGuides(result.candidate,room.furniture);
   if(guideSnap&&guides.length&&result.candidate){
     const point={x:result.candidate.x,z:result.candidate.z};for(const guide of guides)point[guide.axis]+=guide.delta;
     result=previewFurnitureInsertion(room,{...request,point},spacing,false);guides=placementGuides(result.candidate,room.furniture);
+  }
+  if(connect&&result.candidate){
+    try{
+      const snapped=snapFurniture({...room,furniture:[...room.furniture,result.candidate]},result.candidate.id,{wallGap:clearanceOptions?.minWall??.05,clearance:clearanceOptions});
+      const next=snapped&&previewFurnitureInsertion(room,{...request,point:{x:snapped.item.x,z:snapped.item.z},rotation:snapped.item.rotation},spacing,false);
+      if(next?.valid){result={...next,snaps:snapped.snaps};guides=placementGuides(result.candidate,room.furniture);}
+    }catch{}
   }
   let clearance=null;try{const settings=clearanceSettings(clearanceOptions);if(result.candidate)clearance=furnitureClearance(room,result.candidate,settings);if(result.valid&&settings.enforce&&clearance?.issues.length)result={...result,valid:false,error:'Clearance: '+clearance.issues[0].message};}catch(error){result={...result,valid:false,error:error.message};}
   return {...result,guides,clearance};

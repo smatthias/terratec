@@ -24,8 +24,8 @@ npm run dev
 
 Open the local address printed by Vite (normally http://127.0.0.1:5173).
 Edit the room dimensions, calculate geometry, save, change dimensions, and reopen
-the saved project. Drag to orbit; right-drag to pan; scroll to zoom. Plan uses an orthographic camera with north up and all four walls visible. The 3D
-view uses a two-wall cutaway. Click a surface or use the surface list to select it.
+the saved project. Drag to orbit; right-drag to pan; scroll to zoom. Plan uses an orthographic camera with north up and all walls visible. The 3D
+view cuts away walls that face the camera (south and east in the original room). Click a surface or use the surface list to select it.
 Selection survives view switches and dimension edits; Escape or Clear selection
 clears it. In Plan, drag a round corner handle to edit the outline; drag empty space
 to pan. Fit room resets the camera. A drag makes one undo entry when released;
@@ -34,7 +34,8 @@ An invalid release restores the original shape. Grid snapping applies to handles
 and numeric coordinates alike.
 
 Undo/Redo buttons and Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y restore geometry
-edits, including dimensions, height and numeric endpoints. Shortcuts leave text-input
+edits, including dimensions, height and numeric endpoints, wall construction,
+furniture edits and locking or unlocking the walls. Shortcuts leave text-input
 undo alone. History is session-local, holds up to 100 edits, and resets on Open saved;
 saving does not clear it. Selection, camera position and project-name edits are not
 included in geometry history.
@@ -43,16 +44,43 @@ included in geometry history.
 ctest --test-dir build --output-on-failure
 npm test
 npm run build
-npx playwright install --with-deps chromium
+npm run test:browser:install
 npm run test:browser
 ```
+
+The browser checks drive Playwright's own Chromium build, which
+`npm run test:browser:install` downloads once for the installed Playwright version
+(`--with-deps` also installs the system libraries it needs on Linux; without root,
+`npx playwright install chromium` downloads only the browser). Where that download
+is not possible (offline, or a network that blocks Playwright's CDN), point
+`TERRATEC_CHROMIUM` at an installed Chromium or Chrome instead:
+`TERRATEC_CHROMIUM=/usr/bin/chromium npm run test:browser`. Without either, the
+checks stop at once and say how to install the browser.
 
 The native executable may also be built directly when CMake is unavailable:
 
 ```sh
 mkdir -p build
-g++ -std=c++17 -Wall -Wextra -Wpedantic core/main.cpp -o build/terratec-core
+g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -static core/main.cpp -o build/terratec-core
 ```
+
+However it is built (`cmake -S . -B build`, an in-source `cmake . && make`, an IDE's
+own build folder such as `cmake-build-debug`, or a multi-config generator), CMake
+writes the core to `build/terratec-core` in the project, where the API, the tests and
+the release package run it.
+
+On Linux the core is linked fully static (CMake option `TERRATEC_STATIC_CORE`, on by
+default), so a core built on one machine (or by CI, for the release archive) runs on
+any x86-64 Linux. A core linked against the build machine's libraries only runs where
+those libraries are as new: one built on Ubuntu 24.04 fails on 22.04 with
+`GLIBCXX_3.4.32 not found`. Where no static C library is installed (e.g. Fedora
+without `glibc-static`; drop `-static` from the command above), CMake links it
+normally and the core must be built on the machine that runs it.
+
+`npm test` first checks (`npm run pretest`) that the npm packages are installed and
+that `build/terratec-core` exists and runs on this machine, and if not, prints the
+commands to fix it (`npm ci`, or rebuilding the core) instead of failing test by test It also
+points out a core left elsewhere by an earlier build (e.g. `./terratec-core`).
 
 ## Project contract
 
@@ -72,16 +100,392 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic core/main.cpp -o build/terratec-core
 ```
 
 Coordinates are right-handed, with Y up and the floor in X/Z. The outline stores
-four shared interior corners in clockwise plan order; wall IDs follow the initial
-north/east/south/west edges even after rotation. Select a wall and edit A/B coordinates,
+3–32 shared interior corners in clockwise plan order, one per wall (see Stable
+corner and wall IDs and Wall construction below). Wall IDs follow their walls
+even after rotation. Select a wall and edit A/B coordinates,
 then Apply endpoints. Adjoining walls update together. Optional grid snapping uses
 0.1, 0.25, 0.5 or 1 m increments; large rooms render a coarser grid for performance.
 Width and depth inputs scale the outline about its bounding-box center. Height is
 uniform. Coordinates must be finite and within ±1000 m, wall lengths at least 0.1 m,
 and overall spans 0.1–1000 m. Crossing, concave and collapsed outlines are rejected.
 
+### Stable corner and wall IDs
+
+`shared/room-topology.mjs` defines room identity. A room is a closed clockwise ring
+of walls with stable IDs; a new room has `north`, `east`, `south` and `west`. Wall
+*w* runs from its A corner to its B corner, so each corner joins an incoming and an
+outgoing wall. Door hinge ends A/B refer to the same corners.
+
+Corner IDs are derived from the two walls that meet there. Compass pairs keep
+readable names (`west` → `north` meet at `north-west`); any other pair is
+`incoming+outgoing`, for example `west+north-1`. A corner therefore keeps its ID
+as long as the same two walls meet, and is redefined when a wall is moved away,
+exchanged or removed. Wall and corner IDs are identities, not compass bearings:
+they stay with their wall or corner through drags, endpoint edits, scaling and
+rotation.
+
+Code addresses corners and walls by ID, passing the room (or a bare four-corner
+outline): `cornerPoint`, `wallSegment` (A/B points, length, direction and inward
+normal), `roomCorners` (joining walls and interior angle), `nextCorner`/`nextWall`
+(clockwise; negative steps go anticlockwise) and `oppositeCorner`/`oppositeWall`
+(even wall counts only). `moveCorner`/`moveCorners` take corner IDs; numeric
+indexes are rejected. Plan corner handles are labelled by corner (for example
+“North-west corner drag handle”), and the endpoint editor names the A/B corners.
+Cabinet footprints use `back-left`, `back-right`, `front-right`, `front-left`
+corners and `back`, `right`, `front`, `left` sides (`cabinetCorners`,
+`cabinetSides`). Left and right are as seen when facing the cabinet front.
+
+### Persistent room constraints
+
+Select a wall in Room & walls to lock or unlock either endpoint at its current
+coordinates. Enter **Fixed wall length (m)** and choose **Set fixed length** to
+retain that wall length through later edits; **Remove fixed length** releases it.
+Each constraint change is one undo step. Constraints travel with saved projects,
+JSON transfer, duplication, recovery and version history.
+
+Corner dragging keeps the dragged corner at its snapped position and adjusts free
+neighbours to satisfy lengths. Numeric endpoint edits hold both entered endpoints;
+if these conflict with a saved length or locked point, the edit is rejected.
+Dimension scaling also respects constraints, so the resulting span may differ
+from the requested span. Free corners may end up off-grid. Locks take precedence
+and the normal convexity, opening-fit and furniture-fit checks still apply.
+
+The solver uses at most 256 projection iterations and accepts a maximum residual
+of 0.000001 m for point/length rules. Inconsistent or nonconverging edits leave the project and history
+unchanged. Wall construction rejects edits that violate constraints or remove
+referenced corner/wall IDs; release the affected constraints first. Up to 64
+constraints are supported.
+
+Choose a **Reference wall**, then **Make parallel** or **Make perpendicular** to
+save a relationship between it and the selected wall. **Saved relationship** shows
+that pair's current rule; **Remove relationship** removes only that pair's rule.
+The wall pair is unordered, and a new relationship replaces the previous one for
+that pair. Both walls can adjust at free corners, including their shared endpoint.
+The solver checks normalized cross-product (parallel) or dot-product
+(perpendicular) residuals against 0.000001, independent of wall lengths. Parallel
+includes opposite directions. Existing point locks and fixed lengths still apply;
+conflicting rules or invalid room geometry reject the complete edit.
+
+Point/length projects use schema 8; projects with wall relationships use schema 9. Schemas 1–7 retain their previous normalization
+when no constraints are present. Older releases must reject unsupported schema versions; keep JSON
+backups before opening constrained projects in a different release.
+
+### Reviewing constraints in Plan
+
+**Saved constraints** in Room & walls lists every rule, even with no wall selected.
+Click a row to select its wall (the outgoing wall for a locked corner). Remove
+releases only that rule, keeps the current shape and makes one undo step. Wall
+locking and history preview prevent rule edits. Selecting a wall also opens its
+constraint creation controls in this panel.
+
+Plan shows noninteractive markers: `lock` for saved points, `=… m` for lengths,
+and `∥` / `⊥` on both walls of a relationship. C numbers match the list; these
+numbers are display references and can change after removal. Multiple rules on
+the same wall stack vertically. Markers follow zoom/pan and resize, disappear
+outside the view, and are hidden in 3D. They do not affect selection, geometry,
+project files or exports. The panel and overlay load on first use.
+
+### Shared floor-plan overview
+
+Choose **Floor plan** in the view bar, or **Open floor plan** under Rooms. The
+shared overview draws every room footprint in world X/Z coordinates. Select a
+footprint with the pointer or Enter/Space to make it active, then edit **Room X**,
+**Room Z** and **Room rotation** in Room & walls and choose **Apply room placement**.
+**Back to room** or Escape returns to local room editing. Geometry shortcuts are
+inactive in the overview; its selection does not delete or move local furniture.
+
+Placement rotates about the room's local origin using the same right-handed Y
+rotation as furniture, then translates in metres. X/Z must be within ±1000 m;
+angles within ±3600° normalize to 0–359…°. Coordinates are exact, independent of
+the local editing grid. Wall locking fixes local geometry but still permits moving
+the whole room. Placement does not alter local constraints, openings, furniture,
+quantities or geometry undo. It is restored through project/room-entry version
+history; it does not enter the local geometry undo stack.
+
+Overlapping interiors are coloured and listed as advisory conflicts. Convex
+footprints are checked by separating axes, including rotated rooms; edge/corner
+contact is allowed within 0.0000001 m. These checks exclude wall thickness,
+shared-wall topology, openings, elevation and building-code clearances. Existing
+unplaced rooms share origin zero and may overlap until positioned. This iteration
+has numeric placement, not pointer dragging or wall snapping.
+
+Schema 11 stores optional `placement: {x, z, rotation}` on each room entry. Missing
+placements use the origin with zero rotation, preserving schema 10 compatibility.
+Older schemas reject explicit placement data. Save, JSON, duplication, recovery
+and timeline restoration retain placement. The overview is lazy-loaded and pauses
+the local WebGL render loop while open. Local room exports retain local coordinates;
+combined SVG export is available below; shared-wall mesh merging remains future work.
+
+### Shared-wall adjacency candidates
+
+The floor-plan overview highlights candidate shared wall spans in cyan. The
+**Shared-wall candidates** register identifies both rooms and stable wall IDs,
+shared length and common height. **Inspect … wall** selects that room and brings
+its wall controls forward; the chosen span is highlighted in amber. Heights are
+measured from the current common floor plane (zero); differing room heights are
+reported explicitly.
+
+Detection uses transformed wall segments and requires opposite directions,
+normalized cross-product magnitude at most 0.0000001, both endpoints within
+0.00001 m of the other's wall line, and overlapping length greater than
+0.00001 m. It rejects corner-only contacts, gaps beyond tolerance and room pairs
+with overlapping interiors. Partial spans and rotated rooms are supported. Each
+side records its interval in metres from that wall's local A endpoint, ready for
+explicit opening alignment in a later increment.
+
+Candidates recompute after geometry, placement or naming edits. Their keys use
+room/wall identities and are independent of collection order. This is derived
+read-only information and introduces no new schema. It does not merge wall
+meshes, change quantities, snap geometry or create/link doors and windows.
+Coincident room interior boundary lines are a planning hint, not proof of a shared
+physical wall: wall thickness, material, structural compatibility, elevation and
+accessibility remain outside this check.
+
+### Connected doors and windows
+
+In the floor-plan overview, use **Connected openings** to choose a shared-wall
+candidate, source room and an existing source opening, then **Connect opening**.
+Create the source opening through the wall inspector first. Both rooms must be
+unlocked. The operation creates a counterpart in the other room, or reuses one
+with matching geometry. It validates the entire result before committing either
+room or the connection; a failure leaves the project intact.
+
+Offsets are mirrored along the two walls' A→B directions. Type, width, height,
+sill, horizontal endpoints and top height must align within 0.00001 m, and both
+openings must lie within the shared interval and fit their own wall clearances.
+Doors also mirror hinge A/B and inward/outward swing so their symbolic orientation
+agrees in world space. A conflicting target opening is not overwritten. Green
+segments in the overview mark linked openings.
+
+Schema 12 stores up to 64 `openingLinks`, each with a stable ID and two
+`{roomId, openingId}` endpoints. An opening may participate in only one link.
+Missing openings, lost wall adjacency or misaligned geometry reject saves/imports
+and in-editor edits. There is no automatic propagation of later edits: unlink,
+edit the rooms/openings and reconnect. **Unlink** removes only the relationship and
+retains both openings. Whole-room placement changes that would break a link are
+also rejected; group movement is not implemented.
+
+Connection creation/removal is project history, not a local geometry undo step.
+Undo/redo validates before moving its cursor; a change that would break a live
+connection is rejected without changing either history or project state. Project
+and per-link timeline restoration, save/load, JSON, duplication and recovery
+retain links. Restoring an incompatible room entry requires unlinking first.
+Schemas 1–11 retain their previous normalization and reject explicit link data.
+
+These links establish geometric consistency between two independent opening
+records. They do not merge wall meshes, remove duplicate frames/leaves, animate
+physical doors, certify clearances or deduplicate whole-building quantities.
+The local canvas, plan and manufacturing exports continue to use the active room.
+
+### Whole-building quantity summary
+
+The floor-plan overview includes **Whole-building quantities** for every room,
+with per-room floor area, interior volume, perimeter and net room-facing wall area.
+**Export building quantities JSON/CSV** downloads a read-only report of the current
+project, including units, scope and overlap status. It does not change saved data
+or create a manufacturing order. No new project schema is introduced.
+
+- Areas use the actual convex outlines, not their bounding rectangles; volumes
+  use each room's own height. Placement and rotation do not change room quantities.
+- Room area/volume/perimeter sums remain visible when rooms overlap. Combined
+  floor area, interior volume and boundary lengths are withheld (`null` in JSON,
+  empty with an explicit withheld status in CSV). No polygon union is calculated.
+- Without overlaps, shared-span lengths come from adjacency detection. Boundary
+  lines counted once equal room perimeter sum minus shared length; exposed boundary
+  estimates subtract shared length twice. These use interior outlines and the
+  adjacency tolerance, excluding wall thickness and structural construction.
+- Wall-face areas count room-facing finish surfaces. Shared walls retain both
+  faces; openings are deducted on both room faces. This is not a deduplicated wall
+  material area, wall volume or bill of materials.
+- Each explicit linked pair reduces its door/window record count by one. Unlinked
+  coincident openings remain separate. Furniture totals count placed cabinet/design
+  instances; manufacturing panel and stock calculations remain active-room scoped.
+
+The JSON report uses `terratec-building-quantities` version 1. CSV includes raw
+room sums, combined/withheld metrics, per-room rows and scope notes, and escapes
+quoted/formula-like user names. Room geometry is validated before reporting; the
+measurements are planning quantities, not building-code or structural certification.
+
+### Combined floor-plan SVG export
+
+In **Floor plan**, choose **SVG print scale** and **Export building plan SVG**.
+The standalone vector drawing includes every transformed room footprint and name,
+shared-wall candidate spans, door/window symbols, linked-opening markers and
+explicit overlap warnings. The active room and camera do not affect the drawing.
+The export captures the project and scale before loading its export-only module,
+so changes during loading cannot alter that download.
+
+Only explicitly linked opening pairs share one symbol; unlinked coincident
+records remain separate. Doors show their hinge, open leaf and quarter-circle
+swing in world space. Bounds include the exact extrema of rotated/outward door
+arcs. Windows use a schematic double line. These symbols include all saved
+openings, regardless of sill/section height; they are not a physical wall section.
+Furniture and construction thickness are not part of this building drawing.
+
+Unscaled output uses a world-coordinate viewBox in metres and pixel display size.
+Scales 1:20, 1:50, 1:100 and 1:200 set physical width/height in millimetres; print at
+100% without fit-to-page. Fixed A4/A3 sheets and fit checks are described below; oversize plans are not paginated. Names and metadata are XML-escaped, XML-invalid control characters
+are replaced, and there are no scripts, external images or remote fonts. The
+metadata identifies `terratec-building-plan` version 1 and symbol/overlap counts.
+This is a read-only drawing export, not editable BIM/manufacturing exchange.
+
+### A4/A3 building sheets and fit checks
+
+The floor-plan export controls offer **Drawing bounds**, **A4** and **A3**, with
+portrait/landscape orientation for fixed sheets. A4 is 210 × 297 mm and A3 is
+297 × 420 mm; each reserves a 10 mm margin on all sides. Choose a print scale
+before using fixed paper. Fit feedback shows the drawing's required dimensions
+and the usable sheet dimensions, including room geometry, outward door arcs,
+title and legends.
+
+If the drawing does not fit, export is disabled and the exporter also rejects it.
+When possible, **Use suggested scale** selects the first supported denominator
+(20, 50, 100 or 200) that fits that sheet. Suggestions account for scale-dependent
+annotation sizes. If none fits, use Drawing bounds or change paper/orientation;
+this iteration does not tile an oversized building across multiple sheets.
+
+A fitting drawing is centred at exactly its selected scale. Fixed-sheet SVGs use
+physical millimetres, an A4/A3 frame and print instructions; no silent shrink-to-fit
+is applied. Print at 100% without fit-to-page or additional print margins. Actual
+printer unprintable regions are not queried. Paper/scale/orientation are workspace
+export settings and do not modify the saved project.
+
+### Printable building-sheet preview
+
+Choose A4/A3, orientation and a fitting print scale in Floor plan, then
+**Preview printable sheet**. The preview is a fixed snapshot of those settings
+and the project when prepared; close and reopen it to include later edits. It
+shows the exact exported vector sheet, including title, scope notes, room labels
+and linked-opening symbols. No saved project fields or schema change.
+
+**Print / Save PDF** opens the browser print dialog for the sheet document only,
+not the surrounding application. **Download HTML sheet** saves a standalone copy
+that can be opened and printed separately. Use 100% scale, no fit-to-page, no
+additional print margins and no browser headers/footers. Screen display adapts to
+the preview window; print CSS restores the selected A4/A3 size and physical scale.
+The HTML uses an explicit page size and zero page margin around the SVG's own
+10 mm drawing margins. Unscaled fixed sheets cannot be prepared.
+
+For oversized plans, enable **Tile across sheets (10 mm overlap)**. The preview
+and HTML download contain numbered pages in row order at the selected scale;
+neighbouring drawing regions overlap by 10 mm for alignment. Each page identifies
+its row and column. Trim the blank margins before joining pages. Tiling is limited
+to 64 pages; choose a smaller print scale or A3 for larger plans. Single-sheet SVG
+export still requires a fitting scale.
+
+The embedded preview permits browser print dialogs but runs no document scripts;
+the standalone HTML has no scripts or remote assets. The print button waits for
+the document to load, and HTML download remains available if printing is blocked.
+Close sheet preview (or Escape while a preview control has focus) returns to the
+floor plan. Actual browser/printer behaviour still requires browser verification;
+this feature does not implement its own PDF renderer or automatic printer setup.
+
+### Wall construction
+
+Rooms are built from their walls (`shared/room-construction.mjs`): every wall is
+a line, and each corner is where consecutive wall lines meet. Select a wall and use
+Wall construction:
+
+- **Move wall** shifts the wall parallel to itself (positive distances move it
+  outward). Neighbouring walls keep their direction and are extended or shortened.
+- **Remove wall** extends the two neighbouring walls until they meet at a new
+  corner. Parallel neighbours cannot meet, so a rectangle's walls cannot be removed;
+  angle a wall or exchange one first. A room keeps at least three walls.
+- **Replace wall** exchanges the wall for 1–8 wall lines, each through two points
+  A → B in clockwise order. The neighbours meet the replacement at redefined
+  corners. Add segment splits the last line into a shallow outward bay as a starting
+  point. One replacement keeps the wall ID; several replacements retire it and get
+  unused IDs such as `north-1` and `north-2`.
+
+Openings keep their world position: they are projected onto their wall, or for a
+replaced wall onto the nearest replacement. Openings on a removed wall are removed
+with it, and the status message says so. Other walls keep their lines exactly.
+Every result must be a closed, convex, clockwise room with walls of at least 0.1 m
+in which all openings and cabinets still fit; otherwise the whole edit is rejected
+with the reason and the room is unchanged. Walls are never removed implicitly: an
+edit that would shrink another wall to nothing is rejected instead. Each edit is one
+undo step. Corner dragging and endpoint edits keep opening offsets from end A, as before.
+
+### Top bar
+
+The top bar is one slim line (44 px) that never wraps. From left
+to right: the TerraTec mark, the **Room** / **Furniture designer** switch, the saved
+project (**Saved projects** list, **Open saved**, **Save project**), the workspace
+(**New**, **Duplicate**), files (**Import JSON**, **Export JSON**, **Export SVG**)
+and, at the right, a **● Unsaved** marker while there are unsaved changes,
+**History** and **Full screen**. When the window is too narrow, the bar scrolls
+sideways instead of growing over the workspace.
+
+### The studio as a desktop application
+
+TerraTec always fills the browser window, like a desktop application: the top bar,
+the desk in the middle and a taskbar at the bottom. On the desk, the
+canvas (the 3D/Plan room view, or the design view in the furniture designer) is
+the core of the view, with its toolbars over it (the view bar and the furniture
+toolbar in the room; the view and tool bar and the selected piece's toolbar in the
+designer). The editors are windows around it:
+
+- Room: **Furniture** (docked left), **Room & walls** and **Project** (recovery,
+  SVG settings, project name and project manufacturing; both docked right),
+  **Surfaces** (the room surfaces list, floating over the canvas) and, while an
+  item is inspected, **Inspector** (it comes to the front whenever an inspection
+  starts).
+- Furniture designer: **Designs and parts** and **Machining layers** (left),
+  **Design properties** and **CNC and CAM** (right).
+
+A window standing against the left or right edge of the desk, at least 40 % of its
+height and at most 40 % of its width, is *docked*: the canvas gets the free middle
+instead of being covered, and re-fits when a docked window is moved, resized,
+minimised or brought back (when the drag ends, not at every step). Other windows float
+over the canvas. Windows behave as on the workshop benches (see *Bench windows*
+under the furniture designer): drag the title bar to move or snap them, drag an
+edge to resize, ◧ ◨ snap, ⧉ sends to the back, – minimises, □ maximises, and the
+arrow keys move a focused title bar. Every window can be minimised, and so can
+the **Version history** panel (its – button); it then waits in the taskbar, and
+**History** in the top bar also brings it back.
+
+**Taskbar.** As on a Windows desktop, the bottom taskbar has a button for every
+window of the perspective on screen; minimised windows wait there. A small mark
+under a button shows an open window, a long bright one the window in front, and a
+minimised window's button is dimmed. A click brings a window forward (and back from
+minimised), or minimises it when it is already in front. **Reset layout** puts the
+windows back. The status message is at the right end of the taskbar. Each perspective keeps its layout in this
+browser. Selecting furniture brings the **Furniture** window forward, and selecting
+a wall (in the canvas or the surfaces list) brings **Room & walls** forward, also
+when they were minimised. On screens narrower than 760 px the windows start minimised so
+the canvas has the whole desk. While a workshop bench is open, the taskbar is the
+bench's: **Back to designer**, its view buttons, its windows, **Reset layout** and
+its readout.
+
+**Full screen** (in the top bar) shows the whole studio (top bar, desk and taskbar)
+full screen with the browser's Fullscreen API; **Exit full screen** or the
+browser's own Esc returns. Where the browser has no full screen or refuses it (for
+example inside an embedded frame), the studio keeps filling the window and says so.
+Resizing re-fits the camera, keeping an inspected item framed.
+
+### Locking the walls
+
+**Lock walls** (next to Undo/Redo) fixes the room shell and switches to interior
+editing; the badge beside it shows the current mode. While locked, the outline,
+walls, room height and the doors/windows in the walls cannot change: dimension
+inputs are disabled, corner handles are hidden and a selected wall shows a notice
+instead of its endpoint, construction and opening editors. Furniture remains fully
+editable, including placement, dragging, alignment, presets and workshop profiles.
+**Unlock walls** returns to wall editing.
+
+The lock is part of the room (`shared/room-lock.mjs`), so it is saved with the
+project and carried through recovery, JSON export and duplication. Locking and
+unlocking are each one undo step. History stays linear: undoing past a lock unlocks
+the walls first, so undo and redo never change walls while they are locked (the
+status message names lock changes, such as “Undo: walls unlocked · wall editing”).
+The rule is enforced for every room edit, not only in the UI: while locked the
+shell must stay identical, a lock change cannot carry any other edit, and the wall
+construction and corner functions refuse locked rooms. Locking changes the saved
+project, so a job manifest made before locking reports that its source no longer
+matches the current project.
+
 Schema 1 rectangles and schema 2 outlines migrate with empty opening lists. Schema 3
-openings migrate to schema 4, with A-end/inward defaults for doors. Schema 6 persists doors, named opening presets and furniture. Earlier projects migrate
+openings migrate to schema 4, with A-end/inward defaults for doors. Schema 6 persists doors, named opening presets and furniture; schema 7 adds stored wall IDs for rebuilt rooms and the wall lock. Earlier projects migrate
 with an empty furniture list. Older projects
 migrate with an empty preset list. Width/depth are derived from its bounds. Unsupported versions are rejected.
 The service validates before saving and atomically replaces its single project file.
@@ -133,12 +537,47 @@ build is not a production deployment; public hosting and authentication are futu
 
 ## Current limits
 
-Each project contains one convex four-corner room. Multiple named projects can be saved and selected. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
-BIM exchange, manufacturing, AI design or physics integration yet. Frames, glazing and door leaves are illustrative; there is no collision, hinge animation or door-swing clearance validation. Preview is a footprint marker rather than a full 3D opening. Geometry
+Each project supports up to 16 independent convex rooms with 3–32 walls each. Multiple named projects can be saved and selected. Orthographic plan, surface selection, grid snapping, corner dragging, undo/redo and numeric endpoint editing are available. No arbitrary wall drawing,
+BIM exchange, AI design or physics integration yet. Frames, glazing and door leaves are illustrative; there is no collision, hinge animation or door-swing clearance validation. Preview is a footprint marker rather than a full 3D opening. Geometry
 quantities come from the native core; Three.js constructs the preview from the same
 validated outline. The optional Google font falls back to the system sans-serif.
 
 Progress and next steps are tracked in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Multiple rooms
+
+**Rooms** in Room & walls adds, renames and switches between up to 16 independent
+rooms. New rooms start at 6 × 4 × 2.8 m; edit their dimensions normally. Each
+retains its own outline, stable wall IDs, openings, furniture, constraints and wall
+lock. Opening/furniture presets, designs and workshop profiles belong to the
+project and are shared. No room deletion is provided in this iteration.
+
+Geometry undo/redo is kept separately per room for this editing session and
+survives switching rooms. Opening/importing/recovering a project or restoring a
+whole timeline version resets these stacks. A cached stack is discarded if shared
+design changes have altered that room. Switching rooms cancels placement and
+selection and fits the new view. Unapplied form fields are not saved model edits.
+
+Adding, renaming or switching rooms is saved project state and appears in version
+history. In multi-room projects, element restoration tracks whole room entries by
+room ID, so equal wall/furniture IDs in different rooms do not mix. Restoring room
+entries resets session geometry history. Older single-room element restoration
+cannot be applied to a multi-room project; restore its whole version instead.
+
+Schema 10 persists `rooms: [{id, name, room}]` and `activeRoomId`. The root `room`
+is a checked alias of the active entry for existing geometry/export consumers;
+imports with conflicting copies are rejected. All rooms are validated on save,
+including inactive rooms. Old single-room projects remain unchanged until a room
+is added or named. Save, recovery, duplication and JSON transfer include every
+room and the active selection. The existing 64 KiB project transfer limit applies
+to the entire project; older releases must reject schema 10.
+
+The local room canvas, quantities, plan SVG, clearance review and manufacturing batches use
+only the active room. The floor-plan overview shows all room footprints. Plan/workshop titles and job manifests identify this scope;
+job manifests retain the full project as source context, so any project change
+invalidates their source hash. Rooms currently have independent local coordinates:
+schema 11 placements position their footprints in a shared overview. Shared wall/opening
+mesh merging and construction material take-offs are not implemented yet. Opening links and a scoped building quantity summary are available as described above.
 
 ## Projects and plan export
 
@@ -182,6 +621,64 @@ copy with fresh geometry history. Invalid imports leave the current project inta
 Save project gives imported data a new server ID. JSON transfer is independent of SVG
 and retains editable model data. Camera, selection and undo history are not exported.
 
+## Version history (time travel)
+
+Every committed change to a project becomes a timestamped version: room and wall
+edits, furniture, openings, designs, presets, workshop profiles and the project
+name. A version is labelled with the status message of the action that made it
+(“Cabinet moved”, “Design edit undone”…) or, without one, with what changed
+(“Furniture “Sideboard” changed”). Repeating the same edit on the same element
+within 3 seconds (typing a name) updates the last version instead of adding one.
+Drags record one version when they finish. Previews, selection and camera moves
+are not versions.
+
+History in the top bar opens the version history:
+
+- **Jump back**: 5 min, 15 min, 1 h or 3 h ago, the oldest version, or *Go to
+  time* with a date and time. Each shows the latest version at or before that time.
+- **Version scrubber** and the version list (newest first; each row shows the time,
+  the label and the elements it changed) show any version.
+- A version is shown **read-only**: editing, saving, undo and keyboard edits are
+  disabled, and both perspectives (room and furniture designer) can be viewed.
+  Back to now (or Escape, or closing the panel) returns to the current project.
+- **Restore this version** makes that state the current project *as a new
+  version*; nothing is deleted, so the state before the restore stays in the
+  history. Room undo starts again and designer undo stacks are cleared.
+- **Show changes of** filters the list to one element (including removed ones),
+  numbering that element’s own versions. Restore only *element* puts just that
+  element back as it was in the shown version (or removes it if it did not exist
+  then) and keeps everything else as it is now; for room elements it is one room
+  undo step. The
+  result must still be valid (for example, a restored cabinet cannot overlap
+  another); otherwise nothing changes and the reason is shown.
+
+Elements are tracked by their stable IDs (see Stable corner and wall IDs), so a
+cabinet keeps its history through moves and renames.
+
+**Storage.** The history is kept in this browser (IndexedDB, the 20 most recently
+used histories) under the same key as the recovery draft, so Recover draft also
+brings back its history. Save project stores the history on the server beside the
+project (`data/projects/<id>.timeline.json`); if that upload fails, the project is
+still saved and the message says so. Open saved uses the newer of this browser’s
+and the server’s history; if the saved project differs from that history’s last
+version (for example after unsaved edits), a version “Saved project opened” is
+added, so those edits remain reachable. New, Duplicate and Import JSON start a new
+history. Without IndexedDB (some private modes) the history lasts for the session.
+Exported project JSON does not include the history.
+
+**Limits.** A history keeps at most 2,000 versions and 2 MiB; the oldest versions
+are dropped first. Versions store only what changed (compared element by element by
+ID) with a full project every 50 versions, so large projects keep fewer versions.
+The browser copy is written about a second after the last change.
+
+| Endpoint | Behavior |
+| --- | --- |
+| `GET /api/projects/:id/timeline` | Saved history of a project; 404 if none, 422 if the stored file is damaged (the project itself still opens) |
+| `PUT /api/projects/:id/timeline` | Validate (every version is rebuilt; full projects are validated) and store the history; 2 MiB maximum |
+
+The storage check (`npm run check:storage`) counts histories and reports damaged
+ones as `TIMELINE_INVALID`.
+
 ## Duplicate and scaled SVG
 
 Duplicate copies the current validated workspace, including openings and named
@@ -216,7 +713,7 @@ Pagination and printer-specific unprintable-area handling are not implemented.
 
 Add cabinet creates a cabinet at the room centre; Place cabinet switches to Plan
 and places one at a clicked position. Position follows the selected grid snapping.
-Select its footprint in Plan, a visible panel in 3D, or Furniture item in the sidebar.
+Select its footprint in Plan, a visible panel in 3D, or Furniture item in the Furniture window.
 Edit name, width/depth/height, X/Z position, rotation in degrees, panel thickness and
 shelf count, then Apply cabinet. Remove cabinet deletes the selected item.
 
@@ -250,9 +747,23 @@ are applied. Panel bill export does not mutate the model or history.
 
 ### Cabinet materials and panel blanks
 
-Choose oak board, birch plywood or white board, then apply the cabinet. Material
-selection changes panel colour and is included in saved projects and panel CSV.
-These are appearance labels, not certified structural material specifications.
+Choose a panel wood, then apply the cabinet. The catalogue (`shared/materials.mjs`)
+has wood-based boards (oak board, birch plywood, white board) and solid woods
+(beech, walnut, maple, pine). **Hardware metal** (zinc-plated steel by default,
+stainless steel, brass or aluminium) applies to handles and screws. Material
+selection changes panel and handle colour and is included in saved projects, panel
+CSV, manufacturing batches and quotes. Quotes always need oak, birch and white sheet
+rates; other woods have their own optional rate, and costing a wood without a rate
+asks for one. Labels and typical densities are for planning, not certified
+structural material specifications.
+
+Screws are a planning estimate: **Screws per joint** (default 4) at each structural
+joint, meaning the four top/bottom-to-side corners and both ends of every divider.
+Shelf supports, backs, hinges and fittings are not counted. The hardware line and
+panel CSV list handles and nominal 4 × 40 mm screws with their metal. The estimated
+weight multiplies design panel volume by the wood density and adds screws (solid
+cylinders) and handles (their modelled blocks) at the metal density. Cabinets
+without hardware settings keep their earlier saved form, manifests and quotes.
 
 Length/width allowances are total additions in millimetres (0–50 per axis),
 applied once to each finished panel dimension. They do not alter rendered
@@ -593,10 +1104,584 @@ applies after grid snapping and may produce off-grid coordinates; the actual
 preview position is shown explicitly. Snapped candidates still need to pass
 containment and overlap validation. Guides are non-pickable and transient.
 
-Use keyboard rotation during pointer placement; leaving the canvas to use sidebar
-controls cancels that mode. Numeric previews keep the sidebar rotation controls
+Use keyboard rotation during pointer placement; leaving the canvas to use window
+controls cancels that mode. Numeric previews keep the window's rotation controls
 and can be viewed in Plan or 3D. Guide alignment uses projected body bounds and
 does not imply door-swing, handle or shortest-distance clearance.
+
+### Furniture editing toolkit
+
+The furniture toolbar above the canvas works like editing in office tools. Select
+an item by clicking it, choosing it in the list or using **Select all furniture**
+(Ctrl/⌘+A). Shift-, Ctrl- or ⌘-click adds or removes items. The last item clicked
+is active and shown in the cabinet editor; all selected items are highlighted.
+
+| Command | Shortcut | Behaviour |
+| --- | --- | --- |
+| Cut / Copy furniture | Ctrl/⌘+X / C | Copies the selection to a session clipboard; cut also removes it |
+| Paste furniture | Ctrl/⌘+V | Tries the original position, then the nearest free grid offset (down-right first) |
+| Paste in Plan | — | The next click in Plan centres the pasted group there; invalid clicks explain why |
+| Duplicate furniture | Ctrl/⌘+D | Copy and paste in one step, without touching the clipboard |
+| Delete furniture | Delete / Backspace | Removes the selection |
+| Rotate ±15° / ±90° | R / Shift+R | Turns the selection rigidly about the centre of its footprint bounds |
+| Zoom to selection | F | Frames the selection in the current view |
+| Inspect furniture | I, Escape exits | Isolates the active item in 3D with an inspector panel |
+
+Dragging a selected item in Plan moves the whole selection; snapping applies to the
+dragged item. Pasted items get new IDs; copies are named “… (copy)” once, and cut
+items keep their names. The clipboard holds the full cabinet design, is not saved
+and persists when you open or create another project, so items can be moved between
+projects. The automatic paste search covers up to 40 grid steps in every direction
+and reports when no free space is found. Every command validates containment and
+overlap and is one undo step; shortcuts are ignored while typing in a field. All
+commands remain available while the walls are locked.
+
+**Inspect furniture** hides the room and other items, frames the item in 3D and keeps
+orbit and scroll-zoom. The inspector panel shows size, position, rotation, wood and
+hardware swatches, panel count and area, the screw and handle estimate, nearest wall
+and estimated weight. It can rotate the item, reframe it or exit; switching to Plan
+also exits.
+
+### Connecting and auto-arranging furniture
+
+**Snap to walls and furniture** (on by default, under *Connect and arrange* in the
+furniture panel) makes furniture connect while you drag it in Plan and while you
+preview new items. Within 0.15 m of a wall or another item:
+
+- an item that is within 12° of square to the nearest wall (or, away from walls,
+  to a neighbouring item) turns square to it; a clearly angled item keeps its angle;
+- along each of its own axes it moves flush against a wall (keeping the minimum
+  furniture wall gap from the clearance settings), flush side to side against a
+  neighbour, or into line with a neighbour's edge, so corners meet corners. Each
+  axis takes the nearest contact that gives a valid position;
+- a snap that would move the item into a door's access or swing zone or a
+  window zone it was clear of is not used.
+
+A dragged selection snaps as a group by the item you hold, without turning. The
+status bar names what an item connected to (“Cabinet moved · connected to North
+wall · Unit 2”). Turn snapping off for free positioning; grid snapping and
+alignment guides work as before.
+
+**Auto-arrange** (furniture toolbar) places the selected items, or all furniture
+when nothing is selected, back to a wall and facing into the room, as one undoable
+edit. Items go largest first, each to the end of a free stretch of wall nearest to
+where it stood, so they connect to a room corner, a neighbour or the edge of a
+kept-clear zone. It keeps the room usable:
+
+| Kept clear | Default |
+| --- | --- |
+| In front of each door (and at least its inward swing) | 1.0 m |
+| In front of each window, for items taller than the sill (so it can open) | 0.6 m |
+| In front of each item (doors, drawers, use) | 0.6 m |
+| A walkway from every door to the other doors and to the front of every arranged item | 0.8 m wide |
+
+The distances are set under *Connect and arrange*. Furniture that is not being
+arranged stays where it is. An item with no free wall space stays where it stood
+if that spot is free and clear of doors and windows; otherwise it moves to the
+nearest free floor space that is, and the status bar lists these items. If there
+is no such space the arrangement is refused with the reason and nothing changes.
+The walkway is checked on a floor grid of about 4,000 cells (5 cm in small rooms).
+These are planning aids, not building-code checks.
+
+### Furniture designer
+
+**Furniture designer** in the top bar switches the whole workspace from the room
+editor to a designer perspective in the same window; **Room** switches back. The
+room's view and selection are kept. The designer's canvas is the 3D view (with
+**Front**, **Top** and **Side** orthographic views); around it are the windows
+**Designs and parts**, **Machining layers**, **Design properties** and **CNC and
+CAM** (see *The studio as a desktop application*). Designs are measured in
+millimetres.
+
+Start with **New empty design**, **New box carcass** (a 600 × 720 × 560 mm carcass
+with shelf-pin holes and back-panel grooves) or **Design from selected cabinet**,
+which converts the cabinet selected in the room into editable pieces.
+
+**Material textures.** Pieces are drawn in their material wherever they appear:
+the designer's views, the workshop benches, the CNC machine and the room (cabinet
+panels and handles, and placed designs, once the design renderer has loaded with
+the first furniture). Each wood shows its grain (growth rings, latewood, fibres)
+and the feature it is told apart by: oak board (veneered) open pores and pale ray
+flakes over a strong cathedral figure; beech fine, even grain with small dark ray
+flecks; walnut a dark, wavy grain with long darker streaks; maple a pale, fine
+grain with the shimmering bands of curly maple; pine bold latewood and knots, the
+rings swirling round them; birch plywood the broad, cloudy figure of a rotary-cut
+face with oval repair patches. White board has a plain melamine face and the
+metals a brushed finish. The piece library's material swatches are pictures of
+these faces, and **Design properties** shows a strip of the selected piece as it
+looks (its material in its own colour). The grain runs along each piece's length, and a piece's
+own colour (or the finishing brush's) tints it, so stains keep the grain. Panel
+edges show what they are made of: birch plywood its plies (an odd number, about
+1.4 mm each), solid wood side grain on the long edges and end grain on the ends,
+boards their face (as edge-banded). The textures are computed in the browser (no
+image files), repeat without seams and are made once per material. **Colour by
+layer** shows plain layer colours.
+
+**Light and volume.** The room, the designer and the workshop benches share one
+lighting: a warm key light that casts soft shadows (pieces on each other, on the
+designer's ground and the room's floor and walls), a cool fill light from the other
+side and a weaker ambient, so every piece shows a lit and a shaded side. Boards and
+rectangular bars have eased edges: within up to 3 mm of an edge (at most 30 % of the
+thinnest side) the shading rounds over like a slightly softened edge and catches the
+light; the geometry and its machining stay exact. The grain also gives the surface
+relief (pores and fibres catch the light; metals less). Plan stays a flat drawing,
+without shadows. With a software renderer (virtual machines, remote desktops, CI) the
+lighting is the same but without shadows.
+
+**Piece library.** Every piece has a base form, a length, a material and a
+colour. Pick a base form from the cards (the icons show the cross-section), pick a
+material from the wood or metal swatches, set the new piece's length and colour,
+then choose **Add**. Choosing a form suggests its usual material and length;
+choosing a material sets the colour to the material colour.
+
+| Base form | Size | Typical use |
+| --- | --- | --- |
+| Board / panel | length × width × thickness, orientation | sides, shelves, backs, doors; machinable |
+| Rectangular bar | length; section width × height | legs, rails, battens |
+| Round rod | length; diameter | dowels, rods, round legs |
+| Round tube | length; diameter, wall | metal frames, hanging rails |
+| Rectangular tube | length; section width × height, wall | steel and aluminium frames |
+| L-angle | length; leg width × height, wall | brackets, edge profiles |
+
+Each piece is edited on its own in the **Design properties** window:
+
+- **Name, Piece form, material and colour.** The colour follows material changes
+  until you choose a colour for the piece; **Use material colour** links it again.
+- **Length direction** for profiles (x left to right, y upright, z front to back);
+  the section fields name the axis they run along.
+- **Sizes** for its form, **position** (minimum corner; x right, y up, z toward the
+  front) and **layer**.
+
+Changing the **Piece form** keeps the piece's name, material, colour, layer and
+corner, and fills the same box. Round forms fit inside the section, and a panel
+takes the orientation whose thickness is the smallest side. Panels with machining
+features must have them removed first. Designs from the first designer version
+load their solid blocks as rectangular bars along their longest side, with the
+same size.
+
+Edits apply when a field changes. Invalid values are rejected with the reason and
+the field reverts. Each change is one step of the design's own **Undo design** /
+**Redo design** history (Ctrl/⌘+Z, Ctrl/⌘+Shift+Z or Ctrl/⌘+Y). Delete removes the
+selected piece or feature and Ctrl/⌘+D duplicates a piece. Design histories are kept
+for the session and are separate from room undo.
+
+**Working in the view.** Pieces are edited directly in the 3D, Front, Top and
+Side views:
+
+- **Move** (M): drag a piece to move it. Ortho views move it in the view plane. In
+  3D it slides horizontally; hold Shift to lift or lower it. The grabbed point stays
+  under the pointer, and the moved axes snap to the **Grid** (off, 1–50 mm). Arrow
+  keys nudge the selected piece by one grid step along the on-screen directions
+  (Shift+Up/Down moves vertically in 3D and Top).
+- **Rotate** (R): drag a coloured ring (x red, y green, z blue) around the selected
+  pieces. Ortho views show the ring turning within the view (with Local axes, the
+  piece's own rings; see below). Angles snap to the
+  **Angle** step (off, 5–90°). The selection toolbar has quick turns (X +90°,
+  Y ±15°, Y +90°, Z +90°) and **Reset rotation**. Exact angles can be typed in the
+  properties.
+- **Drag and drop:** drag a base-form card from the piece library into the view to
+  place a piece where you drop it. It lands on the floor in 3D and Top, at the back
+  in Front and on the left in Side, snapped to the grid. Drag a material swatch onto
+  a piece to apply it, or a layer's ⠿ handle onto a piece to move it to that layer.
+- The **selection toolbar** at the bottom of the view shows the selected piece (or
+  how many are selected) and changes their layer, turns, duplicates or deletes them.
+
+**Selecting several pieces.** Shift-click or Ctrl/⌘-click pieces in the view or the
+parts list to add or remove them; Ctrl/⌘+A selects every piece and Escape clears the
+selection. The last piece added is active: the properties panel edits it, and local
+axes follow it. In the view, Ctrl/⌘ never starts a drag, while Shift toggles only on
+a click, so Shift-drag still moves vertically. Everything in the view acts on the
+whole selection: dragging any selected piece moves them all (snapped by the grabbed
+piece), rings and quick turns turn them rigidly about their common centre, and arrow
+keys nudge them. The selection toolbar's layer, **Duplicate selection** (copied as a
+group 50 mm to the right, joints intact), **Delete selection** and **Reset rotation**
+also apply to all of them, as do materials and layers dropped onto a selected piece.
+
+**World or local axes.** **Local axes** (L) makes the rings and the quick turns use
+the active piece's own axes instead of the world axes, so a tilted piece can be
+turned about its length, for example. With world axes the Front, Top and Side views
+show the ring turning within the view. With local axes they show the active piece's
+own rings (as ellipses), leaving out any ring seen almost edge-on; at least one
+ring is always shown.
+
+A press without dragging selects; a whole drag is one undo step and Escape cancels
+it. Pieces on locked layers do not move, and the camera orbits when you drag empty
+space. Rotation turns a piece about its centre; its position stays the corner of
+the unrotated piece and its machining turns with it.
+
+**Piece menu.** Right-click a piece in the view (or press the Menu key or
+Shift+F10 for the active piece) for **Drill on the bench…**, **Open the workbench…**, **Cut on the bench…**, **Machine on the CNC…**, **Add a drill hole**,
+**Duplicate piece**, **Straighten (reset rotation)** and **Delete piece**. With
+several pieces selected, duplicate and delete apply to all of them. A right-drag
+still pans the view; Escape or a click elsewhere closes the menu.
+
+**Drilling bench.** **Drill on the bench…** (or **Drill…** in the selection toolbar)
+opens a drill press view for one panel; it loads on first use and the design view
+pauses meanwhile. The panel lies on the bench table against a fence and a left stop,
+with the drill above and a laser cross where the bit will go in.
+
+- **Face up:** face A, face B (turned over), either long edge (v = 0 or v = width)
+  or either end (u = 0 or u = length). On a face, positions are u along the length
+  and v across the width; on an edge or end they are along it and t across the
+  thickness (from face B), as in the CNC plan. The panel always shows the position
+  0 at the left end (the stop); the panel says whether b = 0 is the front edge or
+  the back edge at the fence.
+- **Drill rack:** twist drills Ø3 and Ø4, brad points Ø5 (shelf pins, 32 mm
+  system), Ø6, Ø8 and Ø10 (dowels), a Ø12 twist drill and Forstner bits Ø15, Ø20,
+  Ø26 and Ø35 (hinge cups; choosing it sets a 13 mm depth), or any diameter from
+  0.5 to 200 mm.
+- **Depth stop:** a depth, or **Through** (the thickness on a face, the width or
+  length from an edge or end).
+- **Position:** type the position under the bit, or do it by hand: click the panel
+  to bring that point under the bit, drag the panel to slide it, or nudge it with
+  the arrow keys by the **hand step** (exact, 0.5, 1, 5, 10 or 32 mm; Shift ×10).
+  **Look down the bit** shows the panel from above.
+- **Row of holes:** drill up to 50 holes at a spacing (32 mm by default) along
+  either direction in one go, e.g. a line of shelf-pin holes.
+- **Drill** (or Enter, or a double-click on the panel) lowers the bit to the depth
+  stop and adds the holes to the design on its drilling layer, as one undoable edit.
+  Holes that would leave the face or edge, go deeper than the panel allows, sit on
+  a locked layer or repeat an existing hole of the same size at the same place are
+  refused with the reason, and **Drill** stays disabled until the position is fixed.
+- The list shows the holes on the face that is up; each can be brought under the
+  bit or removed. Ctrl/⌘+Z and Ctrl/⌘+Shift+Z undo and redo; **Back to designer**
+  or Escape closes the bench.
+
+Bench holes are ordinary drill features: they appear in the design, the CNC plan,
+the NC programs and the DXF like holes added in the properties panel.
+
+**Cutting bench.** **Cut on the bench…** (piece menu) or **Cut…** (selection
+toolbar) opens the same kind of bench with an overhead saw and a router, for any
+piece. Pick a tool from the rack, position the piece by typing or by hand (click,
+drag, arrow keys with the hand step), and press the cut button (**Cut in two**,
+**Trim**, **Saw groove**, **Rout groove** or **Rout pocket**) or Enter. Both tools
+work from above, on the face that is up. A translucent box shows the material the
+tool will remove, red when the cut is not possible (the reason is shown).
+
+- **Saw blades:** 3.2 mm, thin-kerf 2.4 mm and dado sets of 6, 12 and 19 mm.
+  A **crosscut** goes across the length at a position along it; a **rip** (panels)
+  goes along the length at a position across the width. The kerf runs from the
+  cut position onward.
+  - **Through** (default) divides the piece: the part from 0 keeps its name and
+    ID, the rest becomes “name 2” (the next free number) in the same place, also
+    on turned pieces. If less than 1 mm would be left, the cut is a **trim**.
+    Holes go with the side they are on and a cut through a hole is refused;
+    grooves and pockets are cut with the piece. Bars, rods, tubes and angles are
+    crosscut only.
+  - With a **blade height** below the thickness (panels, face A or B up) the saw
+    cuts a groove the width of the kerf right across the face.
+- **Router bits:** straight bits Ø3 to Ø25 on panels. A **groove** runs from the
+  start to the end along the length or across it (whichever is nearer to that
+  line), the bit wide; a **pocket** has the start and end as opposite corners
+  and must be at least the bit wide both ways. By hand, drag across the piece to
+  draw the groove or pocket. A through groove from edge to edge is refused (it
+  would divide the panel; use the saw).
+- The bench lists the grooves and pockets on the face that is up, each with
+  **Remove**; each cut is one undo step.
+
+**Workbench.** **Open the workbench…** (piece menu) or **Workbench…** (selection
+toolbar) is the general carpenter's bench for any piece, with the drilling and
+cutting benches one click away (**Drilling bench…**, **Cutting bench…**). The red
+cross marks the working position; set it by typing, by clicking the piece,
+dragging it or with the arrow keys (hand step, Shift ×10). Enter uses the tool.
+
+The **tool chest** on the left holds the hand tools of a traditional hand-tool
+workshop, grouped as they are usually kept. Picking a tool puts it in hand with
+its own settings; tools whose work the design cannot show yet are listed (in
+italics) with the reason.
+
+| Group | Tools and what they do here |
+| --- | --- |
+| Measuring and marking | Folding rule and tape (distances from the cross); try square and marking knife (mark across or along through the cross); combination square, marking gauge and cutting gauge (a line a set distance from an edge or end); mortise gauge (both sides of a mortise); dividers (equal spacings); awl (a point). *Sliding bevel, winding sticks and straightedge* |
+| Saws | Crosscut and rip panel saws (1.6 mm kerf), carcass and tenon saws (0.9 mm), dovetail saw (0.6 mm): cut to length or width, offcut discarded or kept as “name 2”. *Coping saw* |
+| Planes | Jack plane (1 mm), smoothing plane (0.1 mm) and card scraper (0.05 mm) on the face up; jointer plane (0.5 mm) on an edge; block plane (0.5 mm) on an end; rabbet plane (rebates along an edge); plough plane (a groove along the grain, 3–12 mm irons, set from either edge); router plane (a groove or pocket to an exact depth, or a housing across the face); shoulder plane (trim a groove's or pocket's wall). Any side and amount can be chosen |
+| Chisels and boring | Bench, mortise and paring chisels (mortises and notches, widths per chisel); brace and auger bits (Ø6–25), hand drill (Ø2–8) and gimlet (Ø2–4): one hole at the cross, to a depth or through. *Mallet* |
+| Shaping and finishing | Finishing brush (stains and paints, previewed on the piece). *Spokeshave, rasps and files* |
+| Workholding and sharpening | Shooting board (square an end with a 0.2 mm pass). *Bench hook, vise and holdfasts, clamps, sharpening stones and strop* |
+
+Every tool in the chest has an icon, and the tool in hand is shown over the piece
+as itself, with its working point on the cross: bench planes (jack, smoothing,
+jointer) with their japanned body, rosewood knob and tote and the iron under its
+lever cap, a block plane, rabbet, plough, router and shoulder planes, a flexed card
+scraper; panel saws with tapered plates and backsaws with brass spines, each with
+its teeth and handle; bench, mortise and paring chisels; a marking, cutting or
+mortise gauge, try and combination squares, a marking knife, dividers, an awl and
+a tape; a brace with its auger bit, an eggbeater hand drill, a gimlet; and the
+brush with bristles in the chosen finish.
+
+The selection follows the essential hand-tool kit as commonly taught for
+hand-tool woodworking (for example by Shannon Rogers, The Renaissance Woodworker).
+It was compiled from general knowledge, not copied from a published list; check
+it against the source you follow.
+
+Planing keeps the piece in place (also turned) and machining follows the wood:
+holes, pockets and grooves on the planed face get shallower and are gone once
+planed away; through holes and grooves from the other face stay through; grooves
+and pockets running off a planed edge get shorter; planing that would cut into a
+hole is refused. At least 1 mm must remain. The brush changes the colour shown in
+the designer and the room, not the material (weight and price are unchanged).
+A see-through box shows what the saw, plane, chisel or rebate plane will remove,
+red with the reason when it is not possible. Each change is one undo step.
+
+**Bench windows.** All the benches (and the CNC machine) work like a desktop. The 3D bench fills the
+whole screen as the background and resizes with it; the bench's panels are
+windows on top (Workbench: *Tool chest*, *Tool in hand*, *Layers*, *Help*; drilling
+bench: *Drill press*, *Holes on this face*, *Layers*, *Help*; cutting bench: *Saw
+and router*, *Grooves and pockets*, *Layers*, *Help*; CNC machine: *Machine
+control*, *NC program*, *Tool rack*, *Job setup and checks*, *Help*).
+
+- Windows overlap in layers: clicking a window brings it to the front; ⧉ sends it
+  behind the others; – minimises it to the taskbar.
+- Drag a title bar to move a window. Drag it to the left or right edge to snap it
+  to that half, to a corner for a quarter, or to the top edge to fill the desk
+  (a blue outline shows where it will go); dragging it away gives it back its own
+  size. ◧ and ◨ snap left and right, □ maximises (or double-click the title).
+- Drag any edge or corner to resize (at least 220 × 120 px). Windows always keep
+  their title bar on the desk, also when the browser window gets smaller; snapped
+  windows follow their half or quarter.
+- With a title bar focused (Tab), the arrow keys move the window by 10 px,
+  Shift+arrows resize it and Enter maximises it.
+- The desk code is shared with the room editor and the furniture designer (see
+  *The studio as a desktop application*).
+- The studio's taskbar at the bottom becomes the bench's: its own buttons (**Back
+  to designer**, the view), a button per window (brings it forward, or minimises it
+  when it is already in front), **Reset layout** and the bench's readout, with the
+  status message at the right.
+- Each bench keeps its window layout in this browser.
+
+The **Layers** window lists the design's layers: **Show** hides or shows a layer
+(hidden machining is not cut or drawn), and **New cuts go on** puts the next
+holes, grooves and pockets on a chosen layer instead of the layer for their
+operation. A cut on a layer whose CNC operation does not match is flagged in the
+CNC plan.
+
+Bench grooves and pockets are ordinary machining features, square-ended as the
+CNC plan models them; the NC programs cut them with the layer's tool, not the
+bench bit, so check the tool sizes under CAM settings.
+
+**Depth work.** Panels take machining features on face A (the positive side of the
+thickness axis) or face B (turned over): **drill holes** (centre and diameter),
+**pockets** and **grooves** (rectangles). Positions use the panel's own sheet frame:
+u along the length and v along the width from the panel corner, as the panel lies
+on the CNC bed with face A up. Depth is measured into the material; **Cut through**
+sets it to the panel thickness. Drill holes can also go into a panel **edge**: the
+ends at u = 0 and u = length or the long edges at v = 0 and v = width. An edge hole
+is placed along the edge and across the thickness (t, from face B), drills inward
+from the edge and can be as deep as the panel is long or wide. Edge holes receive
+dowels and connectors like face holes. They need a horizontal drilling unit, so
+the CNC plan lists them and the 3-axis NC programs leave them out. Features must stay
+on their face or edge and within the material.
+
+The 3D view shows machining really cut out of the panel. Cut surfaces take the
+feature's layer colour, each feature is outlined at its opening and its floor, and
+clicking into a hole or pocket selects that feature. Features on hidden layers are
+not cut. Cut-outs are computed per panel region and cached, so moving or turning a
+panel does not recompute them; a panel with 64 holes takes well under a second.
+
+**Layers.** The layers are in the **Machining layers** window (and can be folded there). Every part
+and feature is on a layer with a name, colour, visibility, lock and CNC operation
+(profile, drill, pocket, groove or none). Make a layer **Active** to put new pieces
+on it (**Automatic layers** returns to choosing by type). **Focus** a layer to dim
+everything else in the view, and use **Colour by layer** in the view bar to shade
+pieces in their layer colour. The layer order is
+the machining order. New designs have Drilling, Grooves, Pockets, Parts (profile)
+and Reference (not machined), so holes and recesses are cut before the profile
+frees the part. Part edges are drawn in their layer colour. Hidden layers are not
+drawn or picked. Locked layers prevent editing, removing or moving anything onto
+them. Only empty layers can be deleted.
+
+**CNC plan.** The plan lists each panel's sheet size, material and operations in
+layer order, with face, sheet coordinates, depth and a through flag. Face B
+operations are marked as needing the panel turned over. Checks report:
+
+- features on a layer whose operation does not match;
+- features or parts on layers without an operation;
+- non-panel parts on machining layers;
+- parts that overlap another part without a groove, pocket, hole or tube receiving
+  them (a back panel in grooves, a dowel in a hole or a rod in a tube is fine).
+  Pieces are checked by their true shapes at any angle: panels, bars and
+  rectangular tubes as boxes, an L-angle as its two legs (its inside corner is
+  free space), and round rods, round tubes, drill holes and tube bores as
+  cylinders (within 0.005 mm; material is never larger and openings never
+  smaller than the true circle, so an exact-fit dowel fits its hole and tangent
+  pieces only touch). Where two pieces overlap, the whole overlap must lie
+  within one groove, pocket, hole or bore of either piece: a Ø8 dowel fits a Ø8
+  hole, an 8 × 8 peg does not, and a tilted dowel is received as long as the
+  part inside the panel stays in the hole. Touching is allowed.
+
+**Export CNC plan JSON** downloads this machine-neutral plan.
+
+**CAM output.** Each machining layer has a tool (diameter, feed, plunge rate, spindle
+speed and step-down); empty fields use the defaults for the layer's operation. CAM
+settings per design choose the post-processor, the program units, safe Z, the
+through-cut allowance (default 0.3 mm past the thickness), climb or conventional
+cutting, the pocket stepover, the spindle start wait and holding tabs.
+
+| Post-processor | Program |
+| --- | --- |
+| GRBL 1.1 | `.nc`; no tool changer: each tool change pauses (M0) to fit the tool and set Z zero |
+| LinuxCNC | `.ngc`; `T… M6`, `G43 H…` |
+| Mach3 / Mach4 | `.tap`; `T… M6`, `G43 H…`; **G4 in ms** matches Mach's “G04 dwell in milliseconds” setting |
+| Fanuc / Haas / Syntec (ISO) | `.nc`; `%`, `O` program number, upper-case comments, `G43 H… Z…`, `G4 P` in ms, `G49` at the end |
+| Siemens Sinumerik 840D / 828D | `.mpf`; `;` comments, `G71`/`G70`, `T… M6 D1`, `G4 F` in seconds |
+| Heidenhain TNC (Klartext) | `.h`; `BEGIN PGM`, `BLK FORM`, `TOOL CALL`, `L`/`CC`/`C` blocks, dwell cycle 9, numbered lines; helices as short lines |
+
+Every post writes **millimetres or inches** (G21/G20, G71/G70, MM/INCH; feeds in
+mm/min or in/min), optional **line numbers** (N10, N20 …), **arc moves or short
+lines** (within 0.01 mm) for controls without arcs, and ASCII text only (accents
+are removed from names, as many controls reject other characters). The industrial
+posts use CR LF line ends. The spindle start wait (default 2 s, 0 for none)
+follows each M3.
+
+- **Export NC program** (per panel face, or all panels in one program that stops to
+  load each sheet) writes the chosen dialect. The origin is the sheet corner on the
+  top surface with Z negative into the material; face B programs are for the panel
+  turned over about its length (Y = width − v). Layers run in machining order with
+  one tool each. Holes the size of the tool are peck drilled; larger holes are bored
+  helically. Pockets and grooves are cleared with contour-parallel loops from the
+  inside out, and the part outline is cut outside by the tool radius in step-down
+  passes. A tool too large for a feature is reported and blocks that panel's export.
+- **Holding tabs** (default 4 per part, 8 mm wide, 3 mm high; 0 turns them off)
+  keep a through-cut part joined to the sheet: on the passes below the tab top the
+  tool lifts over each tab. Tabs are spread evenly round the outline and kept clear
+  of corners; if fewer fit, or a tab is not lower than the panel, the CNC plan says
+  so. Cut the tabs after removing the part.
+- **Export DXF** writes an R12 drawing in millimetres with one drawing per panel
+  face (face B drawings below, already turned over). Each operation is on a layer
+  named after its TerraTec layer, operation and depth, such as
+  `Drilling_DRILL_Z12` or `Parts_PROFILE_Z18_THRU`, so CAM software can map layers to
+  toolpaths. Labels and notes are on `TT_` layers.
+
+The program and DXF writers load on the first export. Round tools leave the inside
+corners of pockets and grooves rounded to the tool radius. There are no lead-ins or
+ramping and no machine-specific tool tables. Edge holes need a horizontal drilling
+unit and are listed, not programmed. The posts follow each control's documented
+dialect but have not been run on real machines: check every program in a simulator
+and with a dry run above the material before cutting. Native formats of woodworking
+machining centres (Biesse CIX, Homag woodWOP MPR, SCM Xilog) are not written; use
+their DXF import or an ISO program.
+
+**CNC machine.** **Machine on the CNC…** (piece menu), **CNC…** (selection toolbar),
+**Run on the CNC machine** or a program's **▶ Run** (CNC and CAM window) runs a
+panel face's NC program on a simulated 3-axis gantry router: a 2500 × 1300 mm
+table with an MDF spoilboard, pop-up stops and a tool rack along the back edge. It
+runs the program text exactly as **Export NC program** writes it, in the chosen
+post's dialect (all six posts, millimetres or inches, arcs or short lines), so it
+is the simulator the exports should be checked in. It loads on first use.
+
+- **Job setup and checks.** Pick the job (any panel face with machining). A program
+  that cuts the part free starts from a blank **Blank margin** (default 20 mm)
+  larger on every side, so the holding tabs hold the part in the frame; other
+  programs (face B) machine the cut-out panel, turned over, against the stops.
+  Work zero (G54) is the part's corner on the top of the blank. Before you start,
+  the **program check** runs the whole program over a fresh blank and lists its
+  cycle time, tool changes, cutting length and material removed, and any
+  **alarms**: a rapid move (G0) into the material, cutting with the spindle
+  stopped or with no tool, or a move beyond the machine's travel (one alarm per
+  axis). Click an alarm to go to its line. CAM errors for the panel are listed
+  too; a blocked program does not load.
+- **Machine control.** **▶ Cycle start** (Space) runs the program and **❚❚ Feed
+  hold** (Space) pauses it; **■ Reset** rewinds and reloads the blank; **⏭ Run to
+  end** finishes at once. The readout shows the work and machine position of the
+  tool tip, the feed, spindle speed, tool and line. **Feed override** (10–200 %)
+  changes feed moves as on a real control; rapids, dwells and tool changes keep
+  their speed, and the cycle time follows it. **Simulation** runs the machine
+  faster than real time (up to 500 ×). **Single block** stops after each line.
+  **Dry run** runs the tool 25 mm above the program, cuts nothing and ignores
+  alarms. The **Program** slider, or a click on a program line, goes straight
+  there. An alarm stops the run before the move: **Reset**, or **Clear alarm** to
+  run it anyway.
+- **Tool changes.** With an automatic tool changer (LinuxCNC, Mach, Fanuc,
+  Sinumerik, Heidenhain), `M6` / `TOOL CALL` takes the spindle up, returns the tool
+  to its pocket and fetches the next. On GRBL the program stops (`M0`) for you to
+  fit the tool by hand; Cycle start continues.
+- **Tools you can tell apart.** Cutters are modelled as they look: a spiral end
+  mill's flutes wind one way on an upcut and the other on a downcut, a compression
+  cutter's turn over near the tip, a straight bit's run straight; a twist drill
+  has a pointed tip, a dowel (brad point) drill a centre spur and two rim spurs, a
+  connector or hinge boring bit a wide flat head. Each holder is banded in the
+  colour of its tool's layer, and the rack's pockets are labelled T1, T2 …; the
+  tool rack window and the readout show an icon of each cutter's form. The
+  drilling bench's bits (twist, brad point, Forstner) and the cutting bench's
+  blades (with their teeth; a dado set as a stack) and straight router bits are
+  the same models, with icons in their racks.
+- **Tool rack.** Each machining layer's tool T1, T2 … with the cutter fitted for it,
+  from a rack of common cutters: drill bits (Ø3, Ø5 and Ø8 dowel drills, Ø10, Ø15
+  connector bit, Ø35 hinge boring bit) for drilling layers, and upcut, downcut,
+  compression and straight spiral end mills (Ø3–Ø12) for any layer. Fitting a
+  cutter sets the layer's tool to its diameter and to speeds and feeds from the
+  chip load for the panel's material (softwood, hardwood, board, plywood,
+  aluminium), as one undoable design edit that rewinds the program. The rack
+  warns about a chip load so low the cutter rubs and burns the wood or so high it
+  may break, a step-down deeper than the flutes or heavy for the diameter, a cut
+  deeper than the flutes reach, a drill bit asked to bore larger holes, and steel
+  panels; **Use … rpm · feed …** applies the recommended values. The cutter chosen
+  for a layer is remembered in this browser.
+- **The view.** The machine stands on a concrete workshop floor: a brushed
+  aluminium T-slot bed under a surfaced MDF spoilboard, the tool rack (each pocket
+  in the colour of its tool's layer) and the gantry, carriage and Z slide, which
+  move with the program and cast shadows. The spindle turns while it runs, chips
+  in the colour of the cut fly while it cuts, and the blank is cut away under the
+  tool in its material (see *Material textures*): the face where it is untouched,
+  and inside the cuts birch plywood's plies banded by depth, the chipboard core of
+  a laminated or veneered board, or solid wood a shade paler; its sides show the
+  same. **Machine view**, **Follow the tool** and **Top view** (which hides the
+  machine above the cutter) are in the taskbar. **Save this program** downloads
+  the program being run.
+- **Visualisation.** The bar over the view switches the blank between
+  **Material** and **Depth map** (cut depth from the top to through, with a
+  legend) and the toolpath between **By layer**, **Feed rate** (slow blue to fast
+  red, with the program's feed range) and **Off**; rapids are yellow and the moves
+  already run are brighter. Pointing at the blank reads its position and the depth
+  cut there. The readout names the tool in the spindle and shows the **spindle
+  load**: the rate of material removal against a full-width slot at the tool's
+  step-down and programmed feed (100 %), as a bar (amber above 80 %, red above
+  110 %) and a trace of the last seconds. The **job timeline** under the controls
+  shows the job as runs of each tool in its layer colour, tool changes (hatched)
+  and program stops (red marks), with the current moment; click it to go there.
+
+The simulated blank is a height field of about 200 000 points under a
+flat-bottomed round tool, so drill points, tool deflection and the spoilboard
+surface are not modelled, and the machine moves at its rapid and feed rates
+without acceleration: real cycle times are longer. Edge holes are not in 3-axis
+programs and are not simulated. It checks programs; it does not replace a dry run
+on your machine.
+
+The machine view draws a frame only when something changes (the machine moves, the
+blank is cut, the camera turns), so an idle machine costs nothing. Shadows need a
+graphics card: with a software renderer (SwiftShader or llvmpipe, as in virtual
+machines, remote desktops and CI) the machine is drawn without them.
+
+**Placing a design in the room.** **Place in room** adds the design to the room as
+furniture at the free spot nearest the room centre and switches to the room. A
+placed design takes its footprint and height from the design; editing the design
+updates it in the room, and an edit that would make it collide or no longer fit is
+refused. In the room it moves, turns, aligns, copies and clears like a cabinet. Its
+editor has **Edit design** to return to the designer and **Remove from room**. A
+design that is placed cannot be deleted until it is removed from the room.
+Cabinet-only tools (panel lists, sheet layouts and workshop profiles) cover
+cabinets.
+
+**Placed designs in manufacturing and quotes.** Each panel of a placed design is
+a blank of its length × width, nested with cabinet panels that share its material,
+thickness and sheet stock (one set per placement). The design's sheet stock (sheet
+length and width, edge trim, kerf, rotation) is set under CAM settings; the
+default is the cabinet default. Bars, rods, tubes and angles are listed as a
+**profile cut list** by material, form and section (for example “Zinc-plated steel
+round tube Ø25 × 2 mm · 4 pieces · 2.800 m”). Batches list design placements as
+D1, D2 … beside cabinets C1, C2 …; the manufacturing CSV, printable handoff and
+workshop job manifest include them (the manifest adds `profiles` and design counts
+only when designs are placed). Quotes price design sheets like cabinet sheets
+(metal sheets need a sheet price for that metal), profile stock per metre of net
+length, and count profile pieces like panels for labour; edging and handles stay
+cabinet-only. The nesting plans flat blanks: holes, grooves and pockets are
+machined with the designer's NC programs, which the handoff review reminds about.
+Stock price overrides accept every catalogue material and thicknesses of 1–200 mm.
+
+Designs are saved with the project (schema 7 `furnitureDesigns`; projects without
+designs are unchanged). They count toward the 64 KiB project limit; the designer
+shows the current size. A six-panel carcass uses about 4 KiB. Up to 32 designs,
+200 parts per design, 64 features per panel and 32 layers are supported.
 
 ### Wall and opening clearance planning
 
@@ -635,9 +1720,13 @@ and `npm run preview` in separate terminals. Preview is a local verification
 server, not the production deployment setup.
 
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
-Manufacturing and workshop-record panels load when opened. Budgets are 180 kB for
-the entry, 400 kB for each JavaScript chunk, 850 kB for initial JavaScript and
-950 kB for all JavaScript, measured uncompressed; CSS is limited to 15 kB per file.
+Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 195 kB for
+the entry, 400 kB for each JavaScript chunk, 880 kB for initial JavaScript and
+1060 kB for all JavaScript apart from the furniture designer and the version-history
+panel, which must load lazily and have their own budgets (82.5 kB and 12 kB), measured
+uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
+The workshop benches (workbench, drilling and cutting, with the code only they use)
+are budgeted the same way (lazy, 100 kB).
 `test-results/bundle-report.json` records raw/gzip sizes and initial versus lazy
 chunks. The default Vite size warning remains enabled. These checks do not claim
 that splitting alone reduces total downloads or guarantees faster rendering.
@@ -663,9 +1752,9 @@ Use an external `TERRATEC_DATA_DIR` for data that must survive application repla
 
 ### Project compatibility policy
 
-Project schemas 1–6 are supported on read and normalized to schema 6 in memory. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
+Project schemas 1–12 are supported on read. Room collections require schema 10, placement schema 11 and opening connections schema 12. Point/length constraints require schema 8 and wall relationships require schema 9; unconstrained projects retain the older normalization described below. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
 
-`fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets and cabinet defaults. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
+`fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets, cabinet defaults, wall locks, geometry constraints, room collections, placement and opening links. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
 
 These fixtures establish compatibility with the documented project formats. They are not exports from historical application releases; old release binaries, job/customer cross-version migration, rollback after newer-format writes and automatic bulk migration are not covered.
 
@@ -673,6 +1762,81 @@ These fixtures establish compatibility with the documented project formats. They
 
 Run `TERRATEC_DATA_DIR=/path/to/terratec-data npm run check:storage` from the source checkout. For an extracted release, run `TERRATEC_DATA_DIR=/path/to/terratec-data node /path/to/terratec-linux-x64/server/storage-check.mjs`. The command exits with code 1 when attention is required. Use the same data directory as the running app. Without the variable it checks `data/` beside the application.
 
-The check creates the directory if missing, writes/renames/deletes a uniquely named temporary probe, counts records, checks JSON readability and validates supported project formats. It never repairs or rewrites saved records. Job/customer checks cover JSON readability only. `POST /api/storage/check` returns the same report for local tooling; `status: attention` and the issues list indicate problems even when the HTTP request succeeds. Permission, read-only, full-storage and invalid-directory errors include recovery guidance. A successful probe describes the check time and does not guarantee future saves will succeed.
+The check creates the directory if missing, writes/renames/deletes a uniquely named temporary probe, counts records, checks JSON readability and validates supported project formats and saved version histories. It never repairs or rewrites saved records. Job/customer checks cover JSON readability only. `POST /api/storage/check` returns the same report for local tooling; `status: attention` and the issues list indicate problems even when the HTTP request succeeds. Permission, read-only, full-storage and invalid-directory errors include recovery guidance. A successful probe describes the check time and does not guarantee future saves will succeed.
 
 Unsupported, invalid or damaged stored projects return HTTP 422 with a specific project error code and guidance to use a compatible release or restore a known-good backup. Existing records that cannot be read are protected from replacement saves. The project list also reports the affected record rather than silently hiding it. Stop the app and preserve a copy of the affected file before restoring data.
+
+### Startup diagnostics
+
+Both `npm run api` and the packaged `start.mjs` check configuration before listening.
+`PORT` must be an integer from 1 to 65535; explicit path overrides must not be empty.
+The geometry core must run and return the expected sample area. Production startup
+also requires a readable, nonempty `index.html`. Storage is probed for write, rename
+and cleanup access. Failures stop startup with corrective guidance; an occupied port
+reports that another service must be stopped or a different `PORT` selected.
+
+Run `npm run check:startup` for a JSON report without opening a server, or
+`npm run check:startup -- --production` to also check the frontend. In an extracted
+release use `node server/startup-check.mjs --production`. These checks use the same
+`PORT`, `TERRATEC_DATA_DIR`, `TERRATEC_CORE` and `TERRATEC_STATIC_DIR` overrides as
+startup. Relative paths resolve from the current working directory; defaults resolve
+beside the app. The storage probe can create a missing data directory.
+
+Corrupt existing records are reported but do not stop the recovery UI from starting
+when storage remains writable. The diagnostics command exits with code 1 for either
+errors or warnings. Saved records are never repaired or overwritten by these checks.
+
+### Machine-specific CAM limits
+
+In the furniture designer, open **Machine limits** and enable enforcement. Enter
+XY travel, the panel-corner work offset, work-relative Z limits, maximum feed,
+spindle speed and cutter diameter for your setup. Values persist with the design.
+Exceeding a limit adds a part-specific CAM error and blocks the affected panel's
+NC export and the combined export. Disabling enforcement restores neutral CAM.
+
+XY checks include the panel and cutter envelope, with conservative full-circle
+bounds for arcs. Feed checks include plunge rates; depth includes through allowance.
+These are user-entered planning limits, not manufacturer presets. Clamp/holder
+collisions, controller configuration and tool-change motions are excluded. The CNC
+simulation retains its separate fixed machine setup.
+
+### Workshop capacity planning
+
+Open **Workshop capacity planning** in the workshop job records panel. Add a named
+workshop and its daily sheet limit, then save. Settings are stored by the local
+service in `workshop-capacity.json` inside the data directory, separately from
+projects and individual job backups. Full data-directory backups include them.
+Reload capacity before editing settings changed elsewhere; stale saves are rejected.
+
+The table uses all loaded jobs, independent of register filters. Latest assigned
+and in-production jobs reserve their full sheet count against their due date;
+completed and cancelled jobs no longer reserve capacity. Workshop names match
+without case or surrounding spaces. Unknown capacities and undated jobs remain
+visible without a utilization percentage. Proposed assignments appear in the table
+before assignment, including any capacity excess. Draft limits apply after saving.
+
+This is advisory sheet planning: it does not distribute jobs over working days,
+estimate labour or machine time, reserve an external workshop or block assignments.
+Refresh workshop jobs to see assignments changed elsewhere. Capacity settings use
+`GET/PUT /api/workshops/capacity`, with revision checks and a 16 KiB request limit.
+
+### Billing exchange
+
+Open **Billing exchange** on a saved quote. Record it as accepted and include a
+saved customer to enable JSON/CSV export. The handoff uses the saved revision and
+prices, verifies their integrity and includes exact minor-unit amounts, source
+IDs and a repeatable quote-based deduplication key. Tax and invoice numbering are
+unset. No external system is contacted and no quote is modified.
+
+See [Billing exchange v1](docs/BILLING_EXCHANGE.md) for adapter mappings, quantity
+units, rounding, CSV conventions and duplicate handling. This generic format
+requires a receiving-system adapter; vendor-specific imports are not implemented.
+
+### Structured assisted-design commands
+
+Open **Assisted design commands** in Project, load an example or paste a v1 JSON
+batch, then preview and apply. Add, move, rotate, rename and remove furniture in
+the active room. The preview shows before/after values; valid batches apply as
+one undo step. Changes after preview require a new preview. No language model or
+external service is connected. See [Design commands v1](docs/DESIGN_COMMANDS.md)
+for the bounded request format and supported operations.

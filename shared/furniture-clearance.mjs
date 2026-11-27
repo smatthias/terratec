@@ -1,10 +1,11 @@
 import {cabinetFootprint} from './furniture.mjs';
-import {edgeIds} from './geometry.mjs';
+import {roomWalls,wallSegment} from './room-topology.mjs';
 import {doorPose} from './openings.mjs';
 export function clearanceSettings(input={}){
-  const minWall=input.minWall??.05,doorDepth=input.doorDepth??.6,enforce=input.enforce??false,serviceDepth=input.serviceDepth??0;
-  if(![minWall,doorDepth,serviceDepth].every(v=>typeof v==='number'&&Number.isFinite(v))||minWall<0||minWall>2||doorDepth<0||doorDepth>3||serviceDepth<0||serviceDepth>3||typeof enforce!=='boolean')throw Error('Clearance settings need wall gap 0–2 m and door/service depth 0–3 m');
-  return {minWall,doorDepth,enforce,serviceDepth};
+  const minWall=input.minWall??.05,doorDepth=input.doorDepth??.6,enforce=input.enforce??false,serviceDepth=input.serviceDepth??0,windowDepth=input.windowDepth??.15;
+  if(![minWall,doorDepth,serviceDepth,windowDepth].every(v=>typeof v==='number'&&Number.isFinite(v))||minWall<0||minWall>2||doorDepth<0||doorDepth>3||serviceDepth<0||serviceDepth>3||windowDepth<0||windowDepth>3||typeof enforce!=='boolean')throw Error('Clearance settings need wall gap 0–2 m and door/window/service depth 0–3 m');
+  // The window zone depth is optional (0.15 m when unset), so saved settings stay as they were.
+  return {minWall,doorDepth,enforce,serviceDepth,...(input.windowDepth!==undefined?{windowDepth}:{})};
 }
 const cross=(a,b)=>a.x*b.z-a.z*b.x;
 const sub=(a,b)=>({x:a.x-b.x,z:a.z-b.z});
@@ -45,17 +46,17 @@ export function cabinetServiceZone(item,depth){
 }
 export function furnitureClearance(room,item,options){
  const settings=clearanceSettings(options),body=cabinetFootprint(item),walls=[];
- for(let i=0;i<room.outline.length;i++){
-  const a=room.outline[i],b=room.outline[(i+1)%room.outline.length];let nearest;
+ for(const {id,a,b} of roomWalls(room)){
+  let nearest;
   for(let n=0;n<body.length;n++){const result=segmentDistance(body[n],body[(n+1)%body.length],a,b);if(!nearest||result.distance<nearest.distance)nearest=result;}
-  walls.push({wall:edgeIds[i],...nearest});
+  walls.push({wall:id,...nearest});
  }
  const nearestWall=[...walls].sort((a,b)=>a.distance-b.distance)[0],issues=[],zones=[];
  for(const wall of walls)if(wall.distance<settings.minWall-1e-8)issues.push({code:'WALL_GAP',wall:wall.wall,message:`${wall.wall} wall gap ${wall.distance.toFixed(3)} m is below ${settings.minWall.toFixed(3)} m`});
  for(const opening of room.openings??[]){
   if(item.height<=opening.sill+1e-9)continue;
-  const index=edgeIds.indexOf(opening.wall),a=room.outline[index],b=room.outline[(index+1)%room.outline.length],length=Math.hypot(b.x-a.x,b.z-a.z),tx=(b.x-a.x)/length,tz=(b.z-a.z)/length,nx=-tz,nz=tx;
-  const depth=opening.type==='door'?settings.doorDepth:.15;
+  const {a,tx,tz,nx,nz}=wallSegment(room,opening.wall);
+  const depth=opening.type==='door'?settings.doorDepth:settings.windowDepth??.15;
   const point=(along,inward)=>({x:a.x+along*tx+inward*nx,z:a.z+along*tz+inward*nz});
   const polygon=[point(opening.offset,0),point(opening.offset+opening.width,0),point(opening.offset+opening.width,depth),point(opening.offset,depth)];
   let conflict=depth>0&&intersects(body,polygon);
@@ -72,12 +73,11 @@ export function furnitureClearance(room,item,options){
  }
  if(settings.serviceDepth>0){
   const service=cabinetServiceZone(item,settings.serviceDepth);
-  for(let i=0;i<room.outline.length;i++){
-   const a=room.outline[i],b=room.outline[(i+1)%room.outline.length],edge=sub(b,a),length=Math.hypot(edge.x,edge.z);
-   const beyond=Math.max(0,...service.map(p=>-cross(edge,sub(p,a))/length));
+  for(const {id,a,b,length} of roomWalls(room)){
+   const edge=sub(b,a),beyond=Math.max(0,...service.map(p=>-cross(edge,sub(p,a))/length));
    if(beyond>1e-8){
-    zones.push({kind:'service-wall',wall:edgeIds[i],polygon:service});
-    issues.push({code:'SERVICE_WALL',wall:edgeIds[i],message:`Cabinet front service zone crosses ${edgeIds[i]} room boundary by ${beyond.toFixed(3)} m`});
+    zones.push({kind:'service-wall',wall:id,polygon:service});
+    issues.push({code:'SERVICE_WALL',wall:id,message:`Cabinet front service zone crosses ${id} room boundary by ${beyond.toFixed(3)} m`});
    }
   }
 

@@ -3,7 +3,8 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium } from 'playwright';
+import { launchChromium } from './launch-browser.mjs';
+import {buildingSheetPreview} from '../shared/building-sheet-preview.mjs';
 import * as THREE from 'three';
 import { fitCamera } from '../src/room-scene.js';
 
@@ -30,8 +31,17 @@ try {
   start(['server/index.mjs'],{TERRATEC_DATA_DIR:dataDir});
   start(['node_modules/vite/bin/vite.js',...(production?['preview']:[]),'--host','127.0.0.1','--port','5173','--strictPort']);
   await Promise.all([ready('http://127.0.0.1:3001/api/health'),ready('http://127.0.0.1:5173')]);
-  browser = await chromium.launch({args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-  page = await browser.newPage({viewport:{width:1440,height:1000}});
+  browser = await launchChromium(['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']);
+  // Check physical tiled output in the same Chromium used for production workflows.
+  const tiled=buildingSheetPreview({schemaVersion:1,units:'m',name:'Tiled browser plan',room:{width:6,depth:4,height:2.8}},{paper:'A4',orientation:'landscape',scale:20,tiled:true});
+  const printPage=await browser.newPage();await printPage.setContent(tiled.html);await printPage.emulateMedia({media:'print'});
+  assert.equal(await printPage.locator('main.sheet').count(),tiled.pageCount);
+  const tiledPhysical=await printPage.locator('main.sheet').first().boundingBox();assert.ok(Math.abs(tiledPhysical.width-297*96/25.4)<1);assert.ok(Math.abs(tiledPhysical.height-210*96/25.4)<1);
+  assert.equal(await printPage.locator('main.sheet').evaluateAll(pages=>pages.every(p=>p.scrollWidth<=p.clientWidth+1&&p.scrollHeight<=p.clientHeight+1)),true);
+  await mkdir('test-results',{recursive:true});await printPage.pdf({path:'test-results/tiled-building-plan.pdf',preferCSSPageSize:true,printBackground:true});await printPage.close();
+  // Full HD: with the editor windows docked at both sides, the canvas keeps about the
+  // size it had beside the old sidebar (the canvas clicks below project onto it).
+  page = await browser.newPage({viewport:{width:1920,height:1080}});
   const errors = [],assetRequests=[]; page.on('pageerror',error => errors.push(error.message));
   page.on('request',request=>{if(request.url().includes('/assets/'))assetRequests.push(request.url());});
   page.on('response',response=>{if(response.url().includes('/assets/')&&response.status()>=400)errors.push('Asset '+response.status()+': '+response.url());});
@@ -48,6 +58,18 @@ try {
   await page.getByRole('button',{name:'Open saved'}).click();
   await page.getByText('Saved project opened',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('width',{exact:true}).inputValue(),'6');
+  // Structured command preview is non-destructive; a batch has one undo step.
+  {
+    const snapshot=async()=>{const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON',exact:true}).click();const stream=await (await pending).createReadStream();let text='';for await(const chunk of stream)text+=chunk.toString();return JSON.parse(text);};
+    const before=await snapshot();await page.getByRole('button',{name:'Assisted design commands',exact:true}).click();const region=page.getByRole('region',{name:'Assisted design commands',exact:true});
+    const roomId=await region.getByTestId('command-room-id').textContent();
+    await region.getByLabel('Design command JSON',{exact:true}).fill(JSON.stringify({version:1,units:'m',roomId,commands:[{op:'add-cabinet',item:{id:'assisted-browser',name:'Assisted cabinet',width:.6,depth:.4,height:1.2,x:0,z:0}},{op:'move',id:'assisted-browser',x:1,z:0},{op:'rotate',id:'assisted-browser',rotation:90}]}));
+    await region.getByRole('button',{name:'Preview design commands',exact:true}).click();await region.getByTestId('command-preview').waitFor();assert.deepEqual(await snapshot(),before);
+    await page.getByLabel('Project name',{exact:true}).fill('Stale preview check');assert.equal(await region.getByRole('button',{name:'Apply command batch',exact:true}).isDisabled(),true);await page.getByLabel('Project name',{exact:true}).fill(before.name);
+    await region.getByRole('button',{name:'Preview design commands',exact:true}).click();await region.getByRole('button',{name:'Apply command batch',exact:true}).click();await page.locator('footer').getByText('Applied 3 design commands',{exact:true}).waitFor();
+    const after=await snapshot();assert.equal(after.room.furniture.find(i=>i.id==='assisted-browser').x,1);assert.equal(after.room.furniture.find(i=>i.id==='assisted-browser').rotation,90);
+    await page.getByRole('button',{name:'Undo',exact:true}).click();assert.deepEqual(await snapshot(),before);await page.getByRole('button',{name:'Redo',exact:true}).click();assert.deepEqual(await snapshot(),after);await page.getByRole('button',{name:'Undo',exact:true}).click();await page.getByRole('button',{name:'Assisted design commands',exact:true}).click();
+  }
   await page.getByRole('button',{name:'Plan',exact:true}).click();
   await page.getByText('ORTHOGRAPHIC PLAN · NORTH UP',{exact:false}).waitFor();
   await page.getByRole('button',{name:'South wall',exact:true}).click();
@@ -108,7 +130,7 @@ try {
   await page.getByRole('button',{name:'Plan',exact:true}).click();
   await page.getByRole('button',{name:'Fit room',exact:true}).click();
   await page.getByLabel('Snap endpoints to grid').check();
-  const firstHandle=page.getByRole('button',{name:'Corner 1 drag handle',exact:true});
+  const firstHandle=page.getByRole('button',{name:'North-west corner drag handle',exact:true});
   const handleBox=await firstHandle.boundingBox();
   const dragRect=await canvas.boundingBox();
   const dragCamera=new THREE.OrthographicCamera();
@@ -488,6 +510,8 @@ try {
   await page.getByLabel('SVG paper size',{exact:true}).selectOption('A3');
   await page.locator('[data-testid=sheet-fit]:not(.invalid)').waitFor();
   assert.equal(await page.getByLabel('SVG print scale',{exact:true}).inputValue(),'100');
+  // The placement assertions below use exact positions: connecting (magnetic snapping) is checked separately at the end.
+  await page.getByLabel('Snap furniture to walls and furniture',{exact:true}).uncheck();
   // Parametric cabinets participate in selection, validation, history and persistence.
   await page.getByRole('button',{name:'Add cabinet',exact:true}).click();
   await page.getByText('Cabinet added',{exact:true}).waitFor();
@@ -716,6 +740,8 @@ try {
   await mkdir('test-results',{recursive:true});
   await quotePage.pdf({path:'test-results/quote-estimate.pdf',preferCSSPageSize:true,printBackground:true});
   await quotePage.locator('.page').first().screenshot({path:'test-results/quote-summary.png'});await quotePage.close();
+  await page.getByRole('button',{name:'Billing exchange',exact:true}).click();
+  const billingRegion=page.getByRole('region',{name:'Billing exchange',exact:true});assert.equal(await billingRegion.getByRole('button',{name:'Export billing JSON',exact:true}).isDisabled(),true);
   await page.getByLabel('Quote status actor',{exact:true}).fill('Matthias');
   await page.getByLabel('Quote status note',{exact:true}).fill('Local status record only');
   await page.getByRole('button',{name:'Record quote as sent',exact:true}).click();
@@ -723,6 +749,11 @@ try {
   await page.getByRole('button',{name:'Record quote as accepted',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Quote status recorded: accepted'}).waitFor();
   assert.match(await page.getByTestId('quote-status').textContent(),/accepted/);
+  const billingJsonPromise=page.waitForEvent('download');await billingRegion.getByRole('button',{name:'Export billing JSON',exact:true}).click();const billingJsonDownload=await billingJsonPromise,billingJsonStream=await billingJsonDownload.createReadStream();let billingJson='';for await(const chunk of billingJsonStream)billingJson+=chunk.toString();const billingDocument=JSON.parse(billingJson);
+  assert.equal(billingDocument.format,'terratec-billing-exchange');assert.equal(billingDocument.source.quoteId,quote.id);assert.equal(billingDocument.customer.customer,'Example customer');assert.equal(billingDocument.netCents,quote.costing.totalCents);assert.equal(billingDocument.lines.reduce((n,l)=>n+l.amountCents,0),billingDocument.netCents);assert.equal(billingDocument.invoiceNumber,null);
+  const billingCsvPromise=page.waitForEvent('download');await billingRegion.getByRole('button',{name:'Export billing CSV',exact:true}).click();const billingCsvDownload=await billingCsvPromise,billingCsvStream=await billingCsvDownload.createReadStream();let billingCsv='';for await(const chunk of billingCsvStream)billingCsv+=chunk.toString();assert.ok(billingCsv.includes(billingDocument.exportKey));assert.ok(billingCsv.includes('"Example customer"'));assert.ok(billingCsv.includes('"line_net_cents"'));assert.ok(billingCsvDownload.suggestedFilename().endsWith('.csv'));
+  await page.getByRole('button',{name:'Billing exchange',exact:true}).click();
+
   await page.getByTestId('quote-register-row').filter({hasText:'accepted'}).waitFor();
   await page.getByLabel('Search all quotes',{exact:true}).fill('Example Q-TEST');
   await page.getByLabel('Quote register status',{exact:true}).selectOption('draft');
@@ -750,14 +781,23 @@ try {
   await page.getByLabel('Tracking notes',{exact:true}).fill('Local workshop scheduling');
   await page.getByLabel('Assigned workshop',{exact:true}).fill('Berlin workshop');
   await page.getByLabel('Workshop due date',{exact:true}).fill('2026-12-01');
+  await page.getByRole('button',{name:'Workshop capacity planning',exact:true}).click();
+  const capacityRegion=page.getByRole('region',{name:'Workshop capacity planning',exact:true});await capacityRegion.getByTestId('capacity-message').filter({hasText:'Workshop capacity loaded'}).waitFor();
+  await capacityRegion.getByLabel('Capacity workshop name',{exact:true}).fill('Berlin workshop');await capacityRegion.getByLabel('Daily sheet capacity',{exact:true}).fill('1');await capacityRegion.getByRole('button',{name:'Add capacity draft',exact:true}).click();await capacityRegion.getByRole('button',{name:'Save workshop capacity',exact:true}).click();
+  await capacityRegion.getByTestId('capacity-message').filter({hasText:'Workshop capacity saved'}).waitFor();
+  await capacityRegion.getByTestId('capacity-row').filter({hasText:'proposed'}).waitFor();assert.match(await capacityRegion.getByTestId('capacity-row').first().textContent(),/%/);
   await page.getByRole('button',{name:'Assign workshop',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Workshop progress recorded: assigned'}).waitFor();
   assert.match(await page.getByTestId('fulfilment-status').textContent(),/Berlin workshop · assigned/);
+  assert.doesNotMatch(await capacityRegion.getByTestId('capacity-row').first().textContent(),/proposed/);
+  await capacityRegion.getByRole('button',{name:'Reload workshop capacity',exact:true}).click();await capacityRegion.getByTestId('capacity-message').filter({hasText:'Workshop capacity loaded'}).waitFor();assert.equal(await capacityRegion.getByLabel('Berlin workshop daily sheet capacity',{exact:true}).inputValue(),'1');
   await page.getByRole('button',{name:'Start production tracking',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Workshop progress recorded: in-production'}).waitFor();
   await page.getByRole('button',{name:'Mark workshop completed',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Workshop progress recorded: completed'}).waitFor();
   assert.match(await page.getByTestId('fulfilment-status').textContent(),/completed/);
+  await capacityRegion.getByTestId('capacity-row').waitFor({state:'detached'});
+  await page.getByRole('button',{name:'Workshop capacity planning',exact:true}).click();
   const recordPromise=page.waitForEvent('download');
   await page.getByRole('button',{name:'Export workshop job record',exact:true}).click();
   const recordDownload=await recordPromise,recordStream=await recordDownload.createReadStream();let recordJson='';
@@ -770,6 +810,8 @@ try {
   assert.notEqual(await page.getByLabel('Workshop job',{exact:true}).inputValue(),originalJobId);
   assert.equal(await page.getByLabel('Workshop job',{exact:true}).locator('option').count(),3);
   assert.match(await page.getByTestId('fulfilment-status').textContent(),/completed/);
+  await capacityRegion.getByTestId('capacity-row').waitFor({state:'detached'});
+  await page.getByRole('button',{name:'Workshop capacity planning',exact:true}).click();
   const alteredBackup=JSON.parse(recordJson);alteredBackup.record.name='Changed backup';
   await page.getByLabel('Restore workshop job backup file',{exact:true}).setInputFiles({name:'bad-backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(alteredBackup))});
   await page.getByTestId('job-record-message').filter({hasText:'Job backup checksum failed'}).waitFor();
@@ -792,6 +834,8 @@ try {
   await page.getByLabel('Search workshop jobs',{exact:true}).fill('no matching workshop');
   assert.equal(await page.getByTestId('job-register-row').count(),0);
   assert.match(await page.getByTestId('fulfilment-status').textContent(),/completed/);
+  await capacityRegion.getByTestId('capacity-row').waitFor({state:'detached'});
+  await page.getByRole('button',{name:'Workshop capacity planning',exact:true}).click();
   await page.getByRole('button',{name:'Clear job filters',exact:true}).click();
   await page.getByLabel('Search workshop jobs',{exact:true}).fill('BERLIN');
   assert.equal(await page.getByTestId('job-register-row').count(),1);
@@ -1035,6 +1079,9 @@ try {
   await page.getByRole('button',{name:'Undo',exact:true}).click();
   assert.equal(await page.getByLabel('Furniture item',{exact:true}).locator('option').count(),6);
   await page.getByRole('button',{name:'Redo',exact:true}).click();
+  assert.equal(await page.getByLabel('Furniture item',{exact:true}).locator('option').count(),7);
+  // Selection is not part of geometry history: the redone copy returns unselected, so choose a cabinet again.
+  await page.getByLabel('Furniture item',{exact:true}).selectOption({label:'Reusable cabinet'});
   await page.getByRole('button',{name:'Place copy in Plan',exact:true}).click();
   await page.keyboard.press('Escape');
   await page.getByText('Furniture preview cancelled',{exact:true}).waitFor();
@@ -1323,6 +1370,100 @@ try {
   await page.getByRole('button',{name:'Save revision quote snapshot',exact:true}).click();await page.getByTestId('job-record-message').filter({hasText:'Revision quote snapshot saved'}).waitFor();
   const coveragePrintPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export printable quote',exact:true}).click();const coveragePrintDownload=await coveragePrintPromise,coveragePrintStream=await coveragePrintDownload.createReadStream();let coveragePrintHtml='';for await(const chunk of coveragePrintStream)coveragePrintHtml+=chunk.toString();assert.match(coveragePrintHtml,/Pricing coverage review/);assert.match(coveragePrintHtml,/Coverage reflects the saved quote rates/);
   const coveragePrintPage=await browser.newPage({viewport:{width:703,height:1032}});await coveragePrintPage.setContent(coveragePrintHtml);await coveragePrintPage.emulateMedia({media:'print'});assert.ok((await coveragePrintPage.locator('.page').evaluateAll(pages=>pages.map(p=>p.getBoundingClientRect().height))).every(h=>h<=1032));await coveragePrintPage.pdf({path:'test-results/pricing-coverage-quote.pdf',preferCSSPageSize:true,printBackground:true});await coveragePrintPage.close();
+  // ---- Auto-arrange (loaded on first use) places the furniture along the walls as one undoable edit.
+  await page.getByLabel('Snap furniture to walls and furniture',{exact:true}).check();
+  await page.getByRole('button',{name:'Auto-arrange',exact:true}).click();
+  await page.locator('footer').getByText(/^Arranged \d+ items? along the walls/).waitFor();
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  // ---- Furniture designer: the lazy designer and CAM export chunks load; a Fanuc program downloads.
+  await page.getByRole('button',{name:'Furniture designer',exact:true}).click();
+  await page.getByRole('button',{name:'New box carcass',exact:true}).click();await page.locator('footer').getByText('Box carcass design created',{exact:false}).waitFor();
+  await page.getByText('Machine limits',{exact:true}).click();
+  await page.getByLabel('Enforce machine limits',{exact:true}).check();await page.locator('footer').getByText('CAM settings updated',{exact:true}).waitFor();
+  await page.getByLabel('Machine Maximum feed mm/min',{exact:true}).fill('100');await page.getByLabel('Machine Maximum feed mm/min',{exact:true}).dispatchEvent('change');
+  await page.getByTestId('cnc-issues').filter({hasText:'machine limit'}).waitFor();assert.equal(await page.getByRole('button',{name:'Export NC program (all panels)',exact:true}).isDisabled(),true);
+  await page.getByLabel('Enforce machine limits',{exact:true}).uncheck();await page.locator('footer').getByText('CAM settings updated',{exact:true}).waitFor();
+  await page.getByText('CAM settings and tools',{exact:true}).click();
+  await page.getByLabel('Post-processor',{exact:true}).selectOption('fanuc');await page.locator('footer').getByText('CAM settings updated',{exact:true}).waitFor();
+  const ncPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export NC program (all panels)',exact:true}).click();
+  const ncDownload=await ncPromise,ncStream=await ncDownload.createReadStream();let ncText='';for await(const chunk of ncStream)ncText+=chunk;
+  assert.match(ncText,/^%\r\nO1000 \(BOX CARCASS\)\r\n/);assert.ok(ncText.endsWith('M30\r\n%\r\n'));assert.match(ncDownload.suggestedFilename(),/_all-panels\.nc$/);
+  // Drilling bench (loaded on first use) from the piece menu: one hole at the centre of face A.
+  await page.getByLabel('Parts',{exact:true}).getByRole('button',{name:/^Left side/}).first().click();
+  await page.keyboard.press('ContextMenu');
+  await page.getByRole('menuitem',{name:'Drill on the bench…',exact:true}).click();
+  const benchRegion=page.getByRole('region',{name:'Drilling bench'});await benchRegion.waitFor();
+  await benchRegion.getByRole('button',{name:'Drill',exact:true}).click();
+  await page.locator('footer').getByText('Drilled Ø8 × 12 mm at u 280 · v 360',{exact:true}).waitFor();
+  // The bench's taskbar (Back to designer, its windows) is the studio's bottom taskbar.
+  const taskbar=page.locator('footer');
+  await taskbar.getByRole('button',{name:'Back to designer',exact:true}).click();await benchRegion.waitFor({state:'detached'});
+  // Cutting bench: saw the left side in two at the middle.
+  await page.keyboard.press('ContextMenu');
+  await page.getByRole('menuitem',{name:'Cut on the bench…',exact:true}).click();
+  const cutRegion=page.getByRole('region',{name:'Cutting bench'});await cutRegion.waitFor();
+  await cutRegion.getByLabel('Cut position',{exact:true}).fill('150');await cutRegion.getByLabel('Cut position',{exact:true}).press('Tab');
+  await cutRegion.getByRole('button',{name:'Cut in two',exact:true}).click();
+  await page.locator('footer').getByText('Cut Left side in two: 150 mm and 406.8 mm (3.2 mm kerf)',{exact:true}).waitFor();
+  await taskbar.getByRole('button',{name:'Back to designer',exact:true}).click();await cutRegion.waitFor({state:'detached'});
+  // Workbench: plane 1 mm off face A.
+  await page.keyboard.press('ContextMenu');
+  await page.getByRole('menuitem',{name:'Open the workbench…',exact:true}).click();
+  const workRegion=page.getByRole('region',{name:'Workbench'});await workRegion.waitFor();
+  await workRegion.getByRole('navigation',{name:'Hand tools'}).getByText('Planes',{exact:true}).click();
+  await workRegion.getByRole('button',{name:/^Jack plane/}).click();
+  await workRegion.getByRole('button',{name:'Plane off 1 mm',exact:true}).click();
+  await page.locator('footer').getByText('Jack plane (No. 5): 1 mm off face A of Left side',{exact:true}).waitFor();
+  // Windows on the desk: drag the tool window to the left edge to snap it to the left half, then reset the layout.
+  const toolWindow=workRegion.getByRole('region',{name:'Tool in hand'}),deskBox=await workRegion.boundingBox(),titleBox=await toolWindow.locator('header').boundingBox();
+  await page.mouse.move(titleBox.x+40,titleBox.y+12);await page.mouse.down();await page.mouse.move(deskBox.x+120,deskBox.y+200,{steps:6});await page.mouse.move(deskBox.x+2,deskBox.y+200,{steps:4});await page.mouse.up();
+  const snapped=await toolWindow.boundingBox();assert.ok(Math.abs(snapped.x-(deskBox.x+8))<=2&&snapped.width>deskBox.width/2-30,'the tool window snapped to the left half');
+  await taskbar.getByRole('button',{name:'Reset layout',exact:true}).click();
+  await taskbar.getByRole('button',{name:'Back to designer',exact:true}).click();await workRegion.waitFor({state:'detached'});
+  // CNC machine (loaded on first use): the panel's exported program runs on the simulated router. Fitting a
+  // cutter in the tool rack is one design edit; the program check passes and Run to end machines the part.
+  await page.keyboard.press('ContextMenu');
+  await page.getByRole('menuitem',{name:'Machine on the CNC…',exact:true}).click();
+  const cncRegion=page.getByRole('region',{name:'CNC machine'});await cncRegion.waitFor();
+  await cncRegion.getByTestId('cnc-check').filter({hasText:'No alarms'}).waitFor();
+  await cncRegion.getByLabel('Cutter for T2',{exact:true}).selectOption('upcut-6');
+  await page.locator('footer').getByText('T2: Ø6 2-flute upcut spiral fitted · 18000 rpm · feed 5400 mm/min',{exact:true}).waitFor();
+  await cncRegion.getByRole('button',{name:'▶ Cycle start',exact:true}).click();await cncRegion.getByTestId('cnc-state').filter({hasText:'CYCLE RUNNING'}).waitFor();
+  await cncRegion.getByRole('button',{name:'⏭ Run to end',exact:true}).click();
+  await cncRegion.getByTestId('cnc-state').filter({hasText:'PROGRAM COMPLETE'}).waitFor();
+  await page.locator('footer').getByText(/^Left side face A machined · \d+:\d\d$/).waitFor();
+  // Visualisation: the blank as a depth map and the toolpath by feed rate, each with its legend.
+  const cncView=cncRegion.getByRole('navigation',{name:'Machine view'});
+  await cncView.getByRole('button',{name:'Depth map',exact:true}).click();await cncRegion.getByTestId('depth-legend').waitFor();
+  await cncView.getByRole('button',{name:'Feed rate',exact:true}).click();await cncRegion.getByTestId('feed-legend').filter({hasText:/^\d+–\d+ mm\/min · rapids yellow$/}).waitFor();
+  await taskbar.getByRole('button',{name:'Back to designer',exact:true}).click();await cncRegion.waitFor({state:'detached'});
+  await page.getByRole('button',{name:'Room',exact:true}).click();
+  // ---- Version history: preview an earlier version read-only, keep the history across a reload (IndexedDB), restore.
+  await page.getByRole('button',{name:'New',exact:true}).click();await page.locator('footer').getByText('New project',{exact:true}).waitFor();
+  await page.getByLabel('Project name',{exact:true}).fill('History studio');
+  await page.getByRole('button',{name:'Add cabinet',exact:true}).click();await page.locator('footer').getByText('Cabinet added',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'History',exact:true}).click();
+  const historyPanel=page.getByRole('region',{name:'Version history'});await historyPanel.waitFor();
+  await historyPanel.getByRole('button',{name:/· Cabinet added$/}).waitFor();
+  await historyPanel.getByRole('button',{name:'Oldest version',exact:true}).click();
+  await page.locator('footer').getByText('· read-only',{exact:false}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Add cabinet',exact:true}).isDisabled(),true,'a preview is read-only');
+  await historyPanel.getByRole('button',{name:'Back to now',exact:true}).click();
+  await page.locator('footer').getByText('Back to the current version',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Add cabinet',exact:true}).isDisabled(),false);
+  await page.waitForTimeout(1500);
+  await page.reload();await page.locator('canvas').waitFor();
+  const historyDraft=await page.evaluate(()=>JSON.parse(localStorage.getItem('terratec.recovery.v1')).drafts.find(d=>d.project.name==='History studio').key);
+  await page.getByLabel('Recovery draft',{exact:true}).selectOption(historyDraft);
+  await page.getByRole('button',{name:'Recover draft',exact:true}).click();
+  await page.getByText('Draft recovered as an unsaved copy',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'History',exact:true}).click();
+  await historyPanel.getByRole('button',{name:/· Cabinet added$/}).waitFor();
+  await historyPanel.getByRole('button',{name:'Oldest version',exact:true}).click();
+  await historyPanel.getByRole('button',{name:'Restore this version',exact:true}).click();
+  await page.locator('footer').getByText('Restored the version from',{exact:false}).waitFor();
+  await historyPanel.getByRole('button',{name:/· Restored the version from/}).waitFor();
+  await historyPanel.getByRole('button',{name:'Close history',exact:true}).click();
   await page.getByRole('button',{name:'3D',exact:true}).click();
   await mkdir('test-results',{recursive:true});
   await page.screenshot({path:'test-results/workspace-desktop.png'});

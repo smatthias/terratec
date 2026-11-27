@@ -1,10 +1,9 @@
 import * as THREE from 'three';
 import { doorPose } from '../shared/openings.mjs';
-import { edgeIds } from '../shared/geometry.mjs';
+import { wallSegment } from '../shared/room-topology.mjs';
 export function addOpeningVisuals(group,room) {
   for(const o of room.openings||[]) {
-    const i=edgeIds.indexOf(o.wall),a=room.outline[i],b=room.outline[(i+1)%4];
-    const length=Math.hypot(b.x-a.x,b.z-a.z),tx=(b.x-a.x)/length,tz=(b.z-a.z)/length,nx=-tz,nz=tx;
+    const {a,tx,tz,nx,nz}=wallSegment(room,o.wall);
     const position=(along,y,inset=-.08)=>new THREE.Vector3(a.x+tx*along+nx*inset,y,a.z+tz*along+nz*inset);
     const tag=(object,role,kind,color)=>{
       object.userData={id:o.wall,openingId:o.id,role,kind,baseColor:color};group.add(object);return object;

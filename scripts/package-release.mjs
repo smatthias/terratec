@@ -14,11 +14,8 @@ for(const dir of ['server','shared','dist']) await cp(resolve(root,dir),resolve(
 await cp(resolve(root,'build/terratec-core'),resolve(output,'build/terratec-core'));
 for(const file of ['LICENSE','README.md']) await cp(resolve(root,file),resolve(output,file));
 await writeFile(resolve(output,'package.json'),JSON.stringify({name:'terratec-release',private:true,type:'module',engines:{node:'>=22.12.0'},scripts:{start:'node start.mjs'}},null,2)+'\n');
-await writeFile(resolve(output,'start.mjs'),`import {makeServer} from './server/index.mjs';
-import {fileURLToPath} from 'node:url';
-const port=Number(process.env.PORT || 3001);
-if(!Number.isInteger(port)||port<1||port>65535) throw new Error('PORT must be an integer from 1 to 65535');
-makeServer({dataDir:process.env.TERRATEC_DATA_DIR,staticDir:fileURLToPath(new URL('./dist/',import.meta.url))}).listen(port,'127.0.0.1',()=>console.log('TerraTec: http://127.0.0.1:'+port));
+await writeFile(resolve(output,'start.mjs'),`import {startConfiguredServer} from './server/index.mjs';
+try{await startConfiguredServer({production:true});}catch(error){console.error(error.code==='EADDRINUSE'?'Startup: PORT is already in use. Stop the other service or choose another PORT.':error.message);process.exitCode=1;}
 `);
 await writeFile(resolve(output,'INSTALL.txt'),`Requires Node.js >=22.12.0 and a compatible ${process.platform}/${process.arch} system.\nExtract this archive, then run: node /path/to/${name}/start.mjs\nOpen http://127.0.0.1:3001\nOptional: PORT and TERRATEC_DATA_DIR environment variables. Default data: data/ beside start.mjs.\nNo npm install, Vite or compiler required. Back up data/ before upgrading; use TERRATEC_DATA_DIR outside this folder to retain data across upgrades.\nNative binary is built for the runner platform; cross-platform installers are not included.\n`);
 execFileSync('tar',['-czf',resolve(root,'release',name+'.tar.gz'),'-C',resolve(root,'release'),name]);

@@ -1,3 +1,5 @@
+import {workshopCapacityStore} from './workshop-capacity-store.mjs';
+import {startupConfig,checkStartup} from './startup-check.mjs';
 import {checkStorage,parseStoredProject,storageError} from './storage-check.mjs';
 import { createServer } from 'node:http';
 import { readFile, mkdir, rename, writeFile, rm } from 'node:fs/promises';
@@ -9,20 +11,31 @@ import { randomUUID } from 'node:crypto';
 import {MAX_JOB_BACKUP_BYTES} from '../shared/job-backup.mjs';
 import {customerStore} from './customer-store.mjs';
 import {jobStore} from './job-store.mjs';
-import { projectStore } from './project-store.mjs';
+import { projectStore, MAX_TIMELINE_BYTES } from './project-store.mjs';
 import { validateProject } from './project.mjs';
 
 const run = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
 export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve(root, 'build/terratec-core'), staticDir }  = {}) {
+  const capacity=workshopCapacityStore(dataDir);
   const projects=projectStore(dataDir),jobs=jobStore(dataDir),customers=customerStore(dataDir);
   return createServer(async (req, res) => {
     const send = (status, value) => {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify(value));
     };
+    // Oversized uploads: answer, then close the connection instead of leaving the rest of the body unread on it.
+    const tooLarge=error=>{res.setHeader('Connection','close');res.once('finish',()=>req.socket?.destroy());send(413,{error});};
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
+      if(path==='/api/workshops/capacity') {
+        if(req.method==='GET')return send(200,await capacity.read());
+        if(req.method!=='PUT')return send(405,{error:'Method not allowed'});
+        if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
+        const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>16384)return tooLarge('Capacity settings exceed 16 KiB');chunks.push(chunk);}
+        let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid capacity JSON'});}
+        return send(200,await capacity.save(input));
+      }
       if(path==='/api/storage/check' && req.method==='POST')return send(200,await checkStorage(dataDir));
       if (staticDir && !path.startsWith('/api/') && (req.method === 'GET' || req.method === 'HEAD')) {
         const base = resolve(staticDir);
@@ -42,7 +55,7 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
         if(req.method==='GET'&&!customerRestore)return send(200,customerMatch?await customers.read(customerMatch[1]):await customers.list());
         if(req.method!==(customerMatch&&!customerRestore?'PUT':'POST'))return send(405,{error:'Method not allowed'});
         if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
-        const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>8192)return send(413,{error:'Customer request exceeds 8 KiB'});chunks.push(chunk);}
+        const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>8192)return tooLarge('Customer request exceeds 8 KiB');chunks.push(chunk);}
         let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid customer JSON'});}
         return send(customerRestore?201:customerMatch?200:201,customerRestore?await customers.restore(input):await customers.save(input,customerMatch?.[1]));
       }
@@ -54,10 +67,19 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
         if(req.method!=='POST'||(jobMatch&&!jobMatch[2]&&!restoring))return send(405,{error:'Method not allowed'});
         if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
         const chunks=[];let size=0;
-        for await(const chunk of req){size+=chunk.length;if(size>(restoring?MAX_JOB_BACKUP_BYTES:131072))return send(413,{error:restoring?'Job backup exceeds 16 MiB':'Job request exceeds 128 KiB'});chunks.push(chunk);}
+        for await(const chunk of req){size+=chunk.length;if(size>(restoring?MAX_JOB_BACKUP_BYTES:131072))return tooLarge(restoring?'Job backup exceeds 16 MiB':'Job request exceeds 128 KiB');chunks.push(chunk);}
         let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid job JSON'});}
         const record=restoring?await jobs.restore(input):path==='/api/jobs'?await jobs.create(input):jobMatch[2]==='revisions'?await jobs.revise(jobMatch[1],input):jobMatch[2]==='review'?await jobs.review(jobMatch[1],input):jobMatch[2]==='quotes'?await jobs.quote(jobMatch[1],input):jobMatch[2]==='quote-status'?await jobs.quoteStatus(jobMatch[1],input):await jobs.fulfil(jobMatch[1],input);
         return send(path==='/api/jobs'||restoring?201:200,record);
+      }
+      const timelineMatch=path.match(/^\/api\/projects\/([^/]+)\/timeline$/);
+      if(timelineMatch){
+        if(req.method==='GET')return send(200,await projects.readTimeline(timelineMatch[1]));
+        if(req.method!=='PUT')return send(405,{error:'Method not allowed'});
+        if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
+        const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>MAX_TIMELINE_BYTES)return tooLarge('Project history exceeds 2 MiB');chunks.push(chunk);}
+        let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid history JSON'});}
+        return send(200,await projects.saveTimeline(timelineMatch[1],input));
       }
       const projectMatch=path.match(/^\/api\/projects\/([^/]+)$/);
       if(req.method==='GET' && path==='/api/projects') return send(200,await projects.list());
@@ -78,7 +100,7 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
       let size = 0;
       for await (const chunk of req) {
         size += chunk.length;
-        if (size > 65536) { send(413, { error: 'Project exceeds 64 KiB' }); return; }
+        if (size > 65536) return tooLarge('Project exceeds 64 KiB');
         chunks.push(chunk);
       }
       let project;
@@ -107,8 +129,14 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
     }
   });
 }
+export async function startConfiguredServer(options={}) {
+  const config=startupConfig(process.env,options),report=await checkStartup(config);
+  for(const issue of report.issues)console.error(`Startup ${issue.code}: ${issue.message}`);
+  if(report.status==='error')throw Error('Startup checks failed. Correct the configuration before restarting.');
+  const server=makeServer(config);
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(config.port,'127.0.0.1',resolve);});
+  console.log(`${options.production?'TerraTec':'TerraTec API'}: http://127.0.0.1:${config.port}`);return server;
+}
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const port = Number(process.env.PORT || 3001);
-  makeServer({ dataDir: process.env.TERRATEC_DATA_DIR, corePath: process.env.TERRATEC_CORE, staticDir: process.env.TERRATEC_STATIC_DIR })
-    .listen(port, '127.0.0.1', () => console.log(`TerraTec API: http://127.0.0.1:${port}`));
+  try{await startConfiguredServer();}catch(error){console.error(error.code==='EADDRINUSE'?'Startup: PORT is already in use. Stop the other service or choose another PORT.':error.message);process.exitCode=1;}
 }

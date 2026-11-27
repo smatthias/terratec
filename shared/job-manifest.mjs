@@ -1,5 +1,6 @@
+import {roomScope} from './room-scope.mjs';
 import {validateProject} from './project.mjs';
-import {manufacturingBatches} from './manufacturing.mjs';
+import {manufacturingBatches,designProfiles} from './manufacturing.mjs';
 export const MAX_MANIFEST_BYTES=2097152;
 const canonical=value=>JSON.stringify(normalise(value));
 function normalise(value){
@@ -11,18 +12,23 @@ async function digest(value){
   const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonical(value)));
   return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
 }
-export function handoffValidation(batches){
+export function handoffValidation(batches,{profiles=[],designs=0}={}){
   const issues=[];
-  if(!batches.length)issues.push({code:'NO_PANELS',severity:'blocking',message:'No cabinet panels to hand off'});
+  if(!batches.length&&!profiles.length)issues.push({code:'NO_PANELS',severity:'blocking',message:'No cabinet panels to hand off'});
   for(const batch of batches)if(batch.layout.unplaced.length)issues.push({code:'OVERSIZE',severity:'blocking',batch:batch.number,count:batch.layout.unplaced.length,message:'Oversize panels remain unplaced'});
+  if(designs)issues.push({code:'DESIGN_MACHINING',severity:'review',message:'Placed designs are nested as flat blanks: machine their holes, grooves and pockets with the designer\'s CNC programs and check its CNC plan'});
   issues.push({code:'WORKSHOP_REVIEW',severity:'review',message:'Verify material, grain, edging, joinery, tooling and cutting sequence before production'});
   return {status:issues.some(i=>i.severity==='blocking')?'blocked':'review-required',issues};
 }
 export async function createJobManifest(input,generatedAt=new Date().toISOString()){
-  const source=validateProject(input),batches=manufacturingBatches(source.room.furniture);
+  const source=validateProject(input),designs=source.furnitureDesigns??[],batches=manufacturingBatches(source.room.furniture,designs);
+  // Placed designs add their profile cut list and counts; other manifests are unchanged.
+  const placedDesigns=source.room.furniture.filter(item=>item.type==='design').length,profiles=designProfiles(source.room.furniture,designs);
   const sourceSha256=await digest(source);
-  const payload={format:'terratec-workshop-job',version:1,algorithm:'guillotine-v1',units:'mm',generatedAt,sourceSha256,source,batches,
-    summary:{cabinets:source.room.furniture.length,panels:batches.reduce((n,b)=>n+b.panelCount,0),sheets:batches.reduce((n,b)=>n+b.layout.sheets.length,0),unplaced:batches.reduce((n,b)=>n+b.layout.unplaced.length,0)},validation:handoffValidation(batches)};
+  const summary={cabinets:source.room.furniture.filter(item=>item.type!=='design').length,panels:batches.reduce((n,b)=>n+b.panelCount,0),sheets:batches.reduce((n,b)=>n+b.layout.sheets.length,0),unplaced:batches.reduce((n,b)=>n+b.layout.unplaced.length,0),
+    ...(placedDesigns?{designs:placedDesigns,profilePieces:profiles.reduce((n,g)=>n+g.count,0)}:{})};
+  const payload={format:'terratec-workshop-job',version:1,algorithm:'guillotine-v1',units:'mm',generatedAt,sourceSha256,source,...(roomScope(source)?{scope:roomScope(source)}:{}),batches,...(placedDesigns?{profiles}:{}),
+    summary,validation:handoffValidation(batches,{profiles,designs:placedDesigns})};
   return {...payload,manifestSha256:await digest(payload)};
 }
 export async function exportJobManifest(project){return JSON.stringify(await createJobManifest(project),null,2)+'\n';}

@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import {edgeIds} from '../shared/geometry.mjs';
-import {wallLength} from '../shared/openings.mjs';
+import {roomWalls,isWallId,wallSegment} from '../shared/room-topology.mjs';
 export function dimensionSegment(a,b,camera,width,height,id,offset=28) {
   const screen=p=>{const v=new THREE.Vector3(p.x,0,p.z).project(camera);return {x:(v.x+1)*width/2,y:(1-v.y)*height/2};};
   const length=Math.hypot(b.x-a.x,b.z-a.z),p=screen(a),q=screen(b),middle={x:(a.x+b.x)/2,z:(a.z+b.z)/2};
@@ -13,13 +12,14 @@ export function dimensionSegment(a,b,camera,width,height,id,offset=28) {
     visible:Number.isFinite(n+d) && n>0 && d>0 && centre.x>=0 && centre.x<=width && centre.y>=0 && centre.y<=height,
     segments:[{x1:start.x,y1:start.y,x2:end.x,y2:end.y},extension(p),extension(q),tick(start),tick(end)]};
 }
-export function dimensionLayout(outline,camera,width,height,offset=28) {
-  return outline.map((a,i)=>dimensionSegment(a,outline[(i+1)%outline.length],camera,width,height,edgeIds[i],typeof offset==='function'?offset(edgeIds[i]):offset));
+// `room` is {outline, walls?} or a bare four-corner outline.
+export function dimensionLayout(room,camera,width,height,offset=28) {
+  return roomWalls(room).map(({id,a,b})=>dimensionSegment(a,b,camera,width,height,id,typeof offset==='function'?offset(id):offset));
 }
 export function openingChainLayout(room,wall,camera,width,height) {
-  const i=edgeIds.indexOf(wall),openings=room.openings.filter(o=>o.wall===wall).sort((a,b)=>a.offset-b.offset);
-  if(i<0 || !openings.length) return [];
-  const a=room.outline[i],b=room.outline[(i+1)%4],length=wallLength(room.outline,wall),tx=(b.x-a.x)/length,tz=(b.z-a.z)/length;
+  const openings=room.openings.filter(o=>o.wall===wall).sort((a,b)=>a.offset-b.offset);
+  if(!isWallId(room,wall) || !openings.length) return [];
+  const {a,length,tx,tz}=wallSegment(room,wall);
   const cuts=[0,...openings.flatMap(o=>[o.offset,o.offset+o.width]),length];
   return cuts.slice(0,-1).map((start,n)=>{
     const end=cuts[n+1],opening=openings.find(o=>(start+end)/2>o.offset && (start+end)/2<o.offset+o.width);
