@@ -5,12 +5,12 @@ export const activeRoomId=project=>project.activeRoomId??'room-1';
 export const activeRoomName=project=>roomEntries(project).find(r=>r.id===activeRoomId(project)).name;
 // Use this for every active-room edit: update both copies before validation.
 export function withActiveRoom(project,room) {
-  return {...project,schemaVersion:project.rooms?10:9,room,...(project.rooms?{rooms:project.rooms.map(entry=>entry.id===project.activeRoomId?{...entry,room}:entry)}:{})};
+  return {...project,schemaVersion:project.rooms?Math.max(10,project.schemaVersion):9,room,...(project.rooms?{rooms:project.rooms.map(entry=>entry.id===project.activeRoomId?{...entry,room}:entry)}:{})};
 }
 function assemble(project,rooms,id) {
   const active=rooms.find(r=>r.id===id);
   if(!active) throw Error('Unknown room');
-  return validateProject({...project,schemaVersion:10,rooms,activeRoomId:id,room:active.room});
+  return validateProject({...project,schemaVersion:Math.max(10,project.schemaVersion),rooms,activeRoomId:id,room:active.room});
 }
 export function switchProjectRoom(input,id) {
   const project=validateProject(input);
@@ -27,4 +27,10 @@ export function renameProjectRoom(input,id,name) {
   const project=validateProject(input),rooms=roomEntries(project);
   if(!rooms.some(r=>r.id===id)) throw Error('Unknown room');
   return assemble(project,rooms.map(r=>r.id===id?{...r,name}:r),activeRoomId(project));
+}
+
+export function setProjectRoomPlacement(input,id,placement) {
+  const project=validateProject(input),rooms=roomEntries(project);
+  if(!rooms.some(r=>r.id===id)) throw Error('Unknown room');
+  return assemble({...project,schemaVersion:11},rooms.map(r=>r.id===id?{...r,placement}:r),activeRoomId(project));
 }

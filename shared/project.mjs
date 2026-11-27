@@ -1,3 +1,4 @@
+import {validateRoomPlacement} from './room-placement.mjs';
 import {validateConstraints} from './room-constraints.mjs';
 import {validateFurniturePresets} from './furniture-library.mjs';
 import {validateWorkshopProfiles} from './workshop-profiles.mjs';
@@ -10,7 +11,7 @@ import { validateDesigns } from './furniture-design.mjs';
 import { syncPlacedDesign } from './design-placement.mjs';
 function validateSingleProject(value) {
   if (!value || ![1,2,3,4,5,6,7,8,9].includes(value.schemaVersion) || value.units !== 'm')
-    throw new Error('Expected schemaVersion 1, 2, 3, 4, 5, 6, 7, 8, 9 or 10 and units m');
+    throw new Error('Expected schemaVersion 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 or 11 and units m');
   if (typeof value.name !== 'string' || !value.name.trim() || value.name.length > 120)
     throw new Error('Project name must contain 1–120 characters');
   const dimension=v=>typeof v==='number' && Number.isFinite(v) && v>=.1 && v<=1000;
@@ -41,11 +42,11 @@ function validateSingleProject(value) {
   return {...(value.furniturePresets!==undefined?{furniturePresets:validateFurniturePresets(value.furniturePresets)}:{}),schemaVersion:constraints?(constraints.some(c=>c.other)?9:8):(walls||locked||designs.length?7:6),presets,...(designs.length?{furnitureDesigns:designs}:{}),workshopProfiles:validateWorkshopProfiles(value.workshopProfiles??[]),units:'m',name:value.name.trim(),room:{width,depth,height:value.room.height,outline,...(constraints?{constraints}:{}),...(walls?{walls}:{}),...(locked?{locked}:{}),openings,furniture}};
 }
 
-// Schema 10 keeps the legacy room field as a checked active-room alias. All
+// Schemas 10–11 keep the legacy room field as a checked active-room alias. All
 // collection entries are validated, including rooms that are not being edited.
 export function validateProject(value) {
-  if(value?.schemaVersion!==10) {
-    if(value?.rooms!==undefined||value?.activeRoomId!==undefined) throw Error('Room collections require schemaVersion 10');
+  if(![10,11].includes(value?.schemaVersion)) {
+    if(value?.rooms!==undefined||value?.activeRoomId!==undefined) throw Error('Room collections require schemaVersion 10 or 11');
     return validateSingleProject(value);
   }
   if(!Array.isArray(value.rooms)||value.rooms.length<1||value.rooms.length>16) throw Error('Projects need 1–16 rooms');
@@ -55,11 +56,13 @@ export function validateProject(value) {
     seen.add(entry.id);
     if(typeof entry.name!=='string'||!entry.name.trim()||entry.name.length>60) throw Error('Room name must contain 1–60 characters');
     const room=validateSingleProject({...value,schemaVersion:9,room:entry.room}).room;
-    return {id:entry.id,name:entry.name.trim(),room};
+    if(value.schemaVersion<11 && entry.placement!==undefined) throw Error('Room placements require schemaVersion 11');
+    const placement=validateRoomPlacement(entry.placement);
+    return {id:entry.id,name:entry.name.trim(),room,...(placement?{placement}:{})};
   });
   const active=rooms.find(entry=>entry.id===value.activeRoomId);
   if(!active) throw Error('Active room must exist in the project');
   const single=validateSingleProject({...value,schemaVersion:9});
   if(JSON.stringify(single.room)!==JSON.stringify(active.room)) throw Error('Active room alias differs from its saved room');
-  return {...single,schemaVersion:10,rooms,activeRoomId:active.id,room:active.room};
+  return {...single,schemaVersion:value.schemaVersion,rooms,activeRoomId:active.id,room:active.room};
 }

@@ -185,6 +185,37 @@ the same wall stack vertically. Markers follow zoom/pan and resize, disappear
 outside the view, and are hidden in 3D. They do not affect selection, geometry,
 project files or exports. The panel and overlay load on first use.
 
+### Shared floor-plan overview
+
+Choose **Floor plan** in the view bar, or **Open floor plan** under Rooms. The
+shared overview draws every room footprint in world X/Z coordinates. Select a
+footprint with the pointer or Enter/Space to make it active, then edit **Room X**,
+**Room Z** and **Room rotation** in Room & walls and choose **Apply room placement**.
+**Back to room** or Escape returns to local room editing. Geometry shortcuts are
+inactive in the overview; its selection does not delete or move local furniture.
+
+Placement rotates about the room's local origin using the same right-handed Y
+rotation as furniture, then translates in metres. X/Z must be within ±1000 m;
+angles within ±3600° normalize to 0–359…°. Coordinates are exact, independent of
+the local editing grid. Wall locking fixes local geometry but still permits moving
+the whole room. Placement does not alter local constraints, openings, furniture,
+quantities or geometry undo. It is restored through project/room-entry version
+history; it does not enter the local geometry undo stack.
+
+Overlapping interiors are coloured and listed as advisory conflicts. Convex
+footprints are checked by separating axes, including rotated rooms; edge/corner
+contact is allowed within 0.0000001 m. These checks exclude wall thickness,
+shared-wall topology, openings, elevation and building-code clearances. Existing
+unplaced rooms share origin zero and may overlap until positioned. This iteration
+has numeric placement, not pointer dragging or wall snapping.
+
+Schema 11 stores optional `placement: {x, z, rotation}` on each room entry. Missing
+placements use the origin with zero rotation, preserving schema 10 compatibility.
+Older schemas reject explicit placement data. Save, JSON, duplication, recovery
+and timeline restoration retain placement. The overview is lazy-loaded and pauses
+the local WebGL render loop while open. Local room exports retain local coordinates;
+combined floor-plan export and shared walls/openings remain future work.
+
 ### Wall construction
 
 Rooms are built from their walls (`shared/room-construction.mjs`): every wall is
@@ -377,12 +408,12 @@ is added or named. Save, recovery, duplication and JSON transfer include every
 room and the active selection. The existing 64 KiB project transfer limit applies
 to the entire project; older releases must reject schema 10.
 
-The canvas, quantities, plan SVG, clearance review and manufacturing batches use
-only the active room. Plan/workshop titles and job manifests identify this scope;
+The local room canvas, quantities, plan SVG, clearance review and manufacturing batches use
+only the active room. The floor-plan overview shows all room footprints. Plan/workshop titles and job manifests identify this scope;
 job manifests retain the full project as source context, so any project change
 invalidates their source hash. Rooms currently have independent local coordinates:
-there is no combined floor plan, room placement, shared wall/opening connection or
-whole-building quantity aggregation yet.
+schema 11 placements position their footprints in a shared overview. Shared wall/opening
+connections and whole-building quantity aggregation are not implemented yet.
 
 ## Projects and plan export
 
@@ -1527,7 +1558,7 @@ server, not the production deployment setup.
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
 Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 190 kB for
 the entry, 400 kB for each JavaScript chunk, 875 kB for initial JavaScript and
-1015 kB for all JavaScript apart from the furniture designer and the version-history
+1020 kB for all JavaScript apart from the furniture designer and the version-history
 panel, which must load lazily and have their own budgets (82.5 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
 The workshop benches (workbench, drilling and cutting, with the code only they use)
@@ -1557,7 +1588,7 @@ Use an external `TERRATEC_DATA_DIR` for data that must survive application repla
 
 ### Project compatibility policy
 
-Project schemas 1–10 are supported on read. Room collections require schema 10. Point/length constraints require schema 8 and wall relationships require schema 9; unconstrained projects retain the older normalization described below. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
+Project schemas 1–11 are supported on read. Room collections require schema 10; placement requires schema 11. Point/length constraints require schema 8 and wall relationships require schema 9; unconstrained projects retain the older normalization described below. Rooms with the original four walls are normalized to schema 6, so their files and job-manifest hashes are unchanged; rooms whose walls have been removed, exchanged or added are written as schema 7 with a `room.walls` list of `{id}` entries, one per corner, and locked rooms are written as schema 7 with `room.locked: true`. Schema 1–6 files must have four corners and may not carry a custom wall list or a lock. Loading a saved project does not rewrite its source file. An explicit project save writes the current schema while retaining the collection record ID. Unsupported versions are rejected on save; do not open future-format data in an older release and expect a downgrade. Keep the stopped-process backup until the replacement installation and saved data have been checked.
 
 `fixtures/project-compatibility.json` freezes synthetic input and expected-output examples for each supported schema: rectangular dimensions, outlines, openings, hinge/swing settings, presets, cabinet defaults, wall locks and geometry constraints. Expected outputs are independent of the validator. Node tests check normalization, immutability and repeated validation. The extracted-package check seeds these files before startup and verifies both the normalized API responses and unchanged source bytes across restart, replacement and recovery. It also checks explicit-save upgrade and rejection of an unsupported-version overwrite. Legacy `project.json` reads are included.
 
