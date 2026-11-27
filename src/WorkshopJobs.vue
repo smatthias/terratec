@@ -1,10 +1,12 @@
 <script setup>
 import QuoteRegister from './QuoteRegister.vue';
 import JobQuotes from './JobQuotes.vue';
-import {ref,computed,onMounted,watch} from 'vue';
+import {ref,computed,onMounted,watch,defineAsyncComponent} from 'vue';
 import {exportJobBackup,MAX_JOB_BACKUP_BYTES} from '../shared/job-backup.mjs';
 import {filterJobs,jobRollup} from '../shared/job-register.mjs';
 import {verifyJobManifest} from '../shared/job-manifest.mjs';
+const WorkshopCapacity=defineAsyncComponent(()=>import('./WorkshopCapacity.vue'));
+const capacityOpen=ref(false);
 const props=defineProps({project:{type:Object,required:true}}),emit=defineEmits(['export','record','quote','quotePrint']);
 const jobs=ref([]),choice=ref(''),record=ref(null),revision=ref(1),name=ref(''),reviewer=ref(''),note=ref(''),message=ref(''),busy=ref(false),comparison=ref('');
 const quoteFocus=ref(''),registerVersion=ref(0);
@@ -21,6 +23,7 @@ function restoreFile(event){const file=event.target.files?.[0];event.target.valu
 function saveQuote({pricing,details}){return run(async()=>{record.value=await request('/api/jobs/'+record.value.id+'/quotes',{revision:revision.value,expectedRevision:record.value.revisions.length,expectedQuoteCount:selected().quotes?.length??0,pricing,details});await refresh();message.value='Revision quote snapshot saved';});}
 function quoteStatus(input){return run(async()=>{record.value=await request('/api/jobs/'+record.value.id+'/quote-status',{...input,revision:revision.value,expectedRevision:record.value.revisions.length});await refresh();message.value='Quote status recorded: '+input.status;});}
 const selected=()=>record.value?.revisions.find(r=>r.number===revision.value);
+const capacityCandidate=computed(()=>record.value&&revision.value===record.value.revisions.length&&selected()?.status==='reviewed'&&!selected()?.fulfilment&&workshop.value.trim()?{id:record.value.id,workshop:workshop.value,dueDate:dueDate.value,summary:selected().manifest.summary}:null);
 watch(()=>props.project,()=>comparison.value='',{deep:true});
 async function request(path,body){const response=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const result=await response.json();if(!response.ok)throw Error(result.error);return result;}
 async function refresh(){jobs.value=await request('/api/jobs');registerVersion.value++;}
@@ -35,6 +38,8 @@ onMounted(()=>run(refresh));
 <template>
   <section aria-label="Workshop job records" class="workshop-jobs">
     <h3>Workshop job records</h3><p class="hint">Stored by this local service, independently of project saves. Revisions keep immutable model snapshots. Reviewed records document a local review, not production approval.</p>
+    <button type="button" :aria-expanded="capacityOpen" @click="capacityOpen=!capacityOpen">Workshop capacity planning</button>
+    <WorkshopCapacity v-if="capacityOpen" :jobs="jobs" :candidate="capacityCandidate"/>
     <QuoteRegister :refresh-key="registerVersion" :busy="busy" @open="openQuote"/><fieldset :disabled="busy"><label>Workshop job name<input v-model="name" maxlength="80"></label><button :disabled="!name.trim()" @click="create">Create workshop job</button>
     <label>Restore workshop job backup<input type="file" accept=".json,application/json" aria-label="Restore workshop job backup file" @change="restoreFile"></label><p class="hint">Restore verifies all snapshots and history, creates a new job ID and renames name conflicts. Existing jobs stay intact. Restored review/tracking claims are not authenticated.</p><button @click="run(refresh)">Refresh workshop jobs</button>
     <section aria-label="Workshop job register">

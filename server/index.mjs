@@ -1,3 +1,4 @@
+import {workshopCapacityStore} from './workshop-capacity-store.mjs';
 import {startupConfig,checkStartup} from './startup-check.mjs';
 import {checkStorage,parseStoredProject,storageError} from './storage-check.mjs';
 import { createServer } from 'node:http';
@@ -16,6 +17,7 @@ import { validateProject } from './project.mjs';
 const run = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
 export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve(root, 'build/terratec-core'), staticDir }  = {}) {
+  const capacity=workshopCapacityStore(dataDir);
   const projects=projectStore(dataDir),jobs=jobStore(dataDir),customers=customerStore(dataDir);
   return createServer(async (req, res) => {
     const send = (status, value) => {
@@ -26,6 +28,14 @@ export function makeServer({ dataDir = resolve(root, 'data'), corePath = resolve
     const tooLarge=error=>{res.setHeader('Connection','close');res.once('finish',()=>req.socket?.destroy());send(413,{error});};
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
+      if(path==='/api/workshops/capacity') {
+        if(req.method==='GET')return send(200,await capacity.read());
+        if(req.method!=='PUT')return send(405,{error:'Method not allowed'});
+        if(!req.headers['content-type']?.toLowerCase().startsWith('application/json'))return send(415,{error:'Use application/json'});
+        const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>16384)return tooLarge('Capacity settings exceed 16 KiB');chunks.push(chunk);}
+        let input;try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{return send(400,{error:'Invalid capacity JSON'});}
+        return send(200,await capacity.save(input));
+      }
       if(path==='/api/storage/check' && req.method==='POST')return send(200,await checkStorage(dataDir));
       if (staticDir && !path.startsWith('/api/') && (req.method === 'GET' || req.method === 'HEAD')) {
         const base = resolve(staticDir);

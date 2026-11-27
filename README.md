@@ -1799,3 +1799,23 @@ bounds for arcs. Feed checks include plunge rates; depth includes through allowa
 These are user-entered planning limits, not manufacturer presets. Clamp/holder
 collisions, controller configuration and tool-change motions are excluded. The CNC
 simulation retains its separate fixed machine setup.
+
+### Workshop capacity planning
+
+Open **Workshop capacity planning** in the workshop job records panel. Add a named
+workshop and its daily sheet limit, then save. Settings are stored by the local
+service in `workshop-capacity.json` inside the data directory, separately from
+projects and individual job backups. Full data-directory backups include them.
+Reload capacity before editing settings changed elsewhere; stale saves are rejected.
+
+The table uses all loaded jobs, independent of register filters. Latest assigned
+and in-production jobs reserve their full sheet count against their due date;
+completed and cancelled jobs no longer reserve capacity. Workshop names match
+without case or surrounding spaces. Unknown capacities and undated jobs remain
+visible without a utilization percentage. Proposed assignments appear in the table
+before assignment, including any capacity excess. Draft limits apply after saving.
+
+This is advisory sheet planning: it does not distribute jobs over working days,
+estimate labour or machine time, reserve an external workshop or block assignments.
+Refresh workshop jobs to see assignments changed elsewhere. Capacity settings use
+`GET/PUT /api/workshops/capacity`, with revision checks and a 16 KiB request limit.

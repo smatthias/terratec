@@ -46,7 +46,7 @@ async function json(path,body,method='POST',expected=200){
 }
 function extract(destination){execFileSync('tar',['-xzf',archive,'-C',destination]);return join(destination,name);}
 const fixture={schemaVersion:1,units:'m',name:'Installed studio',room:{width:6,depth:4,height:2.8}};
-let records;
+let records,capacityRecord;
 async function verify(phase){
   const html=await (await fetch(base)).text();assert.match(html,/<div id="app">/);
   for(const asset of [...html.matchAll(/(?:src|href)="(\/assets\/[^" ]+)"/g)])assert.equal((await fetch(base+asset[1])).status,200);
@@ -63,6 +63,7 @@ async function verify(phase){
   }
   assert.deepEqual(await json('/api/project'),compatibility[0].expected);
   assert.equal(await readFile(join(currentStorage,'project.json'),'utf8'),JSON.stringify(compatibility[0].project)+'\n');
+  assert.deepEqual(await json('/api/workshops/capacity'),capacityRecord,phase+': workshop capacity changed');
   const storage=await json('/api/storage/check',{});assert.equal(storage.status,'ok');assert.equal(storage.writable,true);assert.equal(storage.counts.projects,compatibility.length+1);
   phases.push(phase);console.log('Extracted release passed: '+phase);
 }
@@ -80,6 +81,7 @@ try{
   await json(`/api/jobs/${job.id}/review`,{revision:1,expectedRevision:1,reviewer:'Install smoke',note:'Verified before backup'});
   records={projects:project,customers:customer,jobs:await json('/api/jobs/'+job.id)};
   assert.ok(records.jobs.revisions[0].manifest.summary.panels>0);
+  capacityRecord=await json('/api/workshops/capacity',{expectedRevision:0,workshops:[{name:'Recovery workshop',sheetsPerDay:8}]},'PUT');
   await verify('fresh installation');
   await stop();
   await start(installation,dataDir);

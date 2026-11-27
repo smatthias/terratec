@@ -40,10 +40,10 @@ for(let grew=true;grew;) {grew=false;for(const [key,list] of importers) if(!benc
 const benchFiles=new Set([...benchKeys].map(k=>manifest[k].file)),benchBytes=chunks.filter(c=>benchFiles.has(c.file)).reduce((n,c)=>n+c.bytes,0);
 assert.ok(benchBytes<=165000,'Workshop benches exceed 165 kB budget');
 // Initial JavaScript: 880 kB and entry 195 kB since connected-opening validation.
-// Total 1065 kB since machine-limit settings (1060 kB before).
+// Total 1070 kB since lazy workshop capacity planning (1065 kB before).
 // Per-chunk and lazy workspace limits remain unchanged.
 const entryBytes=chunks.find(c=>c.file===entry.file).bytes,initialBytes=chunks.filter(c=>c.initial).reduce((n,c)=>n+c.bytes,0),totalBytes=chunks.reduce((n,c)=>n+c.bytes,0)-designerBytes-historyBytes-benchBytes;
-assert.ok(entryBytes<=195000,'Entry exceeds 195 kB budget');assert.ok(initialBytes<=880000,'Initial JavaScript exceeds 880 kB budget');assert.ok(totalBytes<=1065000,'Total JavaScript exceeds 1065 kB budget');
+assert.ok(entryBytes<=195000,'Entry exceeds 195 kB budget');assert.ok(initialBytes<=880000,'Initial JavaScript exceeds 880 kB budget');assert.ok(totalBytes<=1070000,'Total JavaScript exceeds 1070 kB budget');
 for(const key of ['src/ManufacturingPanel.vue','src/WorkshopJobs.vue'])assert.ok(manifest[key]?.isDynamicEntry&&!initial.has(key),key+' must stay lazy');
 await mkdir('test-results',{recursive:true});await writeFile('test-results/bundle-report.json',JSON.stringify({entryBytes,initialBytes,totalBytes,designerBytes,historyBytes,benchBytes,chunks},null,2)+'\n');
 console.log(`Bundle budgets passed: entry ${(entryBytes/1000).toFixed(1)} kB, initial ${(initialBytes/1000).toFixed(1)} kB, total ${(totalBytes/1000).toFixed(1)} kB plus designer ${(designerBytes/1000).toFixed(1)} kB history panel ${(historyBytes/1000).toFixed(1)} kB and workshop benches ${(benchBytes/1000).toFixed(1)} kB; ${chunks.length} chunks.`);

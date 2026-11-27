@@ -1,3 +1,4 @@
+import {workshopCapacityStore} from './workshop-capacity-store.mjs';
 import {mkdir,readFile,readdir,writeFile,rename,rm} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -35,6 +36,7 @@ export async function checkStorage(dataDir){
     catch(error){issues.push({code:'TIMELINE_INVALID',collection:'timelines',id:file.slice(0,36),message:`Project history cannot be read (${error instanceof SyntaxError?'invalid JSON':error.message}). The project itself is unaffected; restore the history file from a backup or delete it to start a new history.`});}
   }
   try{parseStoredProject(await readFile(join(dataDir,'project.json'),'utf8'),'Legacy project');}catch(error){if(error.code!=='ENOENT')issues.push({code:error.code||'PROJECT_INVALID',collection:'legacy-project',message:storageError(error).message});}
+  try{await workshopCapacityStore(dataDir).read();}catch(error){issues.push({code:'CAPACITY_INVALID',collection:'workshop-capacity',message:storageError(error).message});}
   return {status:issues.length?'attention':'ok',writable,counts,issues,scope:'Write/rename/delete probe and JSON readability; project schema and version-history validation. Not a full job/customer integrity audit.'};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
