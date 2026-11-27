@@ -4,6 +4,7 @@ import { mkdtemp, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { launchChromium } from './launch-browser.mjs';
+import {buildingSheetPreview} from '../shared/building-sheet-preview.mjs';
 import * as THREE from 'three';
 import { fitCamera } from '../src/room-scene.js';
 
@@ -31,6 +32,13 @@ try {
   start(['node_modules/vite/bin/vite.js',...(production?['preview']:[]),'--host','127.0.0.1','--port','5173','--strictPort']);
   await Promise.all([ready('http://127.0.0.1:3001/api/health'),ready('http://127.0.0.1:5173')]);
   browser = await launchChromium(['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']);
+  // Check physical tiled output in the same Chromium used for production workflows.
+  const tiled=buildingSheetPreview({schemaVersion:1,units:'m',name:'Tiled browser plan',room:{width:6,depth:4,height:2.8}},{paper:'A4',orientation:'landscape',scale:20,tiled:true});
+  const printPage=await browser.newPage();await printPage.setContent(tiled.html);await printPage.emulateMedia({media:'print'});
+  assert.equal(await printPage.locator('main.sheet').count(),tiled.pageCount);
+  const physical=await printPage.locator('main.sheet').first().boundingBox();assert.ok(Math.abs(physical.width-297*96/25.4)<1);assert.ok(Math.abs(physical.height-210*96/25.4)<1);
+  assert.equal(await printPage.locator('main.sheet').evaluateAll(pages=>pages.every(p=>p.scrollWidth<=p.clientWidth+1&&p.scrollHeight<=p.clientHeight+1)),true);
+  await mkdir('test-results',{recursive:true});await printPage.pdf({path:'test-results/tiled-building-plan.pdf',preferCSSPageSize:true,printBackground:true});await printPage.close();
   // Full HD: with the editor windows docked at both sides, the canvas keeps about the
   // size it had beside the old sidebar (the canvas clicks below project onto it).
   page = await browser.newPage({viewport:{width:1920,height:1080}});

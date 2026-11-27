@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {buildingSheetPreview} from './building-sheet-preview.mjs';
-import {exportBuildingPlanSvg} from './building-plan-svg.mjs';
+import {buildingPlanSheetLayout,exportBuildingPlanSvg} from './building-plan-svg.mjs';
 import {validateProject} from './project.mjs';
 import {addProjectRoom,setProjectRoomPlacement,switchProjectRoom,withActiveRoom} from './project-rooms.mjs';
 import {roomAdjacencies} from './room-adjacency.mjs';
@@ -42,4 +42,20 @@ test('outward swing arcs are included in the print fit gate rather than clipped 
  let p=setProjectRoomPlacement(base(),'room-1',{x:0,z:0,rotation:45});assert.doesNotThrow(()=>buildingSheetPreview(p,options));
  p=validateProject(withActiveRoom(p,{...p.room,openings:[{id:'out',type:'door',wall:'north',offset:1,width:4,height:2.1,sill:0,hinge:'B',swing:'out'}]}));
  assert.throws(()=>buildingSheetPreview(p,options),/does not fit/);assert.match(buildingSheetPreview(p,{...options,scale:100}).html,/data-opening-type="door"/);
+});
+
+test('tiled pages cover the entire drawing at exact scale with ten millimetre overlaps',()=>{
+ for(const paper of ['A4','A3'])for(const orientation of ['portrait','landscape']) {
+  const opts={paper,orientation,scale:20,tiled:true},sheet=buildingPlanSheetLayout(pair(),opts),preview=buildingSheetPreview(pair(),opts),tiles=preview.tiles;
+  assert.ok(preview.pageCount>1);assert.equal(preview.pageCount,tiles.length);assert.equal((preview.html.match(/<main class="sheet"/g)||[]).length,tiles.length);
+  assert.equal(tiles[0].x,sheet.drawing.bounds.x);assert.equal(tiles[0].z,sheet.drawing.bounds.z);
+  const last=tiles.at(-1);assert.ok(last.x+sheet.usableWidth*.02>=sheet.drawing.bounds.x+sheet.drawing.bounds.width-1e-8);assert.ok(last.z+sheet.usableHeight*.02>=sheet.drawing.bounds.z+sheet.drawing.bounds.height-1e-8);
+  const next=tiles.find(t=>t.row===1&&t.column===2);if(next)assert.ok(Math.abs(tiles[0].x+sheet.usableWidth*.02-next.x-.2)<1e-8);
+  assert.match(preview.html,/Page 1\//);assert.match(preview.html,/10 mm overlap/);assert.match(preview.html,/overflow="hidden"/);assert.match(preview.html,/break-after:page/);
+ }
+});
+test('tiling handles a fitting plan with one page and caps excessive page counts',()=>{
+ assert.equal(buildingSheetPreview(base(),{...options,tiled:true}).pageCount,1);
+ const huge=setProjectRoomPlacement(pair(),'room-next',{x:1000,z:1000,rotation:0});assert.throws(()=>buildingSheetPreview(huge,{...options,tiled:true}),/64 sheets/);
+ assert.throws(()=>buildingSheetPreview(base(),{...options,tiled:true,scale:null}),/print scale/);
 });

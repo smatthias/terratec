@@ -16,7 +16,7 @@ function download() {
 </script>
 <template>
   <section class="building-sheet-preview" role="dialog" aria-labelledby="building-sheet-preview-title" aria-modal="false" @keydown.esc.stop.prevent="emit('close')">
-    <div class="building-sheet-preview-toolbar"><h3 id="building-sheet-preview-title">Printable sheet · {{ snapshot.paper }} {{ snapshot.orientation }} · 1:{{ snapshot.scale }}</h3><button :disabled="!ready" @click="printSheet">Print / Save PDF</button><button @click="download">Download HTML sheet</button><button ref="closeButton" @click="emit('close')">Close sheet preview</button></div>
+    <div class="building-sheet-preview-toolbar"><h3 id="building-sheet-preview-title">Printable sheet · {{ snapshot.paper }} {{ snapshot.orientation }} · 1:{{ snapshot.scale }} · {{ snapshot.pageCount }} page(s)</h3><button :disabled="!ready" @click="printSheet">Print / Save PDF</button><button @click="download">Download HTML sheet</button><button ref="closeButton" @click="emit('close')">Close sheet preview</button></div>
     <p>This is a snapshot of {{ snapshot.projectName }}. Close and reopen to include later edits. Print at 100% without fit-to-page or extra margins.</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <iframe ref="frame" :srcdoc="snapshot.html" title="Printable building sheet" sandbox="allow-same-origin allow-modals" @load="ready=true"></iframe>

@@ -364,7 +364,14 @@ that can be opened and printed separately. Use 100% scale, no fit-to-page, no
 additional print margins and no browser headers/footers. Screen display adapts to
 the preview window; print CSS restores the selected A4/A3 size and physical scale.
 The HTML uses an explicit page size and zero page margin around the SVG's own
-10 mm drawing margins. Oversize or unscaled fixed sheets cannot be prepared.
+10 mm drawing margins. Unscaled fixed sheets cannot be prepared.
+
+For oversized plans, enable **Tile across sheets (10 mm overlap)**. The preview
+and HTML download contain numbered pages in row order at the selected scale;
+neighbouring drawing regions overlap by 10 mm for alignment. Each page identifies
+its row and column. Trim the blank margins before joining pages. Tiling is limited
+to 64 pages; choose a smaller print scale or A3 for larger plans. Single-sheet SVG
+export still requires a fitting scale.
 
 The embedded preview permits browser print dialogs but runs no document scripts;
 the standalone HTML has no scripts or remote assets. The print button waits for
