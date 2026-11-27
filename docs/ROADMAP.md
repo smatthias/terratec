@@ -5,8 +5,8 @@ Overall: **working design and machining prototype; toolset release verification 
 | Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
 | Project foundation | 95% | Storage write probes, record checks and actionable project errors | Startup configuration diagnostics |
-| Design workspace | 95% | Desktop panels, fullscreen, selection, snapping, editing, version history and clearance feedback | Production browser verification |
-| Parametric geometry | 63% | Locked points, fixed lengths and parallel/perpendicular wall relationships with bounded solving and schema-9 persistence | Constraint indicators and browser verification |
+| Design workspace | 95% | Desktop panels, fullscreen, saved constraint list and Plan indicators | Production browser verification |
+| Parametric geometry | 63% | Locked points, fixed lengths and parallel/perpendicular wall relationships with bounded solving and schema-9 persistence | Constraint UI browser verification |
 | Building design | 35% | Convex 3–32-wall rooms, stable wall/corner IDs, wall construction, wall locking and openings | Multiple rooms |
 | Interiors and furniture | 84% | Cabinet editing, furniture designer, placement tools, cutting/drilling benches, workbench and material rendering | Verify complete editing workflows |
 | Drawings and exchange | 67% | Printable sheets and manufacturing exports | More exchange formats |
@@ -19,14 +19,14 @@ Overall: **working design and machining prototype; toolset release verification 
 
 This iteration adds a platform archive containing the production frontend, API and native executable. Node.js is required on the target; npm dependencies, Vite and a compiler are not. CI uploads a Linux x64 archive. Other operating systems and Linux distributions remain unverified.
 
-Validation on `feature/toolset` with persistent wall relationships (27 November 2026):
+Validation on `feature/toolset` with the saved constraint inspector and Plan markers (27 November 2026):
 
-- 384 Node tests passed, with no failures or skips.
+- 391 Node tests passed, with no failures or skips.
 - All 5 CMake/CTest checks passed; the native core linked statically.
-- Production build and configured bundle budgets passed. The total JavaScript allowance is now 1005 kB for angular constraint support; the 870 kB initial-load limit is unchanged.
+- Production build and configured bundle budgets passed. The lazy constraint inspector and indicators bring the total JavaScript allowance to 1010 kB; shared chunk changes use an 82.5 kB designer allowance. The 870 kB initial-load limit is unchanged.
 - Release archive creation and extracted-package checks passed: fresh installation, restart, replacement with external data, and offline backup recovery.
 - Production browser verification remains pending. The system Chromium launcher points to a missing executable, and the Playwright browser download returned HTTP 403 in this environment. No browser workflow pass is claimed for this revision. The suite includes furniture designer, workshop benches and CNC playback checks.
 
-Next verification step: run `npm run test:browser:production` with an installed, working Chromium (install using `npm run test:browser:install`, or set `TERRATEC_CHROMIUM`). Keep development on `feature/toolset`. Then review milestone scope and add constraint indicators. Point, length and angular constraints are implemented; constraint UI browser verification remains pending.
+Next verification step: run `npm run test:browser:production` with an installed, working Chromium (install using `npm run test:browser:install`, or set `TERRATEC_CHROMIUM`). Keep development on `feature/toolset`. Then verify constraint creation, marker tracking, selection, removal and undo/redo in a browser before expanding building design to multiple rooms. Point, length and angular constraints now have a review list and Plan indicators; UI browser verification remains pending.
 
 Release follow-up: startup checks and configuration validation. Storage diagnostics now probe writes and validate project files, and unreadable project records return actionable HTTP 422 feedback without being overwritten. Synthetic schema 1–9 fixtures now verify normalization without rewriting source files, explicit-save upgrade preserving IDs and rejected future-version overwrites. Historical release binaries and job/customer cross-version migrations remain unverified.

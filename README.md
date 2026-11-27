@@ -170,6 +170,21 @@ Point/length projects use schema 8; projects with wall relationships use schema 
 when no constraints are present. Older releases must reject unsupported schema versions; keep JSON
 backups before opening constrained projects in a different release.
 
+### Reviewing constraints in Plan
+
+**Saved constraints** in Room & walls lists every rule, even with no wall selected.
+Click a row to select its wall (the outgoing wall for a locked corner). Remove
+releases only that rule, keeps the current shape and makes one undo step. Wall
+locking and history preview prevent rule edits. Selecting a wall also opens its
+constraint creation controls in this panel.
+
+Plan shows noninteractive markers: `lock` for saved points, `=… m` for lengths,
+and `∥` / `⊥` on both walls of a relationship. C numbers match the list; these
+numbers are display references and can change after removal. Multiple rules on
+the same wall stack vertically. Markers follow zoom/pan and resize, disappear
+outside the view, and are hidden in 3D. They do not affect selection, geometry,
+project files or exports. The panel and overlay load on first use.
+
 ### Wall construction
 
 Rooms are built from their walls (`shared/room-construction.mjs`): every wall is
@@ -1477,8 +1492,8 @@ server, not the production deployment setup.
 The Three.js core, renderer, controls and Vue runtime are separate cached chunks.
 Manufacturing and workshop-record panels, cabinet settings panels, the furniture inspector, the furniture designer (and its renderer for placed designs) and export-only modules (NC programs and DXF of designs, cabinet drawing sheets, elevation SVG, clearance print/JSON/CSV) load when first used. Budgets are 180 kB for
 the entry, 400 kB for each JavaScript chunk, 870 kB for initial JavaScript and
-1005 kB for all JavaScript apart from the furniture designer and the version-history
-panel, which must load lazily and have their own budgets (82 kB and 12 kB), measured
+1010 kB for all JavaScript apart from the furniture designer and the version-history
+panel, which must load lazily and have their own budgets (82.5 kB and 12 kB), measured
 uncompressed; CSS is limited to 15 kB per file. Recording versions is part of the entry.
 The workshop benches (workbench, drilling and cutting, with the code only they use)
 are budgeted the same way (lazy, 100 kB).
