@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **approximately 70% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
+Overall: **approximately 71% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
 
 | Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
@@ -13,7 +13,7 @@ Overall: **approximately 70% across the full roadmap** (equal-weight mean of mil
 | Manufacturing | 90% | Persisted machine limits block incompatible panel and combined NC exports | Machine setup and fixture validation |
 | Distributed production | 80% | Persistent daily sheet capacity, active due-date reservations and proposed assignment previews | Working calendars and duration estimates |
 | Customer and business tools | 78% | Accepted-quote billing JSON/CSV with exact amounts, provenance and deduplication keys | Receiving-system adapters and import receipts |
-| Assisted design | 0% | Not implemented | Structured design commands |
+| Assisted design | 15% | Bounded JSON furniture commands with preview, validation and atomic undo | Proposal adapters and additional operations |
 | TerraFlux integration | 0% | Not implemented | Model exchange contract |
 | Release readiness | 70% | Startup checks shared by development and packaged releases, recovery-safe warnings and configuration validation | Broader platform validation |
 
@@ -39,3 +39,5 @@ Machine-limit increment: 475 Node tests pass, production build and bundle checks
 Workshop capacity increment: 482 Node tests pass, including aggregation, persistence, concurrent/stale saves, corrupt-file protection and API validation. Capacity survives packaged restart, replacement and offline backup recovery. A lazy capacity panel adds a 1070 kB total bundle allowance (actual 1066.5 kB); entry, initial, designer and other limits remain unchanged. Browser coverage saves/reloads limits, previews an assignment and releases capacity after completion. CI verification is pending; the preceding machine-limit revision passed both CI runs. Capacity is advisory and buckets whole sheet counts by due date; it is not a working-calendar or machining-time scheduler. Next increment: billing exchange.
 
 Billing exchange increment: 487 Node tests pass, including saved-snapshot integrity, exact reconciliation, currency handling, profile/edging rounding, repeat exports and CSV formula protection. A lazy panel exports accepted saved quotes; unsaved form changes are excluded. Export keys survive job-backup restoration by using the preserved quote UUID. The generic v1 adapter contract is documented in BILLING_EXCHANGE.md. No invoice, tax or payment record is created. Total JavaScript allowance is 1078 kB (1070 kB before); actual total 1074.8 kB before final build. Initial/entry limits remain unchanged. Browser download verification is pending; the preceding capacity revision passed both CI runs. Next increment: structured assisted-design commands.
+
+Structured-command increment: 493 Node tests pass, including atomic swaps, failure isolation, stale/tampered preview rejection, strict input limits, active-room isolation, locked shells and one-step undo/redo. The command panel is lazy; no language model or external service is connected. Production build passes with entry 194.5 kB and initial 880.6 kB. Initial allowance is 882 kB (880 kB before); entry remains 195 kB. Total allowance is 1085 kB (1078 kB before), actual 1081.8 kB. Browser coverage previews without mutation, rejects stale application and checks exported model state across undo/redo. Remote CI verification is pending; the preceding billing revision passed both full CI runs. Next increment: TerraFlux model exchange contract.

@@ -58,6 +58,18 @@ try {
   await page.getByRole('button',{name:'Open saved'}).click();
   await page.getByText('Saved project opened',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('width',{exact:true}).inputValue(),'6');
+  // Structured command preview is non-destructive; a batch has one undo step.
+  {
+    const snapshot=async()=>{const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON',exact:true}).click();const stream=await (await pending).createReadStream();let text='';for await(const chunk of stream)text+=chunk.toString();return JSON.parse(text);};
+    const before=await snapshot();await page.getByRole('button',{name:'Assisted design commands',exact:true}).click();const region=page.getByRole('region',{name:'Assisted design commands',exact:true});
+    const roomId=await region.getByTestId('command-room-id').textContent();
+    await region.getByLabel('Design command JSON',{exact:true}).fill(JSON.stringify({version:1,units:'m',roomId,commands:[{op:'add-cabinet',item:{id:'assisted-browser',name:'Assisted cabinet',width:.6,depth:.4,height:1.2,x:0,z:0}},{op:'move',id:'assisted-browser',x:1,z:0},{op:'rotate',id:'assisted-browser',rotation:90}]}));
+    await region.getByRole('button',{name:'Preview design commands',exact:true}).click();await region.getByTestId('command-preview').waitFor();assert.deepEqual(await snapshot(),before);
+    await page.getByLabel('Project name',{exact:true}).fill('Stale preview check');assert.equal(await region.getByRole('button',{name:'Apply command batch',exact:true}).isDisabled(),true);await page.getByLabel('Project name',{exact:true}).fill(before.name);
+    await region.getByRole('button',{name:'Preview design commands',exact:true}).click();await region.getByRole('button',{name:'Apply command batch',exact:true}).click();await page.locator('footer').getByText('Applied 3 design commands',{exact:true}).waitFor();
+    const after=await snapshot();assert.equal(after.room.furniture.find(i=>i.id==='assisted-browser').x,1);assert.equal(after.room.furniture.find(i=>i.id==='assisted-browser').rotation,90);
+    await page.getByRole('button',{name:'Undo',exact:true}).click();assert.deepEqual(await snapshot(),before);await page.getByRole('button',{name:'Redo',exact:true}).click();assert.deepEqual(await snapshot(),after);await page.getByRole('button',{name:'Undo',exact:true}).click();await page.getByRole('button',{name:'Assisted design commands',exact:true}).click();
+  }
   await page.getByRole('button',{name:'Plan',exact:true}).click();
   await page.getByText('ORTHOGRAPHIC PLAN · NORTH UP',{exact:false}).waitFor();
   await page.getByRole('button',{name:'South wall',exact:true}).click();

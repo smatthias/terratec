@@ -1831,3 +1831,12 @@ unset. No external system is contacted and no quote is modified.
 See [Billing exchange v1](docs/BILLING_EXCHANGE.md) for adapter mappings, quantity
 units, rounding, CSV conventions and duplicate handling. This generic format
 requires a receiving-system adapter; vendor-specific imports are not implemented.
+
+### Structured assisted-design commands
+
+Open **Assisted design commands** in Project, load an example or paste a v1 JSON
+batch, then preview and apply. Add, move, rotate, rename and remove furniture in
+the active room. The preview shows before/after values; valid batches apply as
+one undo step. Changes after preview require a new preview. No language model or
+external service is connected. See [Design commands v1](docs/DESIGN_COMMANDS.md)
+for the bounded request format and supported operations.
