@@ -16,6 +16,8 @@ import {planePiece,finishPiece,cutToSize,addMachining,drillHoles,updateMachining
 import {cutFrame,cutMatrix} from '../shared/cutting-bench.mjs';
 import {FINISHES,finishColor,measure,edgeDistances,markLine,snapToMarks,mortise,rebate,planeSlab} from '../shared/workbench.mjs';
 import {TOOL_CHEST,CHEST_GROUPS,chestTool,planeSide,gaugeMarks,ploughGroove,housing,widenFeature} from '../shared/tool-chest.mjs';
+import {handTool} from './tool-models.js';
+import {toolIcon} from './tool-icons.js';
 import {holeAt} from '../shared/drilling-bench.mjs';
 import {MATERIALS} from '../shared/materials.mjs';
 
@@ -198,14 +200,13 @@ function buildScene() {
   }
   view.setOverlay(group);
 }
-// A simple hand tool hovering over the cross (moves down and up when used).
-const LOOKS={tape:[0xf2c230,[60,40,60]],mark:[0x9aa1a6,[200,4,30]],saw:[0xb8bec4,[260,90,2]],plane:[0x8a5a2b,[220,60,60]],chisel:[0xb8bec4,[12,150,25]],rebate:[0x8a5a2b,[200,60,40]],
-  plough:[0x8a5a2b,[220,70,60]],router:[0x8a5a2b,[200,50,80]],shoulder:[0x6b7378,[160,40,20]],bore:[0x6b4a32,[30,260,30]],brush:[0xc0392b,[40,120,15]]};
+// The hand tool in use, hovering over the cross (moves down and up when used): a
+// recognisable model of it (tool-models.js), the brush's bristles in the finish.
 function placeTool() {
   if(!view) return;
-  const [color,size]=LOOKS[tool.value]??[0x9aa1a6,[40,40,40]];
-  toolGroup=new THREE.Group();const mesh=new THREE.Mesh(new THREE.BoxGeometry(...size),new THREE.MeshStandardMaterial({color,roughness:.5,metalness:color===0xb8bec4?.7:.1}));
-  mesh.position.y=size[1]/2;toolGroup.add(mesh);toolGroup.visible=!!tool.value;toolGroup.position.y=frame.value.height+40;view.setTool(toolGroup);
+  const brush=tool.value==='brush'&&part.value?finishColor(part.value,finish.value.id,finish.value.custom):undefined;
+  toolGroup=tool.value?handTool(chestId.value,{color:brush}):new THREE.Group();
+  toolGroup.visible=!!tool.value;toolGroup.position.y=frame.value.height+40;view.setTool(toolGroup);
 }
 function stroke() {
   if(!toolGroup||!view) return Promise.resolve();
@@ -271,7 +272,7 @@ const usable=t=>!!t.action&&(panel.value||!['chisel','rebate','plough','router',
           <details v-for="group in CHEST_GROUPS" :key="group" :open="current.group===group||group==='Measuring and marking'">
         <summary>{{ group }}</summary>
         <ul><li v-for="t in TOOL_CHEST.filter(x=>x.group===group)" :key="t.id">
-          <button :aria-pressed="chestId===t.id" :class="{reference:!t.action,unusable:t.action&&!usable(t)}" :disabled="!!t.action&&!usable(t)" :title="t.use+(t.note?' · '+t.note:'')" @click="pick(t)">{{ t.name }}<small>{{ t.use }}</small></button>
+          <button :aria-pressed="chestId===t.id" :class="{reference:!t.action,unusable:t.action&&!usable(t)}" :disabled="!!t.action&&!usable(t)" :title="t.use+(t.note?' · '+t.note:'')" @click="pick(t)"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="toolIcon(t.id)"/></svg><span>{{ t.name }}<small>{{ t.use }}</small></span></button>
         </li></ul>
       </details>
           <p class="hint">Greyed tools are for reference: the design cannot show what they do yet.</p>
@@ -285,7 +286,7 @@ const usable=t=>!!t.action&&(panel.value||!['chisel','rebate','plough','router',
       <fieldset v-if="panel"><legend>Face up</legend>
         <div class="bench-choices"><button v-for="k in ['A','B']" :key="k" :aria-pressed="face===k" @click="face=k">{{ k==='A'?'Face A up':'Face B up (turned over)' }}</button></div>
       </fieldset>
-      <p class="tool-in-hand" data-testid="tool-in-hand"><strong>{{ current.name }}</strong> · {{ current.use }}<small v-if="current.note">{{ current.note }}</small></p>
+      <p class="tool-in-hand" data-testid="tool-in-hand"><svg class="tool-icon large" viewBox="0 0 24 24" aria-hidden="true"><path :d="toolIcon(current.id)"/></svg><span><strong>{{ current.name }}</strong> · {{ current.use }}<small v-if="current.note">{{ current.note }}</small></span></p>
       <fieldset><legend>Position (the cross)</legend>
         <div class="bench-row two">
           <label>{{ frame.a.label }} ({{ frame.a.key }}) mm<input type="number" step="0.5" :value="target.a" aria-label="Cross along" @change="setPoint('target','a',$event)"></label>

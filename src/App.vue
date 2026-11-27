@@ -3,6 +3,7 @@ import { ref, shallowRef, customRef, computed, watch, onMounted, onBeforeUnmount
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createRoom, updateSurfaces, fitCamera, frameBox, pickSurface, roomSurfaces, cutawayWalls, createGrid, pickOpening } from './room-scene.js';
+import { studioLights } from './studio-light.js';
 import FurnitureToolbar from './FurnitureToolbar.vue';
 import BenchDesk from './BenchDesk.vue';
 // Loaded on first inspection to keep the entry bundle within budget.
@@ -593,7 +594,7 @@ function removeCabinet() {
   catch(error) {message.value=error.message;}
 }
 watch(selected,()=>{furniturePlacing.value=false;});
-watch(view,mode=>{if(mode!=='Plan')furniturePlacing.value=false;});
+watch(view,mode=>{if(mode!=='Plan')furniturePlacing.value=false;roomLights?.setShadows(mode!=='Plan');});
 
 const sizePresets={};
 const presetName=ref(''),presetId=ref(null),chainLabels=ref([]);
@@ -762,7 +763,7 @@ function setDimension(key,event) {
   dimensionDraft.value[key]=project.value.room[key];
   event.target.value=project.value.room[key];
 }
-let scene, camera, renderer, controls, roomGroup, grid, observer, frame, designScene=null;
+let scene, camera, renderer, controls, roomGroup, grid, observer, frame, designScene=null, roomLights=null;
 let furnitureGhost,selectedClearanceOverlay;
 function syncSelectedClearance(){
  disposeFurnitureGhost(selectedClearanceOverlay);selectedClearanceOverlay=null;
@@ -879,9 +880,13 @@ function rebuild() {
   if (!scene || !valid.value) return;
   disposeRoom();
   roomGroup = createRoom(project.value.room,{designs:project.value.furnitureDesigns??[],designScene});
-  if(!designScene&&project.value.room.furniture.some(item=>item.type==='design')) import('./design-scene.js').then(module=>{designScene=module;rebuild();});
+  // The design renderer (placed designs, material textures) loads with the first furniture.
+  if(!designScene&&project.value.room.furniture.length) import('./design-scene.js').then(module=>{designScene=module;rebuild();});
   refreshSurfaces();
   scene.add(roomGroup);
+  // Furniture casts soft shadows in 3D; Plan stays a clean drawing.
+  const b=bounds(project.value.room.outline),h=project.value.room.height;
+  roomLights?.fit({min:{x:b.x-b.width/2,y:0,z:b.z-b.depth/2},max:{x:b.x+b.width/2,y:h,z:b.z+b.depth/2}});roomLights?.setShadows(view.value!=='Plan');
   grid=createGrid(project.value.room,gridSpacing.value); grid.visible=view.value==='Plan'; scene.add(grid);
 }
 function resetView() {
@@ -1098,8 +1103,7 @@ onMounted(() => {
     renderer.domElement.addEventListener('pointercancel',cancelCanvasDrag);
     renderer.domElement.addEventListener('lostpointercapture',cancelCanvasDrag);
     renderer.domElement.addEventListener('pointerleave',canvasLeave);
-    scene.add(new THREE.HemisphereLight(0xffffff,0x365448,3));
-    const sun = new THREE.DirectionalLight(0xffefcf,3); sun.position.set(8,12,6); scene.add(sun);
+    roomLights = studioLights(scene,renderer,{ground:0x365448});
     observer = new ResizeObserver(() => {
       const { clientWidth: w, clientHeight: h } = viewport.value;
       if (!w || !h) return;

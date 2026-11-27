@@ -9,6 +9,8 @@
 // and the cut surfaces. Work happens in the sheet frame (x = u, y = v, z = n).
 import {subtract,boxSolid,cylinderSolid} from './csg.js';
 import {featureSheetBox,drillSheetAxis} from '../shared/furniture-design-geometry.mjs';
+import {TILE,END_TILE} from './material-textures.js';
+import {MATERIALS} from '../shared/materials.mjs';
 
 const MARGIN=1,EPS=1e-6;
 const SHEET_AXIS={u:'x',v:'y',n:'z'};
@@ -70,27 +72,35 @@ export function cutPanelPolygons(part,features) {
   return polygons.filter(p=>p.shared!=='panel'||outside(p));
 }
 
-// Mesh data in the piece's own centred frame: triangle positions and normals
-// grouped by tag (group 0 is the panel, group i+1 is feature i). Sheet axes map
-// to the panel orientation; odd axis orders mirror, so their winding is reversed.
+// Mesh data in the piece's own centred frame: triangle positions, normals and
+// texture coordinates grouped by tag: group 0 is the panel's faces, group i+1
+// is feature i's cut surfaces, then the long edges (n+1) and the ends (n+2), so
+// a material slot above n is the panel, not a feature. Sheet axes map to the
+// panel orientation; odd axis orders mirror, so their winding is reversed.
+// Texture coordinates (millimetres / TILE, material-textures.js) follow the
+// sheet: the grain runs along u; on the edges and ends y runs across the
+// thickness from face B (0) to face A (1); end grain uses END_TILE.
 const ORDER={horizontal:['x','z','y'],front:['x','y','z'],side:['z','y','x']};
 const MIRRORED={horizontal:true,front:false,side:true};
 const cache=new Map();
 export function panelMeshData(part,features) {
-  const key=JSON.stringify([part.orientation,part.length,part.width,part.thickness,features.map(f=>[f.type,f.face,f.u,f.v,f.t,f.depth,f.diameter,f.length,f.width])]);
+  const key=JSON.stringify([part.orientation,part.length,part.width,part.thickness,MATERIALS[part.material]?.form==='solid',features.map(f=>[f.type,f.face,f.u,f.v,f.t,f.depth,f.diameter,f.length,f.width])]);
   let data=cache.get(key);
   if(data) {cache.delete(key);cache.set(key,data);return data;}
   const [au,av,an]=ORDER[part.orientation],half={u:part.length/2,v:part.width/2,n:part.thickness/2};
   const map=p=>{const out={};out[au]=p.x-half.u;out[av]=p.y-half.v;out[an]=p.z-half.n;return [out.x,out.y,out.z];};
   const mapNormal=n=>{const out={};out[au]=n.x;out[av]=n.y;out[an]=n.z;return [out.x,out.y,out.z];};
-  const byGroup=Array.from({length:features.length+1},()=>({positions:[],normals:[]}));
+  // Solid wood shows end grain on its ends; boards and plywood their edge across the thickness.
+  const solid=MATERIALS[part.material]?.form==='solid',n=features.length,byGroup=Array.from({length:n+3},()=>({positions:[],normals:[],uvs:[]})),T=part.thickness;
   for(const polygon of cutPanelPolygons(part,features)) {
-    const group=byGroup[polygon.shared==='panel'?0:polygon.shared+1],normal=mapNormal(polygon.plane.normal);
+    const sheet=polygon.plane.normal,side=Math.abs(sheet.z)>=Math.max(Math.abs(sheet.x),Math.abs(sheet.y))?'face':Math.abs(sheet.y)>=Math.abs(sheet.x)?'edge':'end';
+    const group=byGroup[polygon.shared!=='panel'?polygon.shared+1:side==='face'?0:side==='edge'?n+1:n+2],normal=mapNormal(sheet);
+    const uv=side==='face'?v=>[v.x/TILE,v.y/TILE]:side==='edge'||!solid?v=>[(side==='edge'?v.x:v.y)/TILE,v.z/T]:v=>[v.y/END_TILE,v.z/END_TILE];
     const vertices=MIRRORED[part.orientation]?[...polygon.vertices].reverse():polygon.vertices;
-    for(let i=1;i<vertices.length-1;i++) for(const v of [vertices[0],vertices[i],vertices[i+1]]) {group.positions.push(...map(v));group.normals.push(...normal);}
+    for(let i=1;i<vertices.length-1;i++) for(const v of [vertices[0],vertices[i],vertices[i+1]]) {group.positions.push(...map(v));group.normals.push(...normal);group.uvs.push(...uv(v));}
   }
   let start=0;
-  data={positions:new Float32Array(byGroup.flatMap(g=>g.positions)),normals:new Float32Array(byGroup.flatMap(g=>g.normals)),
+  data={positions:new Float32Array(byGroup.flatMap(g=>g.positions)),normals:new Float32Array(byGroup.flatMap(g=>g.normals)),uvs:new Float32Array(byGroup.flatMap(g=>g.uvs)),
     groups:byGroup.map((g,i)=>{const count=g.positions.length/3,range={start,count,materialIndex:i};start+=count;return range;}).filter(g=>g.count)};
   cache.set(key,data);
   if(cache.size>300) cache.delete(cache.keys().next().value);

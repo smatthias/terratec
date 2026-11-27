@@ -6,7 +6,9 @@
 // and pockets. Each cut is one design edit (undo with Ctrl/⌘+Z). Loaded on first use.
 import {ref,computed,watch,onMounted,onBeforeUnmount,onActivated,onDeactivated,nextTick} from 'vue';
 import * as THREE from 'three';
-import {createBenchScene,removalBox,steel,paint} from './bench-scene.js';
+import {createBenchScene,removalBox,paint} from './bench-scene.js';
+import {cutterModel,sawBlade} from './tool-models.js';
+import {toolIcon} from './tool-icons.js';
 import BenchDesk from './BenchDesk.vue';
 import BenchLayers from './BenchLayers.vue';
 import {PIECE_FORMS} from '../shared/furniture-design.mjs';
@@ -133,14 +135,15 @@ function placeTool() {
   if(saw.value) {
     const r=150,k=tool.value.kerf,rip=direction.value==='rip'&&panel.value,offset=toBench(target.value.a,target.value.b);
     const c=rip?{x:0,z:offset.z+(f.bZero==='back'?k/2:-k/2)}:{x:k/2,z:0};
-    add(new THREE.CylinderGeometry(r,r,k,48),steel(),[c.x,r,c.z],m=>rip?m.rotateX(Math.PI/2):m.rotateZ(Math.PI/2));
+    // A toothed blade (a dado set shows its stacked chippers), across or along the piece.
+    const blade=sawBlade(r,k,{teeth:k>=5?24:48});blade.position.set(c.x,0,c.z);if(!rip) blade.rotation.y=Math.PI/2;toolGroup.add(blade);
     add(new THREE.BoxGeometry(rip?360:60,140,rip?60:360),paint(0xd9822b),[c.x,r+60,c.z]);
     rest=f.height+20;
   } else {
-    const r=tool.value.diameter/2;
-    add(new THREE.CylinderGeometry(r,r,40,24),steel(),[0,20,0]);
-    add(new THREE.CylinderGeometry(12,14,40,16),paint(0x555b60),[0,60,0]);
-    add(new THREE.CylinderGeometry(50,50,220,32),paint(0x2f5d50),[0,190,0]);
+    // A straight router bit (straight flutes) in the collet, the motor above.
+    const bit=cutterModel({kind:'straight',diameter:tool.value.diameter,flutes:2,reach:30},{holder:false});toolGroup.add(bit.group);
+    add(new THREE.CylinderGeometry(12,14,40,16),paint(0x555b60),[0,bit.gauge+20,0]);
+    add(new THREE.CylinderGeometry(50,50,220,32),paint(0x2f5d50),[0,bit.gauge+150,0]);
     rest=f.height+15;
   }
   toolGroup.position.y=rest;view.setTool(toolGroup);
@@ -220,7 +223,7 @@ onBeforeUnmount(()=>{window.removeEventListener('keydown',keydown);view?.dispose
       </fieldset>
       <fieldset><legend>Tools</legend>
         <div class="bench-choices rack" role="radiogroup" aria-label="Cutting tools">
-          <button v-for="t in TOOLS" :key="t.id" role="radio" :aria-checked="toolId===t.id" :disabled="t.kind==='router'&&!panel" @click="chooseTool(t)">{{ t.label }}</button>
+          <button v-for="t in TOOLS" :key="t.id" role="radio" :aria-checked="toolId===t.id" :disabled="t.kind==='router'&&!panel" @click="chooseTool(t)"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="toolIcon(t.kind==='router'||t.kind==='dado'?t.kind:'saw')"/></svg>{{ t.label }}</button>
         </div>
       </fieldset>
       <fieldset v-if="saw"><legend>Saw cut</legend>

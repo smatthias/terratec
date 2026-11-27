@@ -3,7 +3,7 @@
 import {computed} from 'vue';
 import {CAM_DEFAULTS,TOOL_DEFAULTS,POSTS} from '../shared/design-cam.mjs';
 const props=defineProps({plan:{type:Object,required:true},cam:{type:Object,default:null},design:{type:Object,required:true}});
-const emit=defineEmits(['export','select','dxf','gcode','gcode-all','update-cam','update-tool','update-stock']);
+const emit=defineEmits(['export','select','dxf','gcode','gcode-all','update-cam','update-tool','update-stock','machine']);
 const stock=computed(()=>({stockLengthMm:2440,stockWidthMm:1220,stockTrimMm:0,stockKerfMm:3,stockAllowRotation:true,...props.design.stock}));
 const settings=computed(()=>({...CAM_DEFAULTS,...props.design.cam}));
 const machining=computed(()=>props.design.layers.filter(l=>l.operation!=='none'));
@@ -57,12 +57,14 @@ const ready=computed(()=>props.plan.ready&&!!props.cam?.ready);
         <p class="hint">When the design is placed in the room, its panels are nested on these sheets with cabinet panels of the same material, thickness and stock, and its bars, rods and tubes are listed as a profile cut list. Both feed workshop jobs and quotes.</p>
       </details>
       <div class="design-row">
+        <button v-if="cam?.programs.length" class="primary" title="Run the NC programs on the CNC machine, with its tool rack and a simulated cut" @click="emit('machine',cam.programs[0].partId,cam.programs[0].face)">Run on the CNC machine</button>
         <button @click="emit('dxf')">Export DXF</button>
         <button :disabled="!ready||!cam?.programs.length" @click="emit('gcode-all')">Export NC program (all panels)</button>
         <button @click="emit('export')">Export CNC plan JSON</button>
       </div>
       <ul v-if="cam?.programs.length" class="cam-programs" aria-label="Panel programs">
         <li v-for="program in cam.programs" :key="program.partId+program.face"><span>{{ program.name }} · face {{ program.face }}</span>
+          <button :aria-label="'Run '+program.name+' face '+program.face+' on the CNC machine'" @click="emit('machine',program.partId,program.face)">▶ Run</button>
           <button :disabled="issues.some(i=>i.severity==='error'&&i.partId===program.partId)" :aria-label="'NC program for '+program.name+' face '+program.face" @click="emit('gcode',program.partId,program.face)">{{ POSTS[settings.post].extension }}</button></li>
       </ul>
       <p class="hint">NC programs are for 3-axis routers and machining centres: origin at the sheet corner on the top surface, Z negative into the material, face B turned over about its length. Through outlines keep holding tabs (0 tabs turns them off). No lead-ins or ramping; inside corners keep the tool radius. Posts follow each control's documented dialect but are not tested on your machine: check every program in a simulator and with a dry run before cutting. DXF layers are named layer_OPERATION_Zdepth for CAM software.</p>

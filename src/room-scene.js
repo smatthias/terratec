@@ -23,7 +23,7 @@ export function createRoom(input,{designs=[],designScene=null}={}) {
   const add = (id, geometry, position, color, angle=0) => {
     const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color,roughness:.85,side:THREE.DoubleSide}));
     mesh.position.set(...position); mesh.rotation.y=angle;
-    mesh.userData={id,baseColor:color}; mesh.name=id==='floor'?'Floor':wallLabel(id);
+    mesh.userData={id,baseColor:color}; mesh.name=id==='floor'?'Floor':wallLabel(id); mesh.receiveShadow=true;
     group.add(mesh); return mesh;
   };
   const shape=new THREE.Shape(outline.map(p=>new THREE.Vector2(p.x,-p.z)));

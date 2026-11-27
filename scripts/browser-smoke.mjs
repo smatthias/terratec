@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium } from 'playwright';
+import { launchChromium } from './launch-browser.mjs';
 import * as THREE from 'three';
 import { fitCamera } from '../src/room-scene.js';
 
@@ -30,7 +30,7 @@ try {
   start(['server/index.mjs'],{TERRATEC_DATA_DIR:dataDir});
   start(['node_modules/vite/bin/vite.js',...(production?['preview']:[]),'--host','127.0.0.1','--port','5173','--strictPort']);
   await Promise.all([ready('http://127.0.0.1:3001/api/health'),ready('http://127.0.0.1:5173')]);
-  browser = await chromium.launch({args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+  browser = await launchChromium(['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']);
   // Full HD: with the editor windows docked at both sides, the canvas keeps about the
   // size it had beside the old sidebar (the canvas clicks below project onto it).
   page = await browser.newPage({viewport:{width:1920,height:1080}});
@@ -1039,6 +1039,9 @@ try {
   await page.getByRole('button',{name:'Undo',exact:true}).click();
   assert.equal(await page.getByLabel('Furniture item',{exact:true}).locator('option').count(),6);
   await page.getByRole('button',{name:'Redo',exact:true}).click();
+  assert.equal(await page.getByLabel('Furniture item',{exact:true}).locator('option').count(),7);
+  // Selection is not part of geometry history: the redone copy returns unselected, so choose a cabinet again.
+  await page.getByLabel('Furniture item',{exact:true}).selectOption({label:'Reusable cabinet'});
   await page.getByRole('button',{name:'Place copy in Plan',exact:true}).click();
   await page.keyboard.press('Escape');
   await page.getByText('Furniture preview cancelled',{exact:true}).waitFor();
@@ -1372,6 +1375,23 @@ try {
   const snapped=await toolWindow.boundingBox();assert.ok(Math.abs(snapped.x-(deskBox.x+8))<=2&&snapped.width>deskBox.width/2-30,'the tool window snapped to the left half');
   await taskbar.getByRole('button',{name:'Reset layout',exact:true}).click();
   await taskbar.getByRole('button',{name:'Back to designer',exact:true}).click();await workRegion.waitFor({state:'detached'});
+  // CNC machine (loaded on first use): the panel's exported program runs on the simulated router. Fitting a
+  // cutter in the tool rack is one design edit; the program check passes and Run to end machines the part.
+  await page.keyboard.press('ContextMenu');
+  await page.getByRole('menuitem',{name:'Machine on the CNC…',exact:true}).click();
+  const cncRegion=page.getByRole('region',{name:'CNC machine'});await cncRegion.waitFor();
+  await cncRegion.getByTestId('cnc-check').filter({hasText:'No alarms'}).waitFor();
+  await cncRegion.getByLabel('Cutter for T2',{exact:true}).selectOption('upcut-6');
+  await page.locator('footer').getByText('T2: Ø6 2-flute upcut spiral fitted · 18000 rpm · feed 5400 mm/min',{exact:true}).waitFor();
+  await cncRegion.getByRole('button',{name:'▶ Cycle start',exact:true}).click();await cncRegion.getByTestId('cnc-state').filter({hasText:'CYCLE RUNNING'}).waitFor();
+  await cncRegion.getByRole('button',{name:'⏭ Run to end',exact:true}).click();
+  await cncRegion.getByTestId('cnc-state').filter({hasText:'PROGRAM COMPLETE'}).waitFor();
+  await page.locator('footer').getByText(/^Left side face A machined · \d+:\d\d$/).waitFor();
+  // Visualisation: the blank as a depth map and the toolpath by feed rate, each with its legend.
+  const cncView=cncRegion.getByRole('navigation',{name:'Machine view'});
+  await cncView.getByRole('button',{name:'Depth map',exact:true}).click();await cncRegion.getByTestId('depth-legend').waitFor();
+  await cncView.getByRole('button',{name:'Feed rate',exact:true}).click();await cncRegion.getByTestId('feed-legend').filter({hasText:/^\d+–\d+ mm\/min · rapids yellow$/}).waitFor();
+  await taskbar.getByRole('button',{name:'Back to designer',exact:true}).click();await cncRegion.waitFor({state:'detached'});
   await page.getByRole('button',{name:'Room',exact:true}).click();
   // ---- Version history: preview an earlier version read-only, keep the history across a reload (IndexedDB), restore.
   await page.getByRole('button',{name:'New',exact:true}).click();await page.locator('footer').getByText('New project',{exact:true}).waitFor();

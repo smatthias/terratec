@@ -29,14 +29,16 @@ assert.ok(historyPanel?.isDynamicEntry&&!initial.has(historyKey),historyKey+' mu
 const historyBytes=chunks.find(c=>c.file===historyPanel.file).bytes;
 assert.ok(historyBytes<=12000,'Version history panel exceeds 12 kB budget');
 // The workshop benches (designer tools) likewise: the drilling and cutting
-// benches, the workbench and the chunks only they import must stay lazy and within 100 kB.
-const benchKeys=new Set(['src/DrillingBench.vue','src/CuttingBench.vue','src/Workbench.vue']);
+// benches, the workbench, the CNC machine and the chunks only they import must
+// stay lazy and within 165 kB (150 kB until the CNC machine's visualisations, 100 kB before it).
+const benchKeys=new Set(['src/DrillingBench.vue','src/CuttingBench.vue','src/Workbench.vue','src/CncMachine.vue']);
 for(const key of benchKeys) assert.ok(manifest[key]?.isDynamicEntry&&!initial.has(key),key+' must stay lazy');
 const importers=new Map();
 for(const [key,chunk] of Object.entries(manifest)) for(const imported of chunk.imports??[]) importers.set(imported,[...(importers.get(imported)??[]),key]);
-for(let grew=true;grew;) {grew=false;for(const [key,list] of importers) if(!benchKeys.has(key)&&list.every(k=>benchKeys.has(k))) {benchKeys.add(key);grew=true;}}
+// The designer's own chunk (the CNC machine imports the CAM modules bundled there) keeps its own budget.
+for(let grew=true;grew;) {grew=false;for(const [key,list] of importers) if(!benchKeys.has(key)&&key!==designerKey&&key!==historyKey&&list.every(k=>benchKeys.has(k))) {benchKeys.add(key);grew=true;}}
 const benchFiles=new Set([...benchKeys].map(k=>manifest[k].file)),benchBytes=chunks.filter(c=>benchFiles.has(c.file)).reduce((n,c)=>n+c.bytes,0);
-assert.ok(benchBytes<=100000,'Workshop benches exceed 100 kB budget');
+assert.ok(benchBytes<=165000,'Workshop benches exceed 165 kB budget');
 // Initial JavaScript: 870 kB since the studio became a desk of windows (860 kB before);
 // total 1000 kB (990 kB before): the desk moved from the benches' chunks into the entry.
 const entryBytes=chunks.find(c=>c.file===entry.file).bytes,initialBytes=chunks.filter(c=>c.initial).reduce((n,c)=>n+c.bytes,0),totalBytes=chunks.reduce((n,c)=>n+c.bytes,0)-designerBytes-historyBytes-benchBytes;

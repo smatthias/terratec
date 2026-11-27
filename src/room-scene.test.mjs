@@ -65,3 +65,15 @@ test('inspection isolates one furniture item and multi-selection highlights ever
   assert.deepEqual([...lit].sort(), ['furniture:a','furniture:b']);
   assert.ok(group.children.some(m => m.userData.id === 'north' && m.visible), 'isolation ends when not requested');
 });
+
+test('with the design renderer loaded, cabinets carry their material textures', async () => {
+  const designScene = await import('./design-scene.js');
+  const item = { id:'c', type:'cabinet', name:'Cabinet', x:0, z:0, rotation:0, width:.8, height:.9, depth:.5, thickness:.018, shelves:1, doors:2, material:'walnut', hardwareMaterial:'brass' };
+  const outline = [{x:-3,z:-2},{x:3,z:-2},{x:3,z:2},{x:-3,z:2}];
+  const meshes = group => { const out=[]; group.traverse(o => { if (o.userData.furnitureId === 'c' && o.userData.role !== 'symbol') out.push(o); }); return out; };
+  const plain = meshes(createRoom({ ...room, outline, openings: [], furniture: [item] }));
+  assert.ok(plain.length && plain.every(m => !m.material.map), 'before the renderer loads: plain colours');
+  const textured = meshes(createRoom({ ...room, outline, openings: [], furniture: [item] }, { designScene }));
+  assert.deepEqual([...new Set(textured.map(m => m.material.map?.userData.key))].sort(), ['brushed','face:walnut']);
+  assert.ok(textured.every(m => m.geometry.attributes.uv), 'texture coordinates in millimetres');
+});

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {buildDesignGroup,fitDesignCamera,pickDesign,DESIGN_VIEWS} from './design-scene.js';
 import {partCentre,partBox} from '../shared/furniture-design.mjs';
-import {addFeature,updateFeature} from '../shared/furniture-design-edit.mjs';
+import {addFeature,updateFeature,updatePart} from '../shared/furniture-design-edit.mjs';
 import {createDesign,updateLayer,designBounds} from '../shared/furniture-design-edit.mjs';
 const ids=()=>{let n=0;return ()=>'id'+(++n);};
 const box=()=>createDesign({id:'box',name:'Box',template:'box',makeId:ids()});
@@ -29,7 +29,7 @@ test('machining is cut out of the panel, outlined at opening and floor, and high
   const design=box(),left=design.parts[0],drill=left.features[0];
   const group=buildDesignGroup(design,{selectedPartId:left.id,selectedFeatureId:drill.id}),box0=partBox(left);
   const panel=all(group).find(o=>o.userData.partId===left.id&&o.userData.role==='part');
-  assert.equal(mat(panel).length,1+left.features.length,'one material group per feature');
+  assert.equal(mat(panel).length,3+left.features.length,'the faces, one material group per feature, the edges and the ends');
   assert.deepEqual(panel.userData.featureIds,left.features.map(f=>f.id));
   assert.equal(mat(panel)[1].color.getHex(),0xffe08a,'the selected drill hole is highlighted');
   assert.equal(mat(panel)[3].color.getHex(),new THREE.Color(design.layers.find(l=>l.operation==='groove').color).getHex(),'the groove in its layer colour');
@@ -140,4 +140,39 @@ test('layer display: colour by layer and focus dimming',()=>{
   assert.ok(focused.filter(o=>o.userData.role==='outline'&&o.userData.layerId===drill.id).every(m=>m.material.opacity>.5),'drilling stays visible');
   const side=focused.find(o=>o.userData.role==='part'&&o.userData.featureIds.length);
   assert.ok(mat(side)[1].opacity===1&&mat(side)[3].opacity<.2,'drill cuts stay solid, groove cuts dim');
+});
+
+test('pieces carry their material textures: grain tinted by the piece colour, baked plywood plies, plain colours by layer',()=>{
+  const design=box(),left=design.parts[0];   // birch plywood
+  const panelOf=group=>all(group).find(o=>o.userData.partId===left.id&&o.userData.role==='part');
+  const panel=panelOf(buildDesignGroup(design)),[face,...rest]=mat(panel),[edge,end]=rest.slice(-2);
+  assert.equal(face.map.userData.key,'face:birch');assert.equal(face.color.getHex(),new THREE.Color(left.color).getHex(),'the grain tints with the piece colour');
+  assert.equal(edge.map.userData.key,'edge:plywood:18');assert.equal(edge.color.getHex(),0xffffff,'plies are baked');assert.equal(end.map,edge.map);
+  assert.ok(panel.geometry.attributes.uv,'texture coordinates');
+  assert.ok(mat(panelOf(buildDesignGroup(design,{colorByLayer:true}))).every(m=>!m.map),'colour by layer: no textures');
+  const keys=material=>{const m=mat(panelOf(buildDesignGroup(updatePart(design,left.id,{material}))));return [m[0].map.userData.key,m.at(-2).map.userData.key,m.at(-1).map.userData.key];};
+  assert.deepEqual(keys('walnut'),['face:walnut','face:walnut','end:walnut'],'solid wood: side grain on the edges, end grain on the ends');
+  assert.deepEqual(keys('oak'),['face:oak','face:oak','face:oak'],'a veneered board: banded edges');
+  const rod=addPart(design,'cylinder',{makeId:()=>'rod',overrides:{material:'steel'}}).design,mesh=all(buildDesignGroup(rod)).find(o=>o.userData.partId==='rod'&&o.userData.role==='part');
+  assert.equal(mesh.material.map.userData.key,'brushed');assert.ok(mesh.geometry.attributes.uv,'profiles are box-projected');
+});
+
+test('pieces have volume: eased edges on boards and bars, grain in relief, and shadows',()=>{
+  const design=box(),left=design.parts[0];
+  const panel=all(buildDesignGroup(design)).find(o=>o.userData.partId===left.id&&o.userData.role==='part');
+  const [face]=mat(panel);
+  assert.ok(panel.castShadow&&panel.receiveShadow,'casts and receives shadows');
+  assert.equal(face.bumpMap,face.map,'the grain doubles as relief');assert.ok(face.bumpScale>0);
+  assert.equal(face.customProgramCacheKey(),'eased-edges');
+  // The shader patch applies to three's real standard shader (a three upgrade that renames a chunk fails here).
+  const shader={uniforms:{},vertexShader:THREE.ShaderLib.physical.vertexShader,fragmentShader:THREE.ShaderLib.physical.fragmentShader};
+  face.onBeforeCompile(shader);
+  assert.match(shader.vertexShader,/vEase=position;/);assert.match(shader.fragmentShader,/normal=normalize\(normalMatrix\*\(sign\(vEase\)\*t\)\)\*faceDirection;/);
+  assert.deepEqual(shader.uniforms.easeHalf.value.toArray(),[9,360,280],'half the 18 × 720 × 560 side');assert.equal(shader.uniforms.easeRadius.value,3);
+  assert.ok(mat(panel).slice(1,-2).every(m=>!m.onBeforeCompile.toString().includes('vEase')),'machined surfaces stay sharp');
+  const back=all(buildDesignGroup(design)).find(o=>o.userData.partId===design.parts.find(p=>p.name==='Back').id&&o.userData.role==='part');
+  const s2={uniforms:{},vertexShader:'#include <common>\n#include <begin_vertex>',fragmentShader:'#include <common>\n#include <normal_fragment_maps>'};
+  mat(back)[0].onBeforeCompile(s2);assert.ok(Math.abs(s2.uniforms.easeRadius.value-1.8)<1e-9,'a 6 mm back: the rounding stays within 30 %');
+  const dimmed=all(buildDesignGroup(design,{focusLayerId:design.layers[0].id})).find(o=>o.userData.partId===left.id&&o.userData.role==='part');
+  assert.equal(dimmed.castShadow,false,'dimmed pieces cast no shadow');
 });

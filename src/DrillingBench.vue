@@ -6,7 +6,9 @@
 // design edit (undo with Ctrl/⌘+Z). Loaded on first use.
 import {ref,computed,watch,onMounted,onBeforeUnmount,onActivated,onDeactivated,nextTick} from 'vue';
 import * as THREE from 'three';
-import {createBenchScene,steel,paint} from './bench-scene.js';
+import {createBenchScene,paint} from './bench-scene.js';
+import {cutterModel} from './tool-models.js';
+import {toolIcon} from './tool-icons.js';
 import BenchDesk from './BenchDesk.vue';
 import BenchLayers from './BenchLayers.vue';
 import {drillHoles} from '../shared/bench-edits.mjs';
@@ -90,11 +92,11 @@ function buildPiece() {
 // The drill press: bit, chuck, head and column, raised above the piece.
 function placeBit() {
   if(!view) return;
-  const f=faceInfo.value,r=diameter.value/2,length=Math.max(60,Math.min(f.depthLimit+30,160)),forstner=bit.value.kind==='forstner',cut=forstner?Math.min(length,20):length;
-  bitGroup=new THREE.Group();
-  const add=(geometry,material,y,z=0)=>{const mesh=new THREE.Mesh(geometry,material);mesh.position.set(0,y,z);bitGroup.add(mesh);};
-  add(new THREE.CylinderGeometry(r,r*(forstner?1:.4),cut,24),steel(),cut/2);
-  if(forstner) add(new THREE.CylinderGeometry(5,5,length-20,16),steel(),20+(length-20)/2);
+  const f=faceInfo.value;
+  // The bit as it is: a twist drill's point, a brad point's spurs, a Forstner's flat head (tool-models.js).
+  const model=cutterModel({kind:bit.value.kind,diameter:diameter.value,reach:Math.max(30,Math.min(f.depthLimit+20,45))},{holder:false}),length=model.gauge;
+  bitGroup=new THREE.Group();bitGroup.add(model.group);
+  const add=(geometry,material,y,z=0)=>{const mesh=new THREE.Mesh(geometry,material);mesh.position.set(0,y,z);mesh.castShadow=true;bitGroup.add(mesh);};
   add(new THREE.CylinderGeometry(22,26,60,24),paint(0x555b60),length+30);
   add(new THREE.BoxGeometry(180,160,300),paint(0x2f5d50),length+140,-90);
   tipRest=f.height+15;
@@ -173,7 +175,7 @@ const holeText=h=>`Hole ${h.index} · Ø${h.feature.diameter} · ${where(h.at.a,
       </fieldset>
       <fieldset><legend>Drill rack</legend>
         <div class="bench-choices rack" role="radiogroup" aria-label="Drill bits">
-          <button v-for="b in DRILL_BITS" :key="b.id" role="radio" :aria-checked="bitId===b.id" :title="BIT_KINDS[b.kind]+' · '+b.use" @click="chooseBit(b)">{{ bitLabel(b) }}</button>
+          <button v-for="b in DRILL_BITS" :key="b.id" role="radio" :aria-checked="bitId===b.id" :title="BIT_KINDS[b.kind]+' · '+b.use" @click="chooseBit(b)"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="toolIcon(b.kind)"/></svg>{{ bitLabel(b) }}</button>
         </div>
         <label>Bit diameter mm<input type="number" min="0.5" max="200" step="0.5" :value="diameter" @change="setDiameter"></label>
       </fieldset>

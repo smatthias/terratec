@@ -10,7 +10,7 @@ Overall: **91%** of the current delivery plan, estimated by effort and verified 
 | Building design | 35% | Wall openings and door clearance checks | Multiple rooms |
 | Interiors and furniture | 84% | Cabinet bays, fronts, joinery and edge banding | More furniture types |
 | Drawings and exchange | 67% | Printable sheets and manufacturing exports | More exchange formats |
-| Manufacturing | 88% | Parts, nesting, stock pricing and handoff validation | Machine-specific constraints |
+| Manufacturing | 88% | Parts, nesting, stock pricing, handoff validation and a simulated CNC machine that runs the exported NC programs with a tool rack | Machine-specific constraints |
 | Distributed production | 75% | Workshop assignment and fulfilment tracking | Workshop capacity planning |
 | Customer and business tools | 70% | Customers, quotes, pricing presets and backups | Billing exchange |
 | Assisted design | 0% | Not implemented | Structured design commands |

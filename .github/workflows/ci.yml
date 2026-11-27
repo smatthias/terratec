@@ -21,7 +21,13 @@ jobs:
         with:
           name: terratec-linux-release
           path: release/*.tar.gz
-      - run: npx playwright install --with-deps chromium
+      # Playwright's Chromium, cached per lockfile (a new Playwright version downloads its
+      # own build); the install step still adds the system libraries it needs.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm run test:browser:install
       - run: npm run test:browser:production
       - uses: actions/upload-artifact@v4
         if: always()

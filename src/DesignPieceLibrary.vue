@@ -5,6 +5,7 @@
 import {ref} from 'vue';
 import {MATERIALS,WOOD_IDS,METAL_IDS} from '../shared/materials.mjs';
 import {PIECE_FORMS,SHAPES,materialColor} from '../shared/furniture-design.mjs';
+import {materialSwatch} from './material-textures.js';
 const emit=defineEmits(['add']);
 const form=ref('panel'),material=ref(PIECE_FORMS.panel.material),color=ref(materialColor(PIECE_FORMS.panel.material)),length=ref(PIECE_FORMS.panel.defaults.length);
 function pickForm(id) {form.value=id;pickMaterial(PIECE_FORMS[id].material);length.value=PIECE_FORMS[id].defaults.length;}
@@ -40,7 +41,7 @@ const MATERIAL_GROUPS=[['Wood',WOOD_IDS],['Metal',METAL_IDS]];
       <p class="library-label">{{ group }}</p>
       <div class="material-grid" role="radiogroup" :aria-label="group+' materials'">
         <button v-for="id in ids" :key="id" role="radio" :aria-checked="material===id" :title="MATERIALS[id].label+' · '+MATERIALS[id].densityKgM3+' kg/m³ · drag onto a piece to apply'" draggable="true" @click="pickMaterial(id)" @dragstart="drag($event,{kind:'material',material:id})">
-          <span class="chip" :style="{background:materialColor(id)}"></span>{{ MATERIALS[id].label }}
+          <span class="chip" :style="{background:materialColor(id)+' url('+materialSwatch(id)+') center/cover'}"></span>{{ MATERIALS[id].label }}
         </button>
       </div>
     </template>
@@ -60,7 +61,7 @@ const MATERIAL_GROUPS=[['Wood',WOOD_IDS],['Metal',METAL_IDS]];
 .material-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px}
 .material-grid button{display:flex;align-items:center;gap:5px;padding:4px 5px;font-size:10px;text-align:left;border:1px solid #cdd5ca;background:#f6f7f2}
 .material-grid button[aria-checked=true]{border-color:#263e3c;box-shadow:inset 0 0 0 1px #263e3c;font-weight:700}
-.chip{width:14px;height:14px;border-radius:3px;border:1px solid #0003;flex-shrink:0}
+.chip{width:30px;height:18px;border-radius:3px;border:1px solid #0003;flex-shrink:0}
 .mm-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 8px;margin-top:6px}.mm-grid input{width:100%;min-width:0}
 .mm-grid input[type=color]{height:34px;padding:2px}
 [draggable=true]{cursor:grab}.library-hint{margin:0 0 4px}

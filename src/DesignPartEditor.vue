@@ -3,6 +3,7 @@
 // change (Enter or leaving the field); each change is one design undo step.
 import {computed} from 'vue';
 import {MATERIALS,WOOD_IDS,METAL_IDS} from '../shared/materials.mjs';
+import {materialSwatch} from './material-textures.js';
 import {PANEL_ORIENTATIONS,PIECE_FORMS,SHAPES,SECTION_AXES,materialColor,isEdgeFace} from '../shared/furniture-design.mjs';
 import {isThrough,featureDepthLimit} from '../shared/furniture-design-geometry.mjs';
 const props=defineProps({part:{type:Object,required:true},layers:{type:Array,required:true},featureId:{type:String,default:null}});
@@ -41,6 +42,7 @@ const setThrough=checked=>emit('update-feature',feature.value.id,{depth:checked?
       <optgroup label="Wood"><option v-for="id in WOOD_IDS" :key="id" :value="id">{{ MATERIALS[id].label }}</option></optgroup>
       <optgroup label="Metal"><option v-for="id in METAL_IDS" :key="id" :value="id">{{ MATERIALS[id].label }}</option></optgroup>
     </select></label>
+    <p class="material-look" data-testid="material-look" :title="MATERIALS[part.material].label+' · as this piece looks'" :style="{background:part.color+' url('+materialSwatch(part.material,part.color,{width:192,height:24})+') center/cover'}">{{ MATERIALS[part.material].label }}</p>
     <div class="colour-row"><label>Piece colour<input type="color" :value="part.color" aria-label="Piece colour" @change="emit('update',{color:$event.target.value})"></label>
       <button :disabled="usesMaterialColor" @click="emit('update',{color:materialColor(part.material)})">Use material colour</button></div>
     <label>Part layer<select :value="part.layer" aria-label="Part layer" @change="emit('update',{layer:$event.target.value})"><option v-for="layer in layers" :key="layer.id" :value="layer.id">{{ layerLabel(layer) }}</option></select></label>

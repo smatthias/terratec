@@ -39,7 +39,8 @@ test('mesh data is in the piece frame for every orientation, facing outward, and
       const c=[e1[1]*e2[2]-e1[2]*e2[1],e1[2]*e2[0]-e1[0]*e2[2],e1[0]*e2[1]-e1[1]*e2[0]];
       if(Math.hypot(...c)>1e-9) assert.ok(c[0]*n[i]+c[1]*n[i+1]+c[2]*n[i+2]>0,orientation+' winding');
     }
-    assert.deepEqual(data.groups.map(g=>g.materialIndex),[0,1,2,3,4,5,6]);
+    assert.deepEqual(data.groups.map(g=>g.materialIndex),[0,1,2,3,4,5,6,7,8],'faces, the six features, long edges, ends');
+    assert.equal(data.uvs.length,p.length/3*2,'texture coordinates for every vertex');
     assert.equal(panelMeshData(panel(orientation),features),data,'same panel and features: cached');
   }
 });
@@ -48,4 +49,16 @@ test('dense machining stays fast',()=>{
   const part={...panel(),length:2000,width:600},holes=Array.from({length:64},(_,i)=>({type:'drill',face:'A',u:40+i*30,v:100+(i%5)*90,diameter:5,depth:12}));
   const start=performance.now();cutPanelPolygons(part,holes);
   assert.ok(performance.now()-start<2000,'64 holes in under 2 s (a plain CSG took about a minute)');
+});
+
+test('texture coordinates follow the sheet: grain along u, edges across the thickness, end grain on solid wood',()=>{
+  const TILE=500,END_TILE=120;
+  for(const orientation of ['horizontal','front','side']) for(const material of ['birch','beech']) {
+    const part={...panel(orientation),material},data=panelMeshData(part,[]),uv=data.uvs;
+    const r6=list=>list.map(pair=>pair.map(v=>Math.round(v*1e6)/1e6));
+    const group=index=>data.groups.find(g=>g.materialIndex===index),range=(g,k)=>{let lo=Infinity,hi=-Infinity;for(let i=g.start;i<g.start+g.count;i++){lo=Math.min(lo,uv[i*2+k]);hi=Math.max(hi,uv[i*2+k]);}return [lo,hi].map(v=>Math.round(v*1e6)/1e6);};
+    assert.deepEqual([range(group(0),0),range(group(0),1)],r6([[0,600/TILE],[0,400/TILE]]),`${orientation} ${material}: faces, u along the grain`);
+    assert.deepEqual([range(group(1),0),range(group(1),1)],r6([[0,600/TILE],[0,1]]),`${orientation} ${material}: long edges along u, across the thickness`);
+    assert.deepEqual([range(group(2),0),range(group(2),1)],r6(material==='beech'?[[0,400/END_TILE],[0,18/END_TILE]]:[[0,400/TILE],[0,1]]),`${orientation} ${material}: ends`);
+  }
 });

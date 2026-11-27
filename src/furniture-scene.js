@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {cabinetFootprint} from '../shared/furniture.mjs';
 import {cabinetParts} from '../shared/cabinet-parts.mjs';
+import {DEFAULT_WOOD,DEFAULT_METAL} from '../shared/materials.mjs';
 // Placed designs: the design's pieces (from the lazily loaded design renderer),
 // scaled from millimetres, centred on the footprint, resting on the floor and
 // turned like a cabinet. Meshes are added directly to the room group with their
@@ -21,22 +22,27 @@ function addPlacedDesign(group,item,design,designScene,add) {
     const material=[object.material].flat()[0],geometry=object.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(placement,object.matrixWorld));
     geometry.clearGroups();
     const mesh=add(geometry,[0,0,0],material.color.getHex());
-    mesh.material.metalness=material.metalness;mesh.material.roughness=material.roughness;
+    mesh.material.metalness=material.metalness;mesh.material.roughness=material.roughness;mesh.material.map=material.map;mesh.material.bumpMap=material.bumpMap;mesh.material.bumpScale=material.bumpScale;
   });
   designScene.disposeDesignGroup(pieces);
 }
+// With the design renderer loaded, cabinet panels and handles carry their
+// material textures (material-textures.js), the grain along each panel's longest side.
 export function addFurnitureVisuals(group,room,{designs=[],designScene=null}={}) {
+  const textures=designScene?.materialTextures;
   for(const item of room.furniture||[]) {
     const angle=item.rotation*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
     const add=(geometry,position,color,role='detail')=>{
       const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color,roughness:.7,side:THREE.DoubleSide}));
-      mesh.position.set(...position);mesh.userData={id:'furniture:'+item.id,baseColor:color,role,furnitureId:item.id};group.add(mesh);return mesh;
+      mesh.position.set(...position);mesh.userData={id:'furniture:'+item.id,baseColor:color,role,furnitureId:item.id};group.add(mesh);
+      mesh.castShadow=role!=='symbol';mesh.receiveShadow=true;return mesh;
     };
-    const panel=(w,h,d,x,y,z,color=0xb88c59)=>{
+    const panel=(w,h,d,x,y,z,color=0xb88c59,material=null)=>{
       const mesh=add(new THREE.BoxGeometry(w,h,d),[item.x+c*x+s*z,y,item.z-s*x+c*z],color);mesh.rotation.y=angle;
+      if(textures&&material) {textures.projectUVs(mesh.geometry,{length:textures.grainAxis({x:w,y:h,z:d}),unit:1000});mesh.material.map=mesh.material.bumpMap=textures.faceTexture(material);}
     };
     if(item.type==='design') addPlacedDesign(group,item,designs.find(d=>d.id===item.designId),designScene,add);
-    else for(const part of cabinetParts(item)) panel(...part.size,...part.position,part.color);
+    else for(const part of cabinetParts(item)) panel(...part.size,...part.position,part.color,part.part==='handle'?item.hardwareMaterial??DEFAULT_METAL:item.material??DEFAULT_WOOD);
     const footprint=cabinetFootprint(item),shape=new THREE.Shape(footprint.map(p=>new THREE.Vector2(p.x,-p.z)));
     const plan=add(new THREE.ShapeGeometry(shape),[0,.035,0],0xc49c66,'symbol');plan.rotation.x=-Math.PI/2;
   }

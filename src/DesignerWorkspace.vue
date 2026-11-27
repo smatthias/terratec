@@ -22,10 +22,12 @@ import DesignLayers from './DesignLayers.vue';
 import DesignCncPanel from './DesignCncPanel.vue';
 import DesignPieceLibrary from './DesignPieceLibrary.vue';
 import BenchDesk from './BenchDesk.vue';
+import {studioLights} from './studio-light.js';
 // The drilling bench loads when first opened.
 const DrillingBench=defineAsyncComponent(()=>import('./DrillingBench.vue'));
 const CuttingBench=defineAsyncComponent(()=>import('./CuttingBench.vue'));
 const Workbench=defineAsyncComponent(()=>import('./Workbench.vue'));
+const CncMachine=defineAsyncComponent(()=>import('./CncMachine.vue'));
 
 const props=defineProps({designs:{type:Array,required:true},applyDesigns:{type:Function,required:true},cabinet:{type:Object,default:null},
   placeDesign:{type:Function,default:null},placedDesignIds:{type:Array,default:()=>[]},focusDesignId:{type:String,default:null},
@@ -205,7 +207,7 @@ const MIME='application/x-terratec-design';
 
 // ---- 3D view
 const view=ref('3D'),canvasHost=ref(null),webgl=ref(true);
-let renderer,scene,camera,controls,group,gizmo,grid,observer,frame=0,active=true;
+let renderer,scene,camera,controls,group,gizmo,grid,observer,lights,frame=0,active=true;
 const EMPTY={parts:[],layers:[]};
 function fit() {
   if(!camera||!canvasHost.value) return;
@@ -228,6 +230,7 @@ function rebuild() {
   if(!shown.value) return;
   group=buildDesignGroup(shown.value,{selectedPartIds:selectedIds.value,selectedFeatureId:selection.value.featureId,colorByLayer:colorByLayer.value,focusLayerId:focusLayerId.value});
   scene.add(group);
+  if(shown.value.parts.length) {const b=D.designBounds(shown.value);lights?.fit(b,Math.min(0,b.min.y));}
   if(tool.value==='rotate'&&shownSelection.value.length) {gizmo=buildRotateGizmo(shownSelection.value,view.value,axisMode.value==='local'?shownActive.value?.rotation:undefined);scene.add(gizmo);}
 }
 watch([shown,selection,colorByLayer,focusLayerId,tool,axisMode],rebuild,{deep:true});
@@ -319,13 +322,13 @@ function menuCommand(action) {const partId=menu.value?.partId;menu.value=null;ac
 const drillable=part=>part?.shape==='panel';
 
 // ---- Drilling bench (one panel at a time; the design view pauses meanwhile)
-// bench: {kind: 'work' | 'drill' | 'cut', partId}. Drilling takes panels; the others any piece.
+// bench: {kind: 'work' | 'drill' | 'cut' | 'cnc', partId, face?}. Drilling and the CNC machine take panels; the others any piece.
 const bench=ref(null),benchPartId=computed(()=>bench.value?.partId??null);
-function openBench(partId=selection.value.partId,kind='drill') {
+function openBench(partId=selection.value.partId,kind='drill',face=null) {
   const part=design.value?.parts.find(p=>p.id===partId);menu.value=null;
   if(!part) return;
-  if(kind==='drill'&&!drillable(part)) {say(`${part.name} is a ${D.PIECE_FORMS[part.shape].label.toLowerCase()}; the drilling bench takes panels`);return;}
-  cancelDrag();selectPart(partId);bench.value={kind,partId};active=false;say({drill:'Drilling bench · ',cut:'Cutting bench · ',work:'Workbench · '}[kind]+part.name);
+  if((kind==='drill'||kind==='cnc')&&!drillable(part)) {say(`${part.name} is a ${D.PIECE_FORMS[part.shape].label.toLowerCase()}; the ${kind==='cnc'?'CNC machine':'drilling bench'} takes panels`);return;}
+  cancelDrag();selectPart(partId);bench.value={kind,partId,face};active=false;say({drill:'Drilling bench · ',cut:'Cutting bench · ',work:'Workbench · ',cnc:'CNC machine · '}[kind]+part.name);
 }
 const openCutting=(partId=selection.value.partId)=>openBench(partId,'cut');
 const openWorkbench=(partId=selection.value.partId)=>openBench(partId,'work');
@@ -340,8 +343,7 @@ onMounted(()=>{
     renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));
     canvasHost.value.appendChild(renderer.domElement);
     scene=new THREE.Scene();scene.background=new THREE.Color('#1b2f31');
-    scene.add(new THREE.HemisphereLight(0xffffff,0x3a4a44,2.6));
-    const sun=new THREE.DirectionalLight(0xfff3dd,2.2);sun.position.set(1500,2500,2000);scene.add(sun);
+    lights=studioLights(scene,renderer,{catcher:true});
     grid=new THREE.GridHelper(4000,40,0x4d6a60,0x2f4a44);scene.add(grid);
     setupCamera();createInteraction();
     renderer.domElement.addEventListener('pointerdown',pointerDown,true);
@@ -417,6 +419,7 @@ onBeforeUnmount(()=>{
           <button :disabled="!drillable(selectedPart)" :title="drillable(selectedPart)?'Open the drilling bench for '+selectedPart.name:'The drilling bench takes panels'" @click="openBench()">Drill…</button>
           <button :title="'Open the cutting bench (saw and router) for '+selectedPart.name" @click="openCutting()">Cut…</button>
           <button :title="'Open the workbench (measure, mark, saw, plane, chisel, finish) for '+selectedPart.name" @click="openWorkbench()">Workbench…</button>
+          <button :disabled="!drillable(selectedPart)" title="Run the panel's NC program on the CNC machine" @click="openBench(undefined,'cnc')">CNC…</button>
           <button title="Ctrl/⌘+D" @click="duplicateSelectedPart">Duplicate selection</button><button title="Delete" @click="removeSelected">Delete selection</button>
         </div>
         <div v-if="menu" class="menu-backdrop" @pointerdown="menu=null" @contextmenu.prevent="menu=null"></div>
@@ -425,6 +428,7 @@ onBeforeUnmount(()=>{
           <button role="menuitem" :disabled="!drillable(menuPart)" :title="drillable(menuPart)?'':'The drilling bench takes panels'" @click="menuCommand(openBench)">Drill on the bench…</button>
           <button role="menuitem" @click="menuCommand(openWorkbench)">Open the workbench…</button>
           <button role="menuitem" @click="menuCommand(openCutting)">Cut on the bench…</button>
+          <button role="menuitem" :disabled="!drillable(menuPart)" @click="menuCommand(id=>openBench(id,'cnc'))">Machine on the CNC…</button>
           <button role="menuitem" :disabled="!drillable(menuPart)" @click="menuCommand(()=>addFeature('drill'))">Add a drill hole</button>
           <button role="menuitem" @click="menuCommand(duplicateSelectedPart)">{{ selectedIds.length>1?'Duplicate '+selectedIds.length+' pieces':'Duplicate piece' }}</button>
           <button role="menuitem" :disabled="!selectedParts.some(p=>p.rotation)" @click="menuCommand(resetRotation)">Straighten (reset rotation)</button>
@@ -469,12 +473,13 @@ onBeforeUnmount(()=>{
         <p v-else-if="design" class="hint">Select a part in the view or the parts list to edit its shape, material, layer and machining.</p>
       </template>
       <template #cnc>
-        <DesignCncPanel v-if="plan" :key="'cnc'+formKey" :plan="plan" :cam="camResult" :design="design" @export="exportPlan" @select="selectIssue" @dxf="exportDxf" @gcode="exportGcode" @gcode-all="exportAllGcode" @update-cam="updateCam" @update-tool="updateTool" @update-stock="updateStock"/>
+        <DesignCncPanel v-if="plan" :key="'cnc'+formKey" :plan="plan" :cam="camResult" :design="design" @export="exportPlan" @select="selectIssue" @dxf="exportDxf" @gcode="exportGcode" @gcode-all="exportAllGcode" @update-cam="updateCam" @update-tool="updateTool" @update-stock="updateStock" @machine="(id,face)=>openBench(id,'cnc',face)"/>
         <p v-if="!plan" class="hint">The CNC plan and CAM programs of the design appear here.</p>
       </template>
     </BenchDesk>
     <DrillingBench :taskbar="taskbar" :taskbar-active="onScreen" v-if="bench?.kind==='drill'&&design" :design="design" :part-id="bench.partId" @commit="benchCommit" @remove="benchRemove" @close="closeBench" @message="say"/>
     <Workbench :taskbar="taskbar" :taskbar-active="onScreen" v-if="bench?.kind==='work'&&design" :design="design" :part-id="bench.partId" @commit="benchCommit" @open="kind=>openBench(bench.partId,kind)" @close="closeBench" @message="say"/>
+    <CncMachine :taskbar="taskbar" :taskbar-active="onScreen" v-if="bench?.kind==='cnc'&&design" :design="design" :part-id="bench.partId" :face="bench.face" @commit="benchCommit" @close="closeBench" @message="say"/>
     <CuttingBench :taskbar="taskbar" :taskbar-active="onScreen" v-if="bench?.kind==='cut'&&design" :design="design" :part-id="bench.partId" @commit="benchCommit" @remove="benchRemove" @close="closeBench" @message="say"/>
   </div>
 </template>
@@ -518,10 +523,11 @@ onBeforeUnmount(()=>{
 .designer .cnc-issues .error button{color:#8d2b19}.designer .cnc-issues .warning button{color:#7a5a10}
 .designer .cam-settings{margin:8px 0}.designer .cam-settings summary{cursor:pointer;font-size:12px;font-weight:700}
 .designer .cam-tools{width:100%;border-collapse:collapse;font-size:10px;margin:6px 0}.designer .cam-tools td,.designer .cam-tools th{padding:2px}.designer .cam-tools input{width:100%;min-width:0;padding:3px;font-size:10px}
-.designer .cam-programs{list-style:none;margin:4px 0;padding:0;font-size:11px}.designer .cam-programs li{display:flex;justify-content:space-between;align-items:center;padding:2px 0}.designer .cam-programs button{font-size:10px;padding:2px 8px}
+.designer .cam-programs{list-style:none;margin:4px 0;padding:0;font-size:11px}.designer .cam-programs li{display:flex;gap:4px;align-items:center;padding:2px 0}.designer .cam-programs span{flex:1}.designer .cam-programs button{font-size:10px;padding:2px 8px}
 .designer .cnc-ready{color:#2e7d5b;font-weight:700}.designer .cnc-blocked{color:#8d2b19;font-weight:700}
 .designer .danger{background:#8d2b19;color:#fff}
 .designer .place-design{width:100%;margin:6px 0;background:#263e3c;color:#f2f3eb}
+.designer .material-look{margin:-8px 0 8px;padding:5px 8px;border-radius:4px;font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 2px #000a}
 .designer .colour-row{display:flex;gap:6px;align-items:flex-end}.designer .colour-row label{flex:1}.designer .colour-row input{height:34px;padding:2px}.designer .colour-row button{font-size:11px;margin-bottom:8px}
 .designer .menu-backdrop{position:absolute;inset:0;z-index:9}
 .designer .piece-menu{position:absolute;z-index:10;display:flex;flex-direction:column;min-width:200px;padding:4px;background:#f2f3eb;border:1px solid #9fb09f;border-radius:8px;box-shadow:0 8px 28px #001c2455}

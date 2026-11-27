@@ -7,7 +7,10 @@
 import * as THREE from 'three';
 import {partSize,partCentre,designBounds,SECTION_AXES} from '../shared/furniture-design.mjs';
 import {panelMeshData,featureOutline} from './panel-mesh.js';
-import {isMetal} from '../shared/materials.mjs';
+import {isMetal,MATERIALS} from '../shared/materials.mjs';
+import {faceTexture,edgeTexture,endTexture,projectUVs} from './material-textures.js';
+// For the room (which loads this renderer lazily): textures for its cabinets.
+export * as materialTextures from './material-textures.js';
 
 const SELECTED=0x766228;
 const centreOf=box=>new THREE.Vector3((box.min.x+box.max.x)/2,(box.min.y+box.max.y)/2,(box.min.z+box.max.z)/2);
@@ -61,6 +64,23 @@ function pieceGeometry(part,size) {
 }
 
 const RAD=Math.PI/180;
+// Eased edges: real boards and bars have their edges slightly rounded, and the
+// rounding catches the light. Within `radius` of an edge of the piece's box the
+// shading normal turns from the face toward the neighbouring face (a quarter
+// round), so edges read as solid wood without changing the geometry (machining
+// stays exact). `half` is half the piece's size in its own frame.
+function easeEdges(material,half,radius) {
+  material.onBeforeCompile=shader=>{
+    shader.uniforms.easeHalf={value:half};shader.uniforms.easeRadius={value:radius};
+    shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vEase;').replace('#include <begin_vertex>','#include <begin_vertex>\nvEase=position;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform vec3 easeHalf;uniform float easeRadius;uniform mat3 normalMatrix;varying vec3 vEase;')
+      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n{vec3 t=clamp((abs(vEase)-(easeHalf-easeRadius))/easeRadius,0.,1.);if(dot(step(vec3(1e-4),t),vec3(1.))>1.5) normal=normalize(normalMatrix*(sign(vEase)*t))*faceDirection;}');
+  };
+  material.customProgramCacheKey=()=>'eased-edges';
+  return material;
+}
+// Grain and pores in relief (the texture doubles as a bump map); metals are smoother.
+const BUMP={wood:1.6,metal:.5};
 function dim(material) {material.transparent=true;material.opacity=.16;material.depthWrite=false;return material;}
 export function buildDesignGroup(design,{selectedPartId=null,selectedPartIds=[],selectedFeatureId=null,colorByLayer=false,focusLayerId=null}={}) {
   const group=new THREE.Group(),layers=new Map(design.layers.map(l=>[l.id,l]));
@@ -76,23 +96,39 @@ export function buildDesignGroup(design,{selectedPartId=null,selectedPartIds=[],
     if(!layer.visible&&!features.length) continue;
     const selected=part.id===selectedPartId||selectedPartIds.includes(part.id),metal=isMetal(part.material);
     if(layer.visible) {
-      // Some section bases are mirrored, so both faces are drawn.
-      const material=new THREE.MeshStandardMaterial({color:new THREE.Color(colorByLayer?layer.color:part.color).getHex(),roughness:metal?.35:.75,metalness:metal?.55:0,side:THREE.DoubleSide,emissive:selected?SELECTED:0x000000,emissiveIntensity:.6});
-      const materials=[dimmed(part.layer)?dim(material):material];
+      // Surfaces carry their material's texture (material-textures.js): a grain
+      // that tints with the piece's colour, or (plywood edges) baked plies.
+      // Colour by layer shows plain layer colours. Some section bases are
+      // mirrored, so both faces are drawn.
+      const boxy=part.shape==='panel'||part.shape==='bar',half=new THREE.Vector3(size.x/2,size.y/2,size.z/2);
+      const surface=(texture=null)=>{
+        const baked=!colorByLayer&&texture?.userData.baked,textured=colorByLayer?null:texture;
+        const material=new THREE.MeshStandardMaterial({color:baked?0xffffff:new THREE.Color(colorByLayer?layer.color:part.color).getHex(),map:textured,
+          bumpMap:textured,bumpScale:metal?BUMP.metal:BUMP.wood,
+          roughness:metal?.35:.75,metalness:metal?.55:0,side:THREE.DoubleSide,emissive:selected?SELECTED:0x000000,emissiveIntensity:.6});
+        if(boxy) easeEdges(material,half,Math.min(3,Math.min(size.x,size.y,size.z)*.3));
+        return dimmed(part.layer)?dim(material):material;
+      };
+      const materials=[surface(faceTexture(part.material))];
       let geometry;
       if(part.shape==='panel') {
         // Panels show their machining really cut out; each feature's cut surfaces
-        // are a material group in its layer colour.
+        // are a material group in its layer colour; the long edges and the ends
+        // follow (plywood shows its plies, solid wood its end grain).
         const data=panelMeshData(part,features);
-        geometry=new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(data.positions.slice(),3)).setAttribute('normal',new THREE.BufferAttribute(data.normals.slice(),3));
+        geometry=new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(data.positions.slice(),3)).setAttribute('normal',new THREE.BufferAttribute(data.normals.slice(),3)).setAttribute('uv',new THREE.BufferAttribute(data.uvs.slice(),2));
         for(const g of data.groups) geometry.addGroup(g.start,g.count,g.materialIndex);
         for(const feature of features) {
           const cut=new THREE.MeshStandardMaterial({color:feature.id===selectedFeatureId?0xffe08a:new THREE.Color(layers.get(feature.layer).color).getHex(),roughness:.8,side:THREE.DoubleSide});
           materials.push(dimmed(feature.layer)?dim(cut):cut);
         }
-      } else geometry=pieceGeometry(part,size);
+        const form=MATERIALS[part.material]?.form;
+        materials.push(surface(form==='plywood'?edgeTexture(part.material,part.thickness):faceTexture(part.material)),
+          surface(form==='plywood'?edgeTexture(part.material,part.thickness):form==='solid'?endTexture(part.material):faceTexture(part.material)));
+      } else geometry=projectUVs(pieceGeometry(part,size),{length:part.axis??'x'});
       const mesh=new THREE.Mesh(geometry,part.shape==='panel'?materials:materials[0]);
       mesh.userData={role:'part',partId:part.id,layerId:part.layer,featureIds:features.map(f=>f.id)};holder.add(mesh);
+      mesh.castShadow=mesh.receiveShadow=!dimmed(part.layer);
       const lines=new THREE.LineBasicMaterial({color:selected?0xffe08a:new THREE.Color(layer.color).getHex()});
       const edgeSource=part.shape==='panel'?new THREE.BoxGeometry(size.x,size.y,size.z):geometry;
       const edges=new THREE.LineSegments(new THREE.EdgesGeometry(edgeSource,25),dimmed(part.layer)?dim(lines):lines);
@@ -146,7 +182,7 @@ export function pickDesign(group,camera,x,y,withPoint=false) {
   const hits=ray.intersectObjects(targets,false);
   const hit=hits[0];
   if(!hit) return null;
-  // Cut surfaces are material groups 1…n of the panel mesh, one per feature.
+  // Cut surfaces are material groups 1…n of the panel mesh, one per feature (the edges and ends follow).
   const slot=hit.face?.materialIndex??0,featureId=slot>0?hit.object.userData.featureIds?.[slot-1]??null:null;
   const result={partId:hit.object.userData.partId,featureId};
   return withPoint?{...result,point:{x:hit.point.x,y:hit.point.y,z:hit.point.z}}:result;

@@ -44,16 +44,43 @@ included in geometry history.
 ctest --test-dir build --output-on-failure
 npm test
 npm run build
-npx playwright install --with-deps chromium
+npm run test:browser:install
 npm run test:browser
 ```
+
+The browser checks drive Playwright's own Chromium build, which
+`npm run test:browser:install` downloads once for the installed Playwright version
+(`--with-deps` also installs the system libraries it needs on Linux; without root,
+`npx playwright install chromium` downloads only the browser). Where that download
+is not possible (offline, or a network that blocks Playwright's CDN), point
+`TERRATEC_CHROMIUM` at an installed Chromium or Chrome instead:
+`TERRATEC_CHROMIUM=/usr/bin/chromium npm run test:browser`. Without either, the
+checks stop at once and say how to install the browser.
 
 The native executable may also be built directly when CMake is unavailable:
 
 ```sh
 mkdir -p build
-g++ -std=c++17 -Wall -Wextra -Wpedantic core/main.cpp -o build/terratec-core
+g++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -static core/main.cpp -o build/terratec-core
 ```
+
+However it is built (`cmake -S . -B build`, an in-source `cmake . && make`, an IDE's
+own build folder such as `cmake-build-debug`, or a multi-config generator), CMake
+writes the core to `build/terratec-core` in the project, where the API, the tests and
+the release package run it.
+
+On Linux the core is linked fully static (CMake option `TERRATEC_STATIC_CORE`, on by
+default), so a core built on one machine (or by CI, for the release archive) runs on
+any x86-64 Linux. A core linked against the build machine's libraries only runs where
+those libraries are as new: one built on Ubuntu 24.04 fails on 22.04 with
+`GLIBCXX_3.4.32 not found`. Where no static C library is installed (e.g. Fedora
+without `glibc-static`; drop `-static` from the command above), CMake links it
+normally and the core must be built on the machine that runs it.
+
+`npm test` first checks (`npm run pretest`) that the npm packages are installed and
+that `build/terratec-core` exists and runs on this machine, and if not, prints the
+commands to fix it (`npm ci`, or rebuilding the core) instead of failing test by test It also
+points out a core left elsewhere by an earlier build (e.g. `./terratec-core`).
 
 ## Project contract
 
@@ -890,6 +917,37 @@ Start with **New empty design**, **New box carcass** (a 600 × 720 × 560 mm car
 with shelf-pin holes and back-panel grooves) or **Design from selected cabinet**,
 which converts the cabinet selected in the room into editable pieces.
 
+**Material textures.** Pieces are drawn in their material wherever they appear:
+the designer's views, the workshop benches, the CNC machine and the room (cabinet
+panels and handles, and placed designs, once the design renderer has loaded with
+the first furniture). Each wood shows its grain (growth rings, latewood, fibres)
+and the feature it is told apart by: oak board (veneered) open pores and pale ray
+flakes over a strong cathedral figure; beech fine, even grain with small dark ray
+flecks; walnut a dark, wavy grain with long darker streaks; maple a pale, fine
+grain with the shimmering bands of curly maple; pine bold latewood and knots, the
+rings swirling round them; birch plywood the broad, cloudy figure of a rotary-cut
+face with oval repair patches. White board has a plain melamine face and the
+metals a brushed finish. The piece library's material swatches are pictures of
+these faces, and **Design properties** shows a strip of the selected piece as it
+looks (its material in its own colour). The grain runs along each piece's length, and a piece's
+own colour (or the finishing brush's) tints it, so stains keep the grain. Panel
+edges show what they are made of: birch plywood its plies (an odd number, about
+1.4 mm each), solid wood side grain on the long edges and end grain on the ends,
+boards their face (as edge-banded). The textures are computed in the browser (no
+image files), repeat without seams and are made once per material. **Colour by
+layer** shows plain layer colours.
+
+**Light and volume.** The room, the designer and the workshop benches share one
+lighting: a warm key light that casts soft shadows (pieces on each other, on the
+designer's ground and the room's floor and walls), a cool fill light from the other
+side and a weaker ambient, so every piece shows a lit and a shaded side. Boards and
+rectangular bars have eased edges: within up to 3 mm of an edge (at most 30 % of the
+thinnest side) the shading rounds over like a slightly softened edge and catches the
+light; the geometry and its machining stay exact. The grain also gives the surface
+relief (pores and fibres catch the light; metals less). Plan stays a flat drawing,
+without shadows. With a software renderer (virtual machines, remote desktops, CI) the
+lighting is the same but without shadows.
+
 **Piece library.** Every piece has a base form, a length, a material and a
 colour. Pick a base form from the cards (the icons show the cross-section), pick a
 material from the wood or metal swatches, set the new piece's length and colour,
@@ -972,7 +1030,7 @@ space. Rotation turns a piece about its centre; its position stays the corner of
 the unrotated piece and its machining turns with it.
 
 **Piece menu.** Right-click a piece in the view (or press the Menu key or
-Shift+F10 for the active piece) for **Drill on the bench…**, **Open the workbench…**, **Cut on the bench…**, **Add a drill hole**,
+Shift+F10 for the active piece) for **Drill on the bench…**, **Open the workbench…**, **Cut on the bench…**, **Machine on the CNC…**, **Add a drill hole**,
 **Duplicate piece**, **Straighten (reset rotation)** and **Delete piece**. With
 several pieces selected, duplicate and delete apply to all of them. A right-drag
 still pans the view; Escape or a click elsewhere closes the menu.
@@ -1061,6 +1119,16 @@ italics) with the reason.
 | Shaping and finishing | Finishing brush (stains and paints, previewed on the piece). *Spokeshave, rasps and files* |
 | Workholding and sharpening | Shooting board (square an end with a 0.2 mm pass). *Bench hook, vise and holdfasts, clamps, sharpening stones and strop* |
 
+Every tool in the chest has an icon, and the tool in hand is shown over the piece
+as itself, with its working point on the cross: bench planes (jack, smoothing,
+jointer) with their japanned body, rosewood knob and tote and the iron under its
+lever cap, a block plane, rabbet, plough, router and shoulder planes, a flexed card
+scraper; panel saws with tapered plates and backsaws with brass spines, each with
+its teeth and handle; bench, mortise and paring chisels; a marking, cutting or
+mortise gauge, try and combination squares, a marking knife, dividers, an awl and
+a tape; a brace with its auger bit, an eggbeater hand drill, a gimlet; and the
+brush with bristles in the chosen finish.
+
 The selection follows the essential hand-tool kit as commonly taught for
 hand-tool woodworking (for example by Shannon Rogers, The Renaissance Woodworker).
 It was compiled from general knowledge, not copied from a published list; check
@@ -1075,11 +1143,12 @@ the designer and the room, not the material (weight and price are unchanged).
 A see-through box shows what the saw, plane, chisel or rebate plane will remove,
 red with the reason when it is not possible. Each change is one undo step.
 
-**Bench windows.** All three benches work like a desktop. The 3D bench fills the
+**Bench windows.** All the benches (and the CNC machine) work like a desktop. The 3D bench fills the
 whole screen as the background and resizes with it; the bench's panels are
 windows on top (Workbench: *Tool chest*, *Tool in hand*, *Layers*, *Help*; drilling
 bench: *Drill press*, *Holes on this face*, *Layers*, *Help*; cutting bench: *Saw
-and router*, *Grooves and pockets*, *Layers*, *Help*).
+and router*, *Grooves and pockets*, *Layers*, *Help*; CNC machine: *Machine
+control*, *NC program*, *Tool rack*, *Job setup and checks*, *Help*).
 
 - Windows overlap in layers: clicking a window brings it to the front; ⧉ sends it
   behind the others; – minimises it to the taskbar.
@@ -1211,6 +1280,97 @@ dialect but have not been run on real machines: check every program in a simulat
 and with a dry run above the material before cutting. Native formats of woodworking
 machining centres (Biesse CIX, Homag woodWOP MPR, SCM Xilog) are not written; use
 their DXF import or an ISO program.
+
+**CNC machine.** **Machine on the CNC…** (piece menu), **CNC…** (selection toolbar),
+**Run on the CNC machine** or a program's **▶ Run** (CNC and CAM window) runs a
+panel face's NC program on a simulated 3-axis gantry router: a 2500 × 1300 mm
+table with an MDF spoilboard, pop-up stops and a tool rack along the back edge. It
+runs the program text exactly as **Export NC program** writes it, in the chosen
+post's dialect (all six posts, millimetres or inches, arcs or short lines), so it
+is the simulator the exports should be checked in. It loads on first use.
+
+- **Job setup and checks.** Pick the job (any panel face with machining). A program
+  that cuts the part free starts from a blank **Blank margin** (default 20 mm)
+  larger on every side, so the holding tabs hold the part in the frame; other
+  programs (face B) machine the cut-out panel, turned over, against the stops.
+  Work zero (G54) is the part's corner on the top of the blank. Before you start,
+  the **program check** runs the whole program over a fresh blank and lists its
+  cycle time, tool changes, cutting length and material removed, and any
+  **alarms**: a rapid move (G0) into the material, cutting with the spindle
+  stopped or with no tool, or a move beyond the machine's travel (one alarm per
+  axis). Click an alarm to go to its line. CAM errors for the panel are listed
+  too; a blocked program does not load.
+- **Machine control.** **▶ Cycle start** (Space) runs the program and **❚❚ Feed
+  hold** (Space) pauses it; **■ Reset** rewinds and reloads the blank; **⏭ Run to
+  end** finishes at once. The readout shows the work and machine position of the
+  tool tip, the feed, spindle speed, tool and line. **Feed override** (10–200 %)
+  changes feed moves as on a real control; rapids, dwells and tool changes keep
+  their speed, and the cycle time follows it. **Simulation** runs the machine
+  faster than real time (up to 500 ×). **Single block** stops after each line.
+  **Dry run** runs the tool 25 mm above the program, cuts nothing and ignores
+  alarms. The **Program** slider, or a click on a program line, goes straight
+  there. An alarm stops the run before the move: **Reset**, or **Clear alarm** to
+  run it anyway.
+- **Tool changes.** With an automatic tool changer (LinuxCNC, Mach, Fanuc,
+  Sinumerik, Heidenhain), `M6` / `TOOL CALL` takes the spindle up, returns the tool
+  to its pocket and fetches the next. On GRBL the program stops (`M0`) for you to
+  fit the tool by hand; Cycle start continues.
+- **Tools you can tell apart.** Cutters are modelled as they look: a spiral end
+  mill's flutes wind one way on an upcut and the other on a downcut, a compression
+  cutter's turn over near the tip, a straight bit's run straight; a twist drill
+  has a pointed tip, a dowel (brad point) drill a centre spur and two rim spurs, a
+  connector or hinge boring bit a wide flat head. Each holder is banded in the
+  colour of its tool's layer, and the rack's pockets are labelled T1, T2 …; the
+  tool rack window and the readout show an icon of each cutter's form. The
+  drilling bench's bits (twist, brad point, Forstner) and the cutting bench's
+  blades (with their teeth; a dado set as a stack) and straight router bits are
+  the same models, with icons in their racks.
+- **Tool rack.** Each machining layer's tool T1, T2 … with the cutter fitted for it,
+  from a rack of common cutters: drill bits (Ø3, Ø5 and Ø8 dowel drills, Ø10, Ø15
+  connector bit, Ø35 hinge boring bit) for drilling layers, and upcut, downcut,
+  compression and straight spiral end mills (Ø3–Ø12) for any layer. Fitting a
+  cutter sets the layer's tool to its diameter and to speeds and feeds from the
+  chip load for the panel's material (softwood, hardwood, board, plywood,
+  aluminium), as one undoable design edit that rewinds the program. The rack
+  warns about a chip load so low the cutter rubs and burns the wood or so high it
+  may break, a step-down deeper than the flutes or heavy for the diameter, a cut
+  deeper than the flutes reach, a drill bit asked to bore larger holes, and steel
+  panels; **Use … rpm · feed …** applies the recommended values. The cutter chosen
+  for a layer is remembered in this browser.
+- **The view.** The machine stands on a concrete workshop floor: a brushed
+  aluminium T-slot bed under a surfaced MDF spoilboard, the tool rack (each pocket
+  in the colour of its tool's layer) and the gantry, carriage and Z slide, which
+  move with the program and cast shadows. The spindle turns while it runs, chips
+  in the colour of the cut fly while it cuts, and the blank is cut away under the
+  tool in its material (see *Material textures*): the face where it is untouched,
+  and inside the cuts birch plywood's plies banded by depth, the chipboard core of
+  a laminated or veneered board, or solid wood a shade paler; its sides show the
+  same. **Machine view**, **Follow the tool** and **Top view** (which hides the
+  machine above the cutter) are in the taskbar. **Save this program** downloads
+  the program being run.
+- **Visualisation.** The bar over the view switches the blank between
+  **Material** and **Depth map** (cut depth from the top to through, with a
+  legend) and the toolpath between **By layer**, **Feed rate** (slow blue to fast
+  red, with the program's feed range) and **Off**; rapids are yellow and the moves
+  already run are brighter. Pointing at the blank reads its position and the depth
+  cut there. The readout names the tool in the spindle and shows the **spindle
+  load**: the rate of material removal against a full-width slot at the tool's
+  step-down and programmed feed (100 %), as a bar (amber above 80 %, red above
+  110 %) and a trace of the last seconds. The **job timeline** under the controls
+  shows the job as runs of each tool in its layer colour, tool changes (hatched)
+  and program stops (red marks), with the current moment; click it to go there.
+
+The simulated blank is a height field of about 200 000 points under a
+flat-bottomed round tool, so drill points, tool deflection and the spoilboard
+surface are not modelled, and the machine moves at its rapid and feed rates
+without acceleration: real cycle times are longer. Edge holes are not in 3-axis
+programs and are not simulated. It checks programs; it does not replace a dry run
+on your machine.
+
+The machine view draws a frame only when something changes (the machine moves, the
+blank is cut, the camera turns), so an idle machine costs nothing. Shadows need a
+graphics card: with a software renderer (SwiftShader or llvmpipe, as in virtual
+machines, remote desktops and CI) the machine is drawn without them.
 
 **Placing a design in the room.** **Place in room** adds the design to the room as
 furniture at the free spot nearest the room centre and switches to the room. A
