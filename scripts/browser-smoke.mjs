@@ -728,6 +728,8 @@ try {
   await mkdir('test-results',{recursive:true});
   await quotePage.pdf({path:'test-results/quote-estimate.pdf',preferCSSPageSize:true,printBackground:true});
   await quotePage.locator('.page').first().screenshot({path:'test-results/quote-summary.png'});await quotePage.close();
+  await page.getByRole('button',{name:'Billing exchange',exact:true}).click();
+  const billingRegion=page.getByRole('region',{name:'Billing exchange',exact:true});assert.equal(await billingRegion.getByRole('button',{name:'Export billing JSON',exact:true}).isDisabled(),true);
   await page.getByLabel('Quote status actor',{exact:true}).fill('Matthias');
   await page.getByLabel('Quote status note',{exact:true}).fill('Local status record only');
   await page.getByRole('button',{name:'Record quote as sent',exact:true}).click();
@@ -735,6 +737,11 @@ try {
   await page.getByRole('button',{name:'Record quote as accepted',exact:true}).click();
   await page.getByTestId('job-record-message').filter({hasText:'Quote status recorded: accepted'}).waitFor();
   assert.match(await page.getByTestId('quote-status').textContent(),/accepted/);
+  const billingJsonPromise=page.waitForEvent('download');await billingRegion.getByRole('button',{name:'Export billing JSON',exact:true}).click();const billingJsonDownload=await billingJsonPromise,billingJsonStream=await billingJsonDownload.createReadStream();let billingJson='';for await(const chunk of billingJsonStream)billingJson+=chunk.toString();const billingDocument=JSON.parse(billingJson);
+  assert.equal(billingDocument.format,'terratec-billing-exchange');assert.equal(billingDocument.source.quoteId,quote.id);assert.equal(billingDocument.customer.customer,'Example customer');assert.equal(billingDocument.netCents,quote.costing.totalCents);assert.equal(billingDocument.lines.reduce((n,l)=>n+l.amountCents,0),billingDocument.netCents);assert.equal(billingDocument.invoiceNumber,null);
+  const billingCsvPromise=page.waitForEvent('download');await billingRegion.getByRole('button',{name:'Export billing CSV',exact:true}).click();const billingCsvDownload=await billingCsvPromise,billingCsvStream=await billingCsvDownload.createReadStream();let billingCsv='';for await(const chunk of billingCsvStream)billingCsv+=chunk.toString();assert.ok(billingCsv.includes(billingDocument.exportKey));assert.ok(billingCsv.includes('"Example customer"'));assert.ok(billingCsv.includes('"line_net_cents"'));assert.ok(billingCsvDownload.suggestedFilename().endsWith('.csv'));
+  await page.getByRole('button',{name:'Billing exchange',exact:true}).click();
+
   await page.getByTestId('quote-register-row').filter({hasText:'accepted'}).waitFor();
   await page.getByLabel('Search all quotes',{exact:true}).fill('Example Q-TEST');
   await page.getByLabel('Quote register status',{exact:true}).selectOption('draft');

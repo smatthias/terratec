@@ -72,7 +72,7 @@ onMounted(()=>run(refresh));
         <template v-if="!selected().fulfilment"><label>Assigned workshop<input v-model="workshop" maxlength="80"></label><label>Workshop due date<input v-model="dueDate" type="date"></label><button :disabled="!actor.trim()||!trackingNote.trim()||!workshop.trim()" @click="fulfil('assigned')">Assign workshop</button></template>
         <template v-else><button v-if="selected().fulfilment.status==='assigned'" :disabled="!actor.trim()||!trackingNote.trim()" @click="fulfil('in-production')">Start production tracking</button><button v-if="selected().fulfilment.status==='in-production'" :disabled="!actor.trim()||!trackingNote.trim()" @click="fulfil('completed')">Mark workshop completed</button><button :disabled="!actor.trim()||!trackingNote.trim()" @click="fulfil('cancelled')">Cancel workshop assignment</button></template>
       </template>
-      <JobQuotes :key="record.id+':'+revision" :revision="selected()" :busy="busy" :job-name="record.name" :focus-id="quoteFocus" @save="saveQuote" @status="quoteStatus" @export="emit('quote',$event)" @print="emit('quotePrint',$event)"/>
+      <JobQuotes :key="record.id+':'+revision" :revision="selected()" :busy="busy" :job-name="record.name" :job-id="record.id" :updated-at="record.updatedAt" :focus-id="quoteFocus" @save="saveQuote" @status="quoteStatus" @export="emit('quote',$event)" @print="emit('quotePrint',$event)"/>
     </template></fieldset><p role="status" data-testid="job-record-message">{{ message }}</p>
   </section>
 </template>

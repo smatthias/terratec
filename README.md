@@ -1819,3 +1819,15 @@ This is advisory sheet planning: it does not distribute jobs over working days,
 estimate labour or machine time, reserve an external workshop or block assignments.
 Refresh workshop jobs to see assignments changed elsewhere. Capacity settings use
 `GET/PUT /api/workshops/capacity`, with revision checks and a 16 KiB request limit.
+
+### Billing exchange
+
+Open **Billing exchange** on a saved quote. Record it as accepted and include a
+saved customer to enable JSON/CSV export. The handoff uses the saved revision and
+prices, verifies their integrity and includes exact minor-unit amounts, source
+IDs and a repeatable quote-based deduplication key. Tax and invoice numbering are
+unset. No external system is contacted and no quote is modified.
+
+See [Billing exchange v1](docs/BILLING_EXCHANGE.md) for adapter mappings, quantity
+units, rounding, CSV conventions and duplicate handling. This generic format
+requires a receiving-system adapter; vendor-specific imports are not implemented.
