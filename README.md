@@ -1905,3 +1905,7 @@ for the accepted archive profile and verification limits.
 To test that exact ZIP against the pinned engine, add `--bundle FILE.zip` to
 `check:native-viewer` or `check:native-render`. Both commands verify the archive
 before native execution and support `--report FILE.json` with its SHA-256.
+
+The native adapter panel can display these recorded reports after matching them
+to the selected ZIP's hash and source geometry. Importing a report does not rerun
+the native checks or establish report authenticity.
