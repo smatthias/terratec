@@ -24,7 +24,8 @@
     "check:handoff": "node scripts/check-simulation-handoff.mjs",
     "check:terraflux": "node scripts/check-terraflux.mjs",
     "check:startup": "node server/startup-check.mjs",
-    "check:storage": "node server/storage-check.mjs"
+    "check:storage": "node server/storage-check.mjs",
+    "check:native-bundle": "node scripts/check-native-bundle.mjs"
   },
   "dependencies": {
     "three": "0.187.0",

@@ -1895,3 +1895,9 @@ Native rendering can be checked with `npm run check:native-render -- --engine-re
 software modes with matching OBJ coverage. See the adapter documentation for build
 requirements and the test-only headless context bootstrapper. Adapter purpose checks
 block unsupported physical simulation instead of treating a viewer export as physics.
+
+Native viewer ZIPs can also be checked read-only in the adapter panel or with
+`npm run check:native-bundle -- /path/to/terratec-native-viewer.zip`.
+This checks archive integrity and rebuilds geometry/source mappings from the
+embedded handoff. See [the adapter contract](docs/NATIVE_VIEWER_ADAPTER.md#read-only-bundle-verification)
+for the accepted archive profile and verification limits.

@@ -136,3 +136,17 @@ support or every receiving device's rendering capability automatically.
 Exports enforce configurable triangle and logical retained CPU mesh budgets (defaults: 2,000,000 triangles and 64 MiB). The reviewed OBJ importer expands each triangle into three 96-byte vertices and three 4-byte indices: 300 bytes per triangle. The pinned C++ contract checks the ABI, exact-fit admission and one-byte-over rejection against the engine budget implementation. This excludes allocation overhead, parser peak memory, textures, GPU allocations and framebuffers; it is not a process memory guarantee.
 
 The manifest records resource usage and contiguous source ranges, including scoped room, wall or furniture identifiers and material references. The export panel can look up a zero-based triangle from the just-exported manifest. OBJ face numbers are one-based. This lookup does not implement native picking: geometry remains one native mesh node.
+
+## Read-only bundle verification
+
+Use **Verify native viewer bundle** in the adapter panel, or:
+
+```sh
+npm run check:native-bundle -- /path/to/terratec-native-viewer.zip
+```
+
+The reader accepts only TerraTec's canonical, uncompressed ZIP profile: at most 16 entries, 32 MiB of text payload and bounded archive overhead. It checks CRCs, UTF-8, safe unique names, local headers, the central directory and end record, with no extraction. The native bundle must contain exactly the four exported files in order. Recompressed ZIPs, reformatted JSON and other externally rewritten archives are rejected; re-export from the original handoff instead.
+
+Verification rebuilds the current pinned adapter output from the embedded checksummed handoff, then compares all four files exactly. This checks scene asset paths/transforms, OBJ geometry/normals, source/material ranges, engine profile and resource claims together. Browser verification additionally enforces the current receiving resource limits; the command uses the default limits. Successful verification enables source-range lookup without changing the workspace, material mapping or downloading a new bundle. Failures clear the previous range result.
+
+Checksums establish internal consistency, not author identity or authenticity. A fully regenerated archive containing a different valid model can pass. Verification does not run the native renderer or physics, and older adapter output without the current resource/source metadata must be re-exported.

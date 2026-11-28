@@ -12,3 +12,18 @@ export function storedZip(files) {
  }
  const directorySize=directory.reduce((s,p)=>s+p.length,0),end=header(22),v=end.view;v.setUint32(0,0x06054b50,true);v.setUint16(8,entries.length,true);v.setUint16(10,entries.length,true);v.setUint32(12,directorySize,true);v.setUint32(16,offset,true);parts.push(...directory,end.bytes);const result=new Uint8Array(offset+directorySize+22);let i=0;for(const part of parts){result.set(part,i);i+=part.length;}return result;
 }
+// Read only this adapter's canonical stored-ZIP profile, never extract to disk.
+export const MAX_ADAPTER_ZIP_BYTES=33554432+8192;
+export function readStoredZip(bytes){
+ if(!(bytes instanceof Uint8Array)||bytes.length<22||bytes.length>MAX_ADAPTER_ZIP_BYTES)throw Error('Adapter ZIP size or byte input is invalid');
+ const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),decoder=new TextDecoder('utf-8',{fatal:true}),files=[];let offset=0,total=0;
+ while(offset+4<=bytes.length&&view.getUint32(offset,true)===0x04034b50){
+  if(files.length>=16||offset+30>bytes.length)throw Error('Invalid adapter ZIP local header');
+  const size=view.getUint32(offset+18,true),unpacked=view.getUint32(offset+22,true),nameLength=view.getUint16(offset+26,true),extra=view.getUint16(offset+28,true),start=offset+30+nameLength;
+  total+=size;if(view.getUint16(offset+6,true)!==0||view.getUint16(offset+8,true)!==0||extra!==0||size!==unpacked||nameLength<1||nameLength>200||total>33554432||start+size>bytes.length)throw Error('Unsupported or truncated adapter ZIP entry');
+  const data=bytes.subarray(start,start+size);if(crc32(data)!==view.getUint32(offset+14,true))throw Error('Adapter ZIP CRC mismatch');
+  try{files.push({name:decoder.decode(bytes.subarray(offset+30,start)),content:decoder.decode(data)});}catch{throw Error('Adapter ZIP requires valid UTF-8 text');}offset=start+size;
+ }
+ const canonical=storedZip(files);if(canonical.length!==bytes.length||canonical.some((b,i)=>b!==bytes[i]))throw Error('Adapter ZIP directory or canonical headers mismatch');
+ return files;
+}
