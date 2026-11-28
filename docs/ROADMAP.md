@@ -1,21 +1,23 @@
 # TerraTec progress
 
-Overall: **approximately 77% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
+Overall: **approximately 79% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
 
 | Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
 | Project foundation | 97% | Shared startup configuration, native-core and storage diagnostics | Broader platform validation |
-| Design workspace | 95% | Desktop panels, fullscreen, room switching, saved constraint list and Plan indicators | Production browser verification |
-| Parametric geometry | 75% | Locked points, fixed lengths and parallel/perpendicular wall relationships with bounded solving and schema-9 persistence | Constraint UI browser verification |
-| Building design | 75% | Shared floor plan, linked openings and whole-building quantities with overlap handling | Building-level drawings and export |
-| Interiors and furniture | 88% | Cabinet editing, furniture designer, placement tools, cutting/drilling benches, workbench and material rendering | Verify complete editing workflows |
-| Drawings and exchange | 88% | Combined SVG, A4/A3 sheets and numbered tiled HTML with 10 mm overlaps | Browser verification of tiled output and alignment |
+| Design workspace | 96% | Room/constraint editing and verified source preview with selection, isolation and camera controls | Complete workflow and platform validation |
+| Parametric geometry | 75% | Locked points, fixed lengths and parallel/perpendicular wall relationships with bounded solving and schema-9 persistence | Expand constraint editing and failure diagnostics |
+| Building design | 75% | Shared floor plan, linked openings and whole-building quantities with overlap handling | Shared geometry and material take-offs |
+| Interiors and furniture | 88% | Cabinet/furniture editing, placement and workshop benches | Verify complete editing workflows |
+| Drawings and exchange | 89% | Scaled/tiled building sheets and scoped source measurement JSON/CSV | Verify measurement reports against their source bundle |
 | Manufacturing | 90% | Persisted machine limits block incompatible panel and combined NC exports | Machine setup and fixture validation |
-| Distributed production | 80% | Persistent daily sheet capacity, active due-date reservations and proposed assignment previews | Working calendars and duration estimates |
-| Customer and business tools | 78% | Accepted-quote billing JSON/CSV with exact amounts, provenance and deduplication keys | Receiving-system adapters and import receipts |
+| Distributed production | 80% | Persistent sheet capacity, due-date reservations and assignment previews | Working calendars and duration estimates |
+| Customer and business tools | 78% | Accepted-quote billing JSON/CSV with exact amounts and provenance | Receiving-system adapters and import receipts |
 | Assisted design | 15% | Bounded JSON furniture commands with preview, validation and atomic undo | Proposal adapters and additional operations |
-| TerraFlux integration | 70% | Pinned native rendering smoke, geometry adapter and explicit solver capability gating | Native resource budgets and source-element traceability |
-| Release readiness | 70% | Startup checks shared by development and packaged releases, recovery-safe warnings and configuration validation | Broader platform validation |
+| TerraFlux integration | 89% | Verified ZIP/native parser/render checks, source picking, metrics and provenance-bound reports | Report round-trip verification; native physics remains disconnected |
+| Release readiness | 78% | Native/Node/browser CI, packaged recovery and measured headless rendering | Broader platform validation |
+
+The dated entries below record historical increments; their pending checks and measurements describe those revisions, not the current head. Current native/browser validation is summarized in the latest increments.
 
 This iteration adds a platform archive containing the production frontend, API and native executable. Node.js is required on the target; npm dependencies, Vite and a compiler are not. CI uploads a Linux x64 archive. Other operating systems and Linux distributions remain unverified.
 
