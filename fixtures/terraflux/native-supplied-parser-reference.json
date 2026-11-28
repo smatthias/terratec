@@ -1,0 +1,56 @@
+{
+  "format": "terratec-native-parser-check",
+  "version": 1,
+  "engineCommit": "1ce82c3c0dfd5f8f12a149a4b47d25c2c584aebc",
+  "bundle": {
+    "status": "verified",
+    "input": "supplied-archive",
+    "archiveSha256": "21c3dbedf5b645ac6f1fb6deb59ae436b93de5050ff1c8727bce10700d76b551",
+    "archiveBytes": 20275,
+    "admission": {
+      "status": "within-budget",
+      "limits": {
+        "maxTriangles": 2000000,
+        "maxLogicalCpuMeshBytes": 67108864
+      },
+      "usage": {
+        "triangles": 12,
+        "importedVertices": 36,
+        "vertexStrideBytes": 96,
+        "indexStrideBytes": 4,
+        "vertexBytes": 3456,
+        "indexBytes": 144,
+        "logicalCpuMeshBytes": 3600
+      },
+      "exceeded": [],
+      "utilization": {
+        "trianglesPercent": 0,
+        "logicalCpuMeshPercent": 0.01
+      },
+      "scope": "Logical retained OBJ mesh payload on the reviewed x86_64 ABI; excludes allocation overhead, parser peak memory, textures, GPU resources and framebuffers."
+    }
+  },
+  "source": {
+    "modelSha256": "5e714436c2571c1ad0cf46457ca13177d6386512225d2cc2273858f18b8ea40f",
+    "projectSha256": "9ee3aaaf41a48452e961b54c9f8fe04178381eeae1b10f9f069978d100c463db"
+  },
+  "summary": {
+    "positions": 24,
+    "triangles": 12,
+    "elements": 6,
+    "bounds": {
+      "min": {
+        "x": -2.5,
+        "y": 0,
+        "z": -1.5
+      },
+      "max": {
+        "x": 2.5,
+        "y": 3.2,
+        "z": 1.5
+      }
+    }
+  },
+  "nativeLog": "Native logical CPU mesh bytes: 3600; exact-fit accepted, one-byte-short rejected\nNative scene-v2 and OBJ parsers accepted 12 triangles; bounds and normals match\n",
+  "simulationConnected": false
+}

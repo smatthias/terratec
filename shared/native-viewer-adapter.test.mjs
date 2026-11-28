@@ -1,0 +1,16 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {execFileSync} from 'node:child_process';
+import {nativeViewerBundle,nativeViewerZip,NATIVE_VIEWER_PROFILE} from './native-viewer-adapter.mjs';import {exportSimulationHandoff} from './simulation-handoff.mjs';import {storedZip} from './stored-zip.mjs';
+const old=JSON.parse(await readFile(new URL('../fixtures/terraflux/handoff-legacy-v1.json',import.meta.url),'utf8')),text=await exportSimulationHandoff(JSON.stringify(old.model),old.mapping);
+test('native scene-v2 adapter produces safe asset references, identity transforms and complete OBJ geometry',async()=>{
+ const {files,manifest}=await nativeViewerBundle(text),scene=JSON.parse(files.find(f=>f.name==='scene.json').content),obj=files.find(f=>f.name==='assets/model.obj').content;
+ assert.equal(scene.format,'terraflux.scene');assert.equal(scene.version,2);assert.equal(scene.nodes[0].name,'Root');assert.equal(scene.nodes[0].mesh_instance,false);assert.equal(scene.nodes[1].mesh_asset,'terratec-model');assert.deepEqual(scene.nodes[1].translation,[0,0,0]);assert.equal(scene.assets['terratec-model'],'assets/model.obj');assert.equal(manifest.summary.triangles,28);assert.equal((obj.match(/^f /gm)||[]).length,28);assert.equal((obj.match(/^v /gm)||[]).length,manifest.summary.positions);assert.equal((obj.match(/^vn /gm)||[]).length,manifest.summary.positions);
+ for(const line of obj.split('\n').filter(l=>l.startsWith('f ')))for(const corner of line.slice(2).split(' ')){const [v,n]=corner.split('//').map(Number);assert.equal(v,n);assert.ok(v>0&&v<=manifest.summary.positions);}
+ assert.equal(manifest.profile.commit,NATIVE_VIEWER_PROFILE.commit);assert.equal(manifest.simulationConnected,false);assert.equal(manifest.profile.physicalMaterialExecution,false);assert.equal(manifest.elements.reduce((s,e)=>s+e.triangleCount,0),28);assert.deepEqual(JSON.parse(files.find(f=>f.name==='handoff.json').content),JSON.parse(text));
+});
+test('standard ZIP reader validates CRCs and exact bundled file content',async()=>{
+ const {bytes}=await nativeViewerZip(text),bundle=await nativeViewerBundle(text);const output=execFileSync('python3',['-c','import sys,io,zipfile,json; z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())); assert z.testzip() is None; print(json.dumps({n:z.read(n).decode("utf-8") for n in z.namelist()}))'],{input:bytes,encoding:'utf8',maxBuffer:1048576});assert.deepEqual(JSON.parse(output),Object.fromEntries(bundle.files.map(f=>[f.name,f.content])));assert.deepEqual((await nativeViewerZip(text)).bytes,bytes);
+});
+test('legacy or changed handoffs and unsafe archive entries cannot become engine bundles',async()=>{
+ await assert.rejects(()=>nativeViewerBundle(JSON.stringify(old)),/checksum is required/);const changed=JSON.parse(text);changed.mapping.materials[0].friction=.8;await assert.rejects(()=>nativeViewerBundle(JSON.stringify(changed)),/checksum or derived/);
+ for(const name of ['/outside','../outside','assets/../outside','assets\\outside','a:b','./model.obj'])assert.throws(()=>storedZip([{name,content:'x'}]),/Unsafe/);assert.throws(()=>storedZip([{name:'scene.json',content:'x'},{name:'scene.json',content:'y'}]),/duplicate/);
+});

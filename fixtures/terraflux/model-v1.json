@@ -1,0 +1,381 @@
+{
+  "format": "terratec-terraflux-model",
+  "version": 1,
+  "generatedAt": "2026-11-27T14:00:00Z",
+  "units": "m",
+  "frame": {
+    "handedness": "right",
+    "up": "y",
+    "horizontal": [
+      "x",
+      "z"
+    ],
+    "origin": "project-local",
+    "georeference": null
+  },
+  "source": {
+    "sha256": "7476d12ce72c9b9810c6425983f1b947927d6ef4ad9b3e3457ce1f58757927cf",
+    "project": {
+      "schemaVersion": 6,
+      "presets": [],
+      "workshopProfiles": [],
+      "units": "m",
+      "name": "Frozen receiver v1",
+      "room": {
+        "width": 6,
+        "depth": 4,
+        "height": 2.8,
+        "outline": [
+          {
+            "x": -3,
+            "z": -2
+          },
+          {
+            "x": 3,
+            "z": -2
+          },
+          {
+            "x": 3,
+            "z": 2
+          },
+          {
+            "x": -3,
+            "z": 2
+          }
+        ],
+        "openings": [
+          {
+            "hinge": "A",
+            "swing": "in",
+            "id": "door",
+            "type": "door",
+            "wall": "north",
+            "offset": 1,
+            "width": 1,
+            "height": 2,
+            "sill": 0
+          }
+        ],
+        "furniture": [
+          {
+            "id": "cab",
+            "type": "cabinet",
+            "name": "Fixture cabinet",
+            "width": 0.6,
+            "depth": 0.4,
+            "height": 1.2,
+            "x": 1,
+            "z": 0,
+            "rotation": 90,
+            "thickness": 0.018,
+            "shelves": 1,
+            "material": "oak",
+            "lengthAllowanceMm": 0,
+            "widthAllowanceMm": 0,
+            "stockLengthMm": 2440,
+            "stockWidthMm": 1220,
+            "stockTrimMm": 0,
+            "stockAllowRotation": true,
+            "stockKerfMm": 3
+          }
+        ]
+      }
+    }
+  },
+  "rooms": [
+    {
+      "id": "room-1",
+      "name": "Room 1",
+      "height": 2.8,
+      "floor": [
+        {
+          "x": -3,
+          "y": 0,
+          "z": 2
+        },
+        {
+          "x": 3,
+          "y": 0,
+          "z": 2
+        },
+        {
+          "x": 3,
+          "y": 0,
+          "z": -2
+        },
+        {
+          "x": -3,
+          "y": 0,
+          "z": -2
+        }
+      ],
+      "ceiling": [
+        {
+          "x": -3,
+          "y": 2.8,
+          "z": -2
+        },
+        {
+          "x": 3,
+          "y": 2.8,
+          "z": -2
+        },
+        {
+          "x": 3,
+          "y": 2.8,
+          "z": 2
+        },
+        {
+          "x": -3,
+          "y": 2.8,
+          "z": 2
+        }
+      ],
+      "walls": [
+        {
+          "id": "north",
+          "start": {
+            "x": -3,
+            "y": 0,
+            "z": -2
+          },
+          "end": {
+            "x": 3,
+            "y": 0,
+            "z": -2
+          },
+          "surfaces": [
+            [
+              {
+                "x": -3,
+                "y": 0,
+                "z": -2
+              },
+              {
+                "x": -2,
+                "y": 0,
+                "z": -2
+              },
+              {
+                "x": -2,
+                "y": 2.8,
+                "z": -2
+              },
+              {
+                "x": -3,
+                "y": 2.8,
+                "z": -2
+              }
+            ],
+            [
+              {
+                "x": -2,
+                "y": 2,
+                "z": -2
+              },
+              {
+                "x": -1,
+                "y": 2,
+                "z": -2
+              },
+              {
+                "x": -1,
+                "y": 2.8,
+                "z": -2
+              },
+              {
+                "x": -2,
+                "y": 2.8,
+                "z": -2
+              }
+            ],
+            [
+              {
+                "x": -1,
+                "y": 0,
+                "z": -2
+              },
+              {
+                "x": 3,
+                "y": 0,
+                "z": -2
+              },
+              {
+                "x": 3,
+                "y": 2.8,
+                "z": -2
+              },
+              {
+                "x": -1,
+                "y": 2.8,
+                "z": -2
+              }
+            ]
+          ],
+          "openings": [
+            {
+              "id": "door",
+              "type": "door",
+              "width": 1,
+              "height": 2,
+              "sill": 0,
+              "start": {
+                "x": -2,
+                "y": 0,
+                "z": -2
+              },
+              "end": {
+                "x": -1,
+                "y": 0,
+                "z": -2
+              }
+            }
+          ]
+        },
+        {
+          "id": "east",
+          "start": {
+            "x": 3,
+            "y": 0,
+            "z": -2
+          },
+          "end": {
+            "x": 3,
+            "y": 0,
+            "z": 2
+          },
+          "surfaces": [
+            [
+              {
+                "x": 3,
+                "y": 0,
+                "z": -2
+              },
+              {
+                "x": 3,
+                "y": 0,
+                "z": 2
+              },
+              {
+                "x": 3,
+                "y": 2.8,
+                "z": 2
+              },
+              {
+                "x": 3,
+                "y": 2.8,
+                "z": -2
+              }
+            ]
+          ],
+          "openings": []
+        },
+        {
+          "id": "south",
+          "start": {
+            "x": 3,
+            "y": 0,
+            "z": 2
+          },
+          "end": {
+            "x": -3,
+            "y": 0,
+            "z": 2
+          },
+          "surfaces": [
+            [
+              {
+                "x": 3,
+                "y": 0,
+                "z": 2
+              },
+              {
+                "x": -3,
+                "y": 0,
+                "z": 2
+              },
+              {
+                "x": -3,
+                "y": 2.8,
+                "z": 2
+              },
+              {
+                "x": 3,
+                "y": 2.8,
+                "z": 2
+              }
+            ]
+          ],
+          "openings": []
+        },
+        {
+          "id": "west",
+          "start": {
+            "x": -3,
+            "y": 0,
+            "z": 2
+          },
+          "end": {
+            "x": -3,
+            "y": 0,
+            "z": -2
+          },
+          "surfaces": [
+            [
+              {
+                "x": -3,
+                "y": 0,
+                "z": 2
+              },
+              {
+                "x": -3,
+                "y": 0,
+                "z": -2
+              },
+              {
+                "x": -3,
+                "y": 2.8,
+                "z": -2
+              },
+              {
+                "x": -3,
+                "y": 2.8,
+                "z": 2
+              }
+            ]
+          ],
+          "openings": []
+        }
+      ],
+      "furniture": [
+        {
+          "id": "cab",
+          "name": "Fixture cabinet",
+          "type": "cabinet",
+          "geometry": "oriented-bounding-box",
+          "centre": {
+            "x": 1,
+            "y": 0.6,
+            "z": 0
+          },
+          "size": {
+            "x": 0.6,
+            "y": 1.2,
+            "z": 0.4
+          },
+          "rotationY": 90,
+          "materialId": "oak"
+        }
+      ]
+    }
+  ],
+  "openingLinks": [],
+  "overlaps": [],
+  "limitations": [
+    "Interior planes have zero thickness; shared room boundaries remain separate.",
+    "Furniture is an oriented bounding box; design internals and cabinet cavities are not collision geometry.",
+    "No georeference, terrain elevation, physical material properties or simulation parameters are supplied.",
+    "This is a TerraTec exchange contract; a receiving TerraFlux adapter is required."
+  ],
+  "modelSha256": "d65961494a24abf7e2fc047f09e56e4148b69d1e9fdbb70124accc0a4f91f118"
+}

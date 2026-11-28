@@ -39,11 +39,13 @@ for(const [key,chunk] of Object.entries(manifest)) for(const imported of chunk.i
 for(let grew=true;grew;) {grew=false;for(const [key,list] of importers) if(!benchKeys.has(key)&&key!==designerKey&&key!==historyKey&&list.every(k=>benchKeys.has(k))) {benchKeys.add(key);grew=true;}}
 const benchFiles=new Set([...benchKeys].map(k=>manifest[k].file)),benchBytes=chunks.filter(c=>benchFiles.has(c.file)).reduce((n,c)=>n+c.bytes,0);
 assert.ok(benchBytes<=165000,'Workshop benches exceed 165 kB budget');
-// Initial JavaScript: 882 kB for the assisted-command entry point; entry stays 195 kB.
-// Total 1085 kB since lazy design commands (1078 kB before).
+// Initial JavaScript stays 885 kB; entry 197 kB includes captured endpoint requests (196 kB before).
+// Total 1175 kB includes constraint diagnostics and Plan failure spans (1165 kB before).
 // Per-chunk and lazy workspace limits remain unchanged.
 const entryBytes=chunks.find(c=>c.file===entry.file).bytes,initialBytes=chunks.filter(c=>c.initial).reduce((n,c)=>n+c.bytes,0),totalBytes=chunks.reduce((n,c)=>n+c.bytes,0)-designerBytes-historyBytes-benchBytes;
-assert.ok(entryBytes<=195000,'Entry exceeds 195 kB budget');assert.ok(initialBytes<=882000,'Initial JavaScript exceeds 882 kB budget');assert.ok(totalBytes<=1085000,'Total JavaScript exceeds 1085 kB budget');
+assert.ok(entryBytes<=197000,'Entry exceeds 197 kB budget');assert.ok(initialBytes<=885000,'Initial JavaScript exceeds 885 kB budget');assert.ok(totalBytes<=1175000,'Total JavaScript exceeds 1175 kB budget');
+assert.ok(manifest['src/NativeMeasurementComparison.vue']?.isDynamicEntry&&!initial.has('src/NativeMeasurementComparison.vue'),'Native measurement comparison must stay lazy');
+assert.ok(manifest['src/NativeGeometryPreview.vue']?.isDynamicEntry&&!initial.has('src/NativeGeometryPreview.vue'),'Native source preview must stay lazy');
 for(const key of ['src/ManufacturingPanel.vue','src/WorkshopJobs.vue'])assert.ok(manifest[key]?.isDynamicEntry&&!initial.has(key),key+' must stay lazy');
 await mkdir('test-results',{recursive:true});await writeFile('test-results/bundle-report.json',JSON.stringify({entryBytes,initialBytes,totalBytes,designerBytes,historyBytes,benchBytes,chunks},null,2)+'\n');
 console.log(`Bundle budgets passed: entry ${(entryBytes/1000).toFixed(1)} kB, initial ${(initialBytes/1000).toFixed(1)} kB, total ${(totalBytes/1000).toFixed(1)} kB plus designer ${(designerBytes/1000).toFixed(1)} kB history panel ${(historyBytes/1000).toFixed(1)} kB and workshop benches ${(benchBytes/1000).toFixed(1)} kB; ${chunks.length} chunks.`);

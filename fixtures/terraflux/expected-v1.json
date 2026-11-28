@@ -1,0 +1,6 @@
+{
+  "placement": {"x":10,"y":2,"z":20,"yaw":90},
+  "summary": {"rooms":1,"surfaces":6,"furnitureBounds":1,"triangles":28,"bounds":{"min":{"x":8,"y":2,"z":17},"max":{"x":12,"y":4.8,"z":23}}},
+  "firstFloorVertex": [12,2,23],
+  "bodyBounds": {"min":{"x":9.7,"y":2,"z":18.8},"max":{"x":10.3,"y":3.2,"z":19.2}}
+}

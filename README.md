@@ -8,6 +8,8 @@ and C++17 geometry executable. No database or login is required for local develo
 ## Run locally
 
 Requires Node.js 22.12+, npm, CMake 3.16+ and a C++17 compiler (Ubuntu 22.04 target).
+Tests additionally require Python 3 for standard-library ZIP interoperability checks;
+the packaged application does not require Python.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -1840,3 +1842,125 @@ the active room. The preview shows before/after values; valid batches apply as
 one undo step. Changes after preview require a new preview. No language model or
 external service is connected. See [Design commands v1](docs/DESIGN_COMMANDS.md)
 for the bounded request format and supported operations.
+
+### TerraFlux model exchange
+
+Open **TerraFlux model exchange** in Project to export all rooms or verify an
+exchange file without importing it. The versioned contract carries transformed
+wall/floor/ceiling planes, opening voids, furniture bounds and source hashes in
+project-local metres with Y up. It reports overlapping rooms and preserves linked
+opening references. Geographic placement and physical simulation parameters are
+unset. The receiving TerraFlux adapter is still pending.
+
+See [TerraFlux model contract v1](docs/TERRAFLUX_MODEL.md) for coordinates, geometry,
+provenance, validation and receiving-adapter requirements.
+
+After verifying a TerraFlux model file, **Check receiver compatibility** converts
+it into a reference triangle-mesh scene without loading a physics engine. Room
+apertures remain open, furniture uses boxes, and overlapping rooms require an
+explicit opt-in. A source-checkout CLI is available through `npm run check:terraflux
+-- model.json`; see the contract documentation for scene output and placement.
+
+**Preview receiver scene** opens a separate orbitable 3D view of a verified file.
+Set receiver X/Y/Z and yaw, apply the placement, toggle ceilings or wireframe, and
+fit the camera. These controls do not alter the project or exchange file. Invalid
+placement keeps the last valid preview; closing releases its rendering resources.
+
+### Simulation material mapping
+
+After verifying a TerraFlux model, open **Simulation material mapping**. Enter
+user-supplied target materials and map source IDs or scoped furniture overrides.
+Validation reports missing/unknown mappings and requires explicit acknowledgement
+of zero-thickness surfaces and bounding-box furniture. Export includes the original
+model, reference scene, mapping and validation; it never starts a solver or infers
+mass. See [Reference simulation handoff v1](docs/SIMULATION_HANDOFF.md).
+
+Use **Verify simulation handoff file** to check archived handoffs without applying
+them. New exports include a whole-payload checksum; older v1 files receive explicit
+`derived-only` verification. **Require handoff checksum** rejects legacy or stripped
+checksums. A source-only CLI is available with `npm run check:handoff -- handoff.json`.
+
+### Concrete TerraFlux native viewer adapter
+
+Open **Native viewer adapter** inside material mapping and select a checksummed
+handoff. Download a ZIP with `terraflux.scene` v2, OBJ geometry and provenance
+sidecars for the pinned native viewer. The real engine's C++ scene/OBJ parsers
+accepted the fixture with matching triangle counts, bounds and normals. Physical
+materials and live simulation remain unsupported by this loader. See
+[Native viewer adapter](docs/NATIVE_VIEWER_ADAPTER.md) for capabilities and reproduction.
+
+Native rendering can be checked with `npm run check:native-render -- --engine-repo
+/path/to/terraflux-engine --backend osmesa --report test-results/native-render.json`
+(or `--backend xvfb`). The pinned viewer rendered the fixture in direct/offscreen
+software modes with matching OBJ coverage. See the adapter documentation for build
+requirements and the test-only headless context bootstrapper. Adapter purpose checks
+block unsupported physical simulation instead of treating a viewer export as physics.
+
+Native viewer ZIPs can also be checked read-only in the adapter panel or with
+`npm run check:native-bundle -- /path/to/terratec-native-viewer.zip`.
+This checks archive integrity and rebuilds geometry/source mappings from the
+embedded handoff. See [the adapter contract](docs/NATIVE_VIEWER_ADAPTER.md#read-only-bundle-verification)
+for the accepted archive profile and verification limits.
+
+To test that exact ZIP against the pinned engine, add `--bundle FILE.zip` to
+`check:native-viewer` or `check:native-render`. Both commands verify the archive
+before native execution and support `--report FILE.json` with its SHA-256.
+
+The native adapter panel can display these recorded reports after matching them
+to the selected ZIP's hash and source geometry. Importing a report does not rerun
+the native checks or establish report authenticity.
+
+Use **Preview native source geometry** to inspect a verified bundle in 3D. Click
+an element or select it from the list to highlight it and inspect its original
+room, wall/furniture, triangle range and material reference. This preview is
+read-only and leaves native engine picking and live simulation unchanged.
+
+The source preview also supports **Isolate selected native element** and
+**Fit selected native element**. Hidden elements are excluded from browser
+picking; uncheck isolation and fit the full geometry to return to the overview.
+
+Selected source geometry now includes a measurement inspector for bounds,
+axis-aligned spans, centre, triangulated area and native triangle range.
+Furniture bounds remain explicitly approximate; volume and mass are not inferred.
+
+Export selected or all bundle measurements as CSV or JSON from the source
+preview. Reports retain ZIP/source identity and units; all-element export
+includes hidden geometry and keeps approximation labels without inferred totals.
+
+Use **Verify native measurement report** to compare an exported JSON or canonical
+CSV report with its verified source ZIP. Edited measurements, provenance or scope
+are rejected; successful comparison establishes consistency, not authenticity.
+
+**Compare native measurements** checks a second ZIP and lists added/removed
+source IDs and measurement deltas relative to the current bundle. Export the
+comparison as JSON with both archive identities. Matching uses scoped IDs;
+unchanged measurements do not establish identical geometry or physics.
+
+Comparison rows can be filtered or searched by source ID. **View current element**
+selects and frames the baseline element in 3D; candidate-only rows are disabled.
+JSON exports retain all comparison rows regardless of the visible filters.
+
+**View candidate element** opens candidate geometry in its own read-only 3D
+preview, including added elements. The candidate keeps its own ZIP identity,
+selection and measurement exports; closing it preserves the baseline preview.
+
+Failed constraint edits now include attempted rule residuals, locked/edited
+points and affected walls. Inspect or dismiss the diagnostics in Saved room
+constraints; Plan highlights affected saved wall spans. Failures do not commit
+the attempted shape. Diagnostics identify involved rules, not a proven minimal
+conflict set, and distinguish metre residuals from normalized angle residuals.
+
+For failed fixed-length, wall-relationship, endpoint or wall-move edits, choose saved rules to relax
+and **Preview constraint repair**. The full room is validated and a schematic
+shows the proposed shape; saved geometry remains unchanged until **Apply
+constraint repair**. Apply is one undoable edit. Stale or altered previews are
+rejected; wall replacement/removal failures currently remain diagnostic-only.
+
+Endpoint repair retries preserve the coordinates captured after the original
+grid/snap settings. Later draft or grid changes do not alter the pending request;
+click Apply endpoints again to capture a different request. Both endpoints remain
+pinned during retry, and only explicitly selected saved rules are relaxed.
+
+Wall-move repair captures the original wall and signed distance. Later selection
+or distance-draft changes do not alter that request. A candidate must still
+satisfy every retained rule and the normal room/opening/furniture validation.

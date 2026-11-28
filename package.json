@@ -19,8 +19,13 @@
     "test:release": "npm run build && npm run check:bundle && npm run test:browser:production",
     "package:release": "node scripts/package-release.mjs",
     "test:package": "node scripts/package-smoke.mjs",
+    "check:native-render": "node scripts/check-native-render.mjs",
+    "check:native-viewer": "node scripts/check-native-viewer.mjs",
+    "check:handoff": "node scripts/check-simulation-handoff.mjs",
+    "check:terraflux": "node scripts/check-terraflux.mjs",
     "check:startup": "node server/startup-check.mjs",
-    "check:storage": "node server/storage-check.mjs"
+    "check:storage": "node server/storage-check.mjs",
+    "check:native-bundle": "node scripts/check-native-bundle.mjs"
   },
   "dependencies": {
     "three": "0.187.0",
