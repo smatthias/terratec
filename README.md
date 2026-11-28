@@ -1914,3 +1914,7 @@ Use **Preview native source geometry** to inspect a verified bundle in 3D. Click
 an element or select it from the list to highlight it and inspect its original
 room, wall/furniture, triangle range and material reference. This preview is
 read-only and leaves native engine picking and live simulation unchanged.
+
+The source preview also supports **Isolate selected native element** and
+**Fit selected native element**. Hidden elements are excluded from browser
+picking; uncheck isolation and fit the full geometry to return to the overview.
