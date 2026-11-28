@@ -151,6 +151,7 @@ import { validateProject } from '../shared/project.mjs';
 import { bounds, validateOutline, snapPoint, scaleOutline, moveCorner, moveCorners } from '../shared/geometry.mjs';
 import { cornerIds, isWallId, wallIds, wallLabel, wallCorners, wallSegment, cornerWalls, cornerLabel, cornerPoint, MIN_WALLS } from '../shared/room-topology.mjs';
 import { moveWall, removeWall, replaceWall } from '../shared/room-construction.mjs';
+import {captureEndpointRequest,endpointRequestRoom} from '../shared/endpoint-request.mjs';
 import {solveConstraints} from '../shared/room-constraints.mjs';
 import { isLocked, lockRoom, unlockRoom, checkRoomEdit, LOCKED_MESSAGE } from '../shared/room-lock.mjs';
 import { dimensionLayout, openingChainLayout } from './dimensions.js';
@@ -745,10 +746,11 @@ function updateRoomConstraints(room) {
   catch(error) {constraintFailure.value=error.constraintDiagnostic??null;message.value=error.message;}
 }
 function applyEndpoints() {
+  if(editingLocked.value)return;let request;
   try {
-    const moves=Object.fromEntries(endpointDraft.value.map(({corner,x,z})=>[corner,{x,z}]));
-    updateOutline(moveCorners(project.value.room,moves,gridSpacing.value,snapEnabled.value)); message.value='Wall endpoints updated';
-  } catch(error) { constraintFailure.value=error.constraintDiagnostic??null;message.value=error.message; }
+    request=captureEndpointRequest(project.value.room,selectedWall.value,endpointDraft.value,gridSpacing.value,snapEnabled.value);
+    applyRoom(endpointRequestRoom(project.value.room,request));message.value='Wall endpoints updated';
+  } catch(error) {constraintFailure.value=error.constraintDiagnostic?{...error.constraintDiagnostic,request}:null;message.value=error.message;}
 }
 // Wall construction: the other walls keep their lines and the shared corners are recomputed.
 const wallMoveDistance=ref(.5), replacementDraft=ref([]);
