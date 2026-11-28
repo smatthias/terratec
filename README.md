@@ -1918,3 +1918,7 @@ read-only and leaves native engine picking and live simulation unchanged.
 The source preview also supports **Isolate selected native element** and
 **Fit selected native element**. Hidden elements are excluded from browser
 picking; uncheck isolation and fit the full geometry to return to the overview.
+
+Selected source geometry now includes a measurement inspector for bounds,
+axis-aligned spans, centre, triangulated area and native triangle range.
+Furniture bounds remain explicitly approximate; volume and mass are not inferred.

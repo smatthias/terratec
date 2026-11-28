@@ -181,3 +181,9 @@ The preview closes on its button or Escape and releases geometries, materials, c
 **Isolate selected native element** hides other preview meshes and frames the current source element. Changing selection keeps isolation focused on the new element, including a ceiling selected through the list. Hidden meshes are excluded from raycast picking. Uncheck isolation to restore the normal cutaway/ceiling visibility settings.
 
 **Fit selected native element** frames its bounding box and moves the orbit target to its centre. **Fit native source geometry** returns to whole-scene framing without changing the isolation checkbox. Selection framing follows subsequent selection changes and viewport resizing. The view status reports the visible element count, framing mode and isolation state. These controls modify only preview visibility and camera state; the source geometry, ZIP, native ranges and material bindings remain unchanged.
+
+### Selected source measurements
+
+The preview's collapsible measurement inspector reports X/Y/Z minimum, maximum and axis-aligned span, centre, triangulated area and the half-open native triangle range `[first, endExclusive)`. Values use verified source positions in the bundle's local Y-up metre frame, with receiver placement already baked in, before browser recentering/Float32 conversion. Display values round to four decimal places; the calculations retain source precision.
+
+Wall area sums actual triangles, so opening voids are excluded even though the outer bounds span the whole wall. Furniture is explicitly marked as a bounding-box approximation: axis-aligned extents of a rotated box are not its nominal dimensions, and bounds surface area does not describe cabinet internals or manufacturing quantities. Zero-thickness room surfaces have no inferred thickness. No volume, mass or physical properties are calculated. Measurements update with source selection and leave the project, archive and geometry unchanged.
