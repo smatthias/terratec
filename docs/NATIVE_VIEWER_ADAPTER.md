@@ -130,3 +130,9 @@ or negotiation with a running engine. The UI's Physical simulation purpose disab
 bundle export and reports unsupported requirements; Geometry viewer purpose retains
 the existing geometry-only export. A local rendering pass never promotes physics
 support or every receiving device's rendering capability automatically.
+
+## Resource admission and source lookup
+
+Exports enforce configurable triangle and logical retained CPU mesh budgets (defaults: 2,000,000 triangles and 64 MiB). The reviewed OBJ importer expands each triangle into three 96-byte vertices and three 4-byte indices: 300 bytes per triangle. The pinned C++ contract checks the ABI, exact-fit admission and one-byte-over rejection against the engine budget implementation. This excludes allocation overhead, parser peak memory, textures, GPU allocations and framebuffers; it is not a process memory guarantee.
+
+The manifest records resource usage and contiguous source ranges, including scoped room, wall or furniture identifiers and material references. The export panel can look up a zero-based triangle from the just-exported manifest. OBJ face numbers are one-based. This lookup does not implement native picking: geometry remains one native mesh node.
