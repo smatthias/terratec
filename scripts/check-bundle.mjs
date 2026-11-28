@@ -40,10 +40,10 @@ for(let grew=true;grew;) {grew=false;for(const [key,list] of importers) if(!benc
 const benchFiles=new Set([...benchKeys].map(k=>manifest[k].file)),benchBytes=chunks.filter(c=>benchFiles.has(c.file)).reduce((n,c)=>n+c.bytes,0);
 assert.ok(benchBytes<=165000,'Workshop benches exceed 165 kB budget');
 // Initial JavaScript: 882 kB for the assisted-command entry point; entry stays 195 kB.
-// Total 1150 kB includes source geometry measurements (1145 kB before).
+// Total 1155 kB includes measurement report verification (1150 kB before).
 // Per-chunk and lazy workspace limits remain unchanged.
 const entryBytes=chunks.find(c=>c.file===entry.file).bytes,initialBytes=chunks.filter(c=>c.initial).reduce((n,c)=>n+c.bytes,0),totalBytes=chunks.reduce((n,c)=>n+c.bytes,0)-designerBytes-historyBytes-benchBytes;
-assert.ok(entryBytes<=195000,'Entry exceeds 195 kB budget');assert.ok(initialBytes<=882000,'Initial JavaScript exceeds 882 kB budget');assert.ok(totalBytes<=1150000,'Total JavaScript exceeds 1150 kB budget');
+assert.ok(entryBytes<=195000,'Entry exceeds 195 kB budget');assert.ok(initialBytes<=882000,'Initial JavaScript exceeds 882 kB budget');assert.ok(totalBytes<=1155000,'Total JavaScript exceeds 1155 kB budget');
 assert.ok(manifest['src/NativeGeometryPreview.vue']?.isDynamicEntry&&!initial.has('src/NativeGeometryPreview.vue'),'Native source preview must stay lazy');
 for(const key of ['src/ManufacturingPanel.vue','src/WorkshopJobs.vue'])assert.ok(manifest[key]?.isDynamicEntry&&!initial.has(key),key+' must stay lazy');
 await mkdir('test-results',{recursive:true});await writeFile('test-results/bundle-report.json',JSON.stringify({entryBytes,initialBytes,totalBytes,designerBytes,historyBytes,benchBytes,chunks},null,2)+'\n');

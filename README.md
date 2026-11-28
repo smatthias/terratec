@@ -1926,3 +1926,7 @@ Furniture bounds remain explicitly approximate; volume and mass are not inferred
 Export selected or all bundle measurements as CSV or JSON from the source
 preview. Reports retain ZIP/source identity and units; all-element export
 includes hidden geometry and keeps approximation labels without inferred totals.
+
+Use **Verify native measurement report** to compare an exported JSON or canonical
+CSV report with its verified source ZIP. Edited measurements, provenance or scope
+are rejected; successful comparison establishes consistency, not authenticity.

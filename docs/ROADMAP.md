@@ -9,13 +9,13 @@ Overall: **approximately 79% across the full roadmap** (equal-weight mean of mil
 | Parametric geometry | 75% | Locked points, fixed lengths and parallel/perpendicular wall relationships with bounded solving and schema-9 persistence | Expand constraint editing and failure diagnostics |
 | Building design | 75% | Shared floor plan, linked openings and whole-building quantities with overlap handling | Shared geometry and material take-offs |
 | Interiors and furniture | 88% | Cabinet/furniture editing, placement and workshop benches | Verify complete editing workflows |
-| Drawings and exchange | 89% | Scaled/tiled building sheets and scoped source measurement JSON/CSV | Verify measurement reports against their source bundle |
+| Drawings and exchange | 90% | Scaled/tiled building sheets and scoped source measurement JSON/CSV | Measurement comparison and additional exchange adapters |
 | Manufacturing | 90% | Persisted machine limits block incompatible panel and combined NC exports | Machine setup and fixture validation |
 | Distributed production | 80% | Persistent sheet capacity, due-date reservations and assignment previews | Working calendars and duration estimates |
 | Customer and business tools | 78% | Accepted-quote billing JSON/CSV with exact amounts and provenance | Receiving-system adapters and import receipts |
 | Assisted design | 15% | Bounded JSON furniture commands with preview, validation and atomic undo | Proposal adapters and additional operations |
-| TerraFlux integration | 89% | Verified ZIP/native parser/render checks, source picking, metrics and provenance-bound reports | Report round-trip verification; native physics remains disconnected |
-| Release readiness | 78% | Native/Node/browser CI, packaged recovery and measured headless rendering | Broader platform validation |
+| TerraFlux integration | 90% | Verified ZIP/native parser/render checks, source picking, metrics and provenance-bound reports | Native physics capability remains disconnected |
+| Release readiness | 79% | Native/Node/browser CI, packaged recovery and measured headless rendering | Broader platform validation |
 
 The dated entries below record historical increments; their pending checks and measurements describe those revisions, not the current head. Current native/browser validation is summarized in the latest increments.
 
@@ -75,3 +75,5 @@ Native-preview inspection increment: element isolation excludes hidden meshes fr
 Native-source measurement increment: selected-element inspection now exposes source-coordinate bounds/spans, centre, triangulated area and native triangle range. Opening voids are respected and rotated furniture bounds are explicitly approximate, without volume/mass inference. All 555 Node tests, build and package recovery pass. Total JS is 1145.4 kB within the new 1150 kB allowance (1145 kB before); entry/initial limits are unchanged. Browser wall/floor measurement update checks are pending CI.
 
 Native-measurement export increment: selected/all-element JSON and CSV reports retain archive/source identity, engine commit, explicit units, scoped references, full-precision measurements and approximation limitations. All scope includes hidden ceilings and isolated-out elements, without inferred totals. CSV protects spreadsheet text while preserving numeric negative coordinates. All 559 Node tests pass; build and package checks run with the unchanged 1150 kB total allowance. Browser JSON/CSV download and isolated all-scope checks are pending CI.
+
+Measurement-report verification increment: bounded JSON and canonical CSV reports are rebuilt against the selected verified ZIP, comparing measurements, provenance, units, scope, references, approximation labels and limitations. Rejected reports clear prior evidence; verification does not edit geometry or selection. All 564 Node tests, build and package recovery pass locally. Total JS is 1152.7 kB within the new 1155 kB allowance (1150 kB before); entry/initial budgets are unchanged. Browser round-trip, altered-area rejection and close/reopen clearing checks are pending CI.
