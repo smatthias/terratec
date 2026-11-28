@@ -1935,3 +1935,7 @@ are rejected; successful comparison establishes consistency, not authenticity.
 source IDs and measurement deltas relative to the current bundle. Export the
 comparison as JSON with both archive identities. Matching uses scoped IDs;
 unchanged measurements do not establish identical geometry or physics.
+
+Comparison rows can be filtered or searched by source ID. **View current element**
+selects and frames the baseline element in 3D; candidate-only rows are disabled.
+JSON exports retain all comparison rows regardless of the visible filters.
