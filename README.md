@@ -1939,3 +1939,7 @@ unchanged measurements do not establish identical geometry or physics.
 Comparison rows can be filtered or searched by source ID. **View current element**
 selects and frames the baseline element in 3D; candidate-only rows are disabled.
 JSON exports retain all comparison rows regardless of the visible filters.
+
+**View candidate element** opens candidate geometry in its own read-only 3D
+preview, including added elements. The candidate keeps its own ZIP identity,
+selection and measurement exports; closing it preserves the baseline preview.
