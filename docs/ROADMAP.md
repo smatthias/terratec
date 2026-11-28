@@ -1,12 +1,12 @@
 # TerraTec progress
 
-Overall: **approximately 80% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
+Overall: **approximately 81% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
 
 | Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
 | Project foundation | 97% | Shared startup configuration, native-core and storage diagnostics | Broader platform validation |
 | Design workspace | 97% | Room/constraint editing and verified source preview with selection, isolation and camera controls | Complete workflow and platform validation |
-| Parametric geometry | 79% | Locked points, fixed lengths and parallel/perpendicular wall relationships with bounded solving and schema-9 persistence | Constraint repair and more complex solver cases |
+| Parametric geometry | 83% | Locked points, fixed lengths and parallel/perpendicular wall relationships with bounded solving and schema-9 persistence | Endpoint repair previews and more complex solver cases |
 | Building design | 75% | Shared floor plan, linked openings and whole-building quantities with overlap handling | Shared geometry and material take-offs |
 | Interiors and furniture | 88% | Cabinet/furniture editing, placement and workshop benches | Verify complete editing workflows |
 | Drawings and exchange | 93% | Scaled/tiled building sheets and scoped source measurement JSON/CSV | Additional exchange adapters and comparison workflow validation |
@@ -15,7 +15,7 @@ Overall: **approximately 80% across the full roadmap** (equal-weight mean of mil
 | Customer and business tools | 78% | Accepted-quote billing JSON/CSV with exact amounts and provenance | Receiving-system adapters and import receipts |
 | Assisted design | 15% | Bounded JSON furniture commands with preview, validation and atomic undo | Proposal adapters and additional operations |
 | TerraFlux integration | 90% | Verified ZIP/native parser/render checks, source picking, metrics and provenance-bound reports | Native physics capability remains disconnected |
-| Release readiness | 83% | Native/Node/browser CI, packaged recovery and measured headless rendering | Broader platform validation |
+| Release readiness | 84% | Native/Node/browser CI, packaged recovery and measured headless rendering | Broader platform validation |
 
 The dated entries below record historical increments; their pending checks and measurements describe those revisions, not the current head. Current native/browser validation is summarized in the latest increments.
 
@@ -85,3 +85,5 @@ Comparison navigation increment: status filters and case-insensitive scoped-ID s
 Candidate-preview increment: candidate-present comparison rows open a separately identified, read-only 3D preview using the already verified candidate geometry and source ranges. Added elements are inspectable; candidate selection/exports stay tied to its ZIP while the baseline selection remains unchanged. Closing/Escape and focus restoration reuse preview cleanup; recursive comparison controls are suppressed. Candidate context is kept out of comparison JSON. All 570 Node tests, build and package recovery pass locally. Total JS is 1164.9 kB within the unchanged 1165 kB allowance; startup budgets are unchanged. Browser candidate identity, selected export, independent selection and close/reopen/Escape checks are pending CI.
 
 Constraint-conflict diagnostics increment: solver failures carry bounded-iteration details, attempted per-rule residuals, point locks/edited corners and affected wall IDs. The Room constraints panel exposes inspect/dismiss actions and distinguishes attempted residuals from saved geometry; Plan draws affected saved wall spans. Diagnostics are conservative involvement information, not a minimal unsatisfiable-set proof. Successful edits, room changes and dismissal clear transient state; failed edits remain atomic. Tests cover blocked lengths, locked points, angular failures, nonconvergence, successful residual tolerances and projected failure spans. All 575 Node tests, build and package recovery pass locally. Entry is 195.3 kB, initial JS 882.3 kB and total 1168.5 kB within adjusted 196/885/1175 kB limits (195/882/1165 before); other workspace limits are unchanged. Browser failed-attempt, unchanged export, inspect/dismiss/highlight and successful-edit clearing checks are pending CI.
+
+Constraint-repair preview increment: failed fixed-length and parallel/perpendicular edits retain their original request. Users explicitly choose saved rules to relax, retry into an isolated candidate room, and see changed corners plus a saved/proposed schematic before Apply. Preview validates the full project, including openings/furniture and linked room data; apply rechecks the source snapshot and recomputes the candidate, with one normal undoable room commit. Discard, rule-choice changes, project changes and different failure identities clear stale candidates. No repair rules are guessed automatically. Endpoint/construction failure repair is not yet offered. Five new tests cover non-mutating retries, stale/tampered plans, undo, blocked door clipping, locked/invalid inputs and angular repair. All 580 Node tests pass. Build and package recovery pass within unchanged 196/885/1175 kB allowances. Browser preview/discard/invalidation/apply/undo and failure-switch checks are pending CI.
