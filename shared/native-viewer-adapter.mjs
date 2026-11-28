@@ -27,6 +27,6 @@ export async function nativeViewerBundle(text,options={}) {
  const scene={format:'terraflux.scene',version:2,nodes:[node('Root'),node('TerraTecModel',true)],assets:{'terratec-model':'assets/model.obj'}};
  const manifest={format:'terratec-native-viewer-adapter',version:1,profile:NATIVE_VIEWER_PROFILE,capabilityCheck,resources,source:handoff.source,handoffSha256:handoff.handoffSha256,summary:{positions:offset,triangles:triangle,elements:elements.length,bounds:handoff.scene.summary.bounds},elements,materialBindingsFile:'handoff.json',warnings:['Geometry and normals are supported by the pinned native viewer.','Physical materials, density, friction, restitution, body mass and solver execution are not consumed by this scene loader.','All geometry is in one mesh asset; scoped element ranges are preserved in this sidecar, not native selectable nodes.','Receiver placement is baked into OBJ vertices; scene transforms are identity.'],simulationConnected:false};
  const files=[{name:'scene.json',content:JSON.stringify(scene,null,2)+'\n'},{name:'assets/model.obj',content:obj},{name:'handoff.json',content:JSON.stringify(handoff,null,2)+'\n'},{name:'adapter.json',content:JSON.stringify(manifest,null,2)+'\n'}];
- return {files,manifest};
+ return {files,manifest,receiverScene:handoff.scene};
 }
-export async function nativeViewerZip(text,options){const bundle=await nativeViewerBundle(text,options);return {bytes:storedZip(bundle.files),manifest:bundle.manifest};}
+export async function nativeViewerZip(text,options){const bundle=await nativeViewerBundle(text,options);return {bytes:storedZip(bundle.files),manifest:bundle.manifest,receiverScene:bundle.receiverScene};}

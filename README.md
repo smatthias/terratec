@@ -1909,3 +1909,8 @@ before native execution and support `--report FILE.json` with its SHA-256.
 The native adapter panel can display these recorded reports after matching them
 to the selected ZIP's hash and source geometry. Importing a report does not rerun
 the native checks or establish report authenticity.
+
+Use **Preview native source geometry** to inspect a verified bundle in 3D. Click
+an element or select it from the list to highlight it and inspect its original
+room, wall/furniture, triangle range and material reference. This preview is
+read-only and leaves native engine picking and live simulation unchanged.

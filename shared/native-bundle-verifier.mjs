@@ -10,5 +10,5 @@ export async function verifyNativeBundle(bytes,resourceBudget){
  for(let i=0;i<files.length;i++)if(files[i].content!==rebuilt.files[i].content)throw Error('Native bundle content disagrees with verified source: '+files[i].name);
  traceNativeTriangle(rebuilt.manifest,0);
  const admission=nativeResourceCheck(rebuilt.manifest.summary.triangles,resourceBudget);if(admission.status==='blocked')throw Error('Native receiving resource budget exceeded: '+admission.exceeded.join(', '));
- return {status:'verified',manifest:rebuilt.manifest,admission,files:expectedNames,simulationConnected:false};
+ return {status:'verified',manifest:rebuilt.manifest,receiverScene:rebuilt.receiverScene,admission,files:expectedNames,simulationConnected:false};
 }
