@@ -1,0 +1,39 @@
+{
+  "format": "terratec-native-render-check",
+  "version": 1,
+  "engineCommit": "1ce82c3c0dfd5f8f12a149a4b47d25c2c584aebc",
+  "source": {
+    "modelSha256": "d65961494a24abf7e2fc047f09e56e4148b69d1e9fdbb70124accc0a4f91f118",
+    "projectSha256": "7476d12ce72c9b9810c6425983f1b947927d6ef4ad9b3e3457ce1f58757927cf"
+  },
+  "backend": "osmesa",
+  "softwareRenderingRequested": true,
+  "modes": [
+    {
+      "importedTriangles": 28,
+      "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+      "version": "4.5 (Core Profile) Mesa 25.0.7-2+deb13u1",
+      "mode": "direct",
+      "frames": 1,
+      "visibleObjPixels": 3838,
+      "offscreenTargets": []
+    },
+    {
+      "importedTriangles": 28,
+      "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+      "version": "4.5 (Core Profile) Mesa 25.0.7-2+deb13u1",
+      "mode": "offscreen",
+      "frames": 1,
+      "visibleObjPixels": 3838,
+      "offscreenTargets": [
+        {
+          "width": 1280,
+          "height": 800,
+          "resize_failures": 0,
+          "fallback": false
+        }
+      ]
+    }
+  ],
+  "simulationConnected": false
+}

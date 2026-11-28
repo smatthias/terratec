@@ -21,7 +21,7 @@ claim that all TerraFlux components accept the same inputs.
 | Physical material execution | Unsupported by this scene loader |
 | Density/friction/restitution | Preserved in `handoff.json`, not translated into solver state |
 | Live physics | Disconnected |
-| Full native rendering run | Pending; parser interoperability is tested |
+| Native rendering | OSMesa direct/offscreen smoke passed locally; desktop/hardware checks remain device-specific |
 
 The single asset avoids the native graph's 128-asset limit. It deliberately does
 not create separately selectable native nodes for every source element. Asset and
@@ -53,7 +53,7 @@ in this form (run from your built engine checkout):
 ```
 
 The adapter does not launch the viewer, invoke a solver or contact a service.
-A later renderer smoke check is still needed for full graphics-path validation.
+A reproducible software-rendering check is available below; deployment graphics support still needs its own runtime check.
 
 ## Native parser interoperability
 
@@ -75,3 +75,58 @@ The local check passed with 28 triangles and matching bounds/normals on the pinn
 revision. This optional cross-repository check is not part of default CI because
 CI does not assume another checkout or its credentials. Default tests check scene
 structure, indices, exact ZIP contents/CRCs, strict handoff policy and browser export.
+
+## Reproducible native rendering smoke check
+
+```sh
+npm run check:native-render -- --engine-repo /path/to/terraflux-engine --backend xvfb --report test-results/native-render.json
+npm run check:native-render -- --engine-repo /path/to/terraflux-engine --backend osmesa --report test-results/native-render.json
+```
+
+The checker builds the actual pinned native viewer from archived committed sources,
+exports the fixture bundle, and executes its `--smoke-test` in direct and offscreen
+modes with terrain/fire hidden. Both modes must import the expected triangle count,
+render a completed frame and report positive OBJ pixels. Offscreen must create a
+valid target without fallback/resize failures, perform its final composition, and
+match direct-mode OBJ pixel coverage. The report records measured counts and the
+OSMesa renderer/version where available. It never runs a physical solver.
+
+Linux build dependencies: CMake 3.20+, a C++20 compiler, libpng/JPEG/OpenGL/GLFW
+headers/libraries, git and tar. The default `xvfb` backend also needs Xvfb and xauth.
+The `osmesa` backend requires GLFW 3.4+ with Null/OSMesa support and libOSMesa.
+It needs no display sockets. Optional `TERRATEC_CMAKE`, `TERRATEC_RENDER_PREFIX` and
+`TERRATEC_RENDER_CXX_FLAGS` support user-local toolchains/dependency prefixes.
+`TERRATEC_KEEP_RENDER_TMP=1` retains temporary build files for diagnosis; otherwise
+they are removed. The engine worktree remains untouched.
+
+The OSMesa backend builds a **test-only context bootstrapper** and preloads it only
+into the viewer child process. It selects GLFW Null + OSMesa and disables the
+forward-compatible context bit that OSMesa cannot provide. The OpenGL core-profile
+and 4.3 request remain intact. It does not replace geometry, rendering, pixel
+readback or engine functions. The measured context version must actually be 4.3+.
+This is not a desktop X11/Wayland or hardware-GPU validation.
+
+Recorded local result: llvmpipe, OpenGL 4.5 core, Mesa 25.0.7; 28 imported triangles;
+3,838 visible OBJ pixels in both direct and offscreen modes; 1280×800 offscreen
+target with zero resize failures and no fallback. The measured reference report is
+`fixtures/terraflux/native-render-osmesa-reference.json`. Pixel counts are reference
+observations, not universal performance/visual baselines across drivers. Xvfb could
+not run in this workspace because Unix display sockets are blocked; no X11 result
+is claimed. This optional cross-repository render check is separate from default CI.
+
+## Capability requirements
+
+`nativeViewerCapabilities(requiredFeatures)` checks the pinned profile:
+
+- `sceneGeometry`, `normals`, `relativeObjAssets`: supported by the reviewed loader.
+- `nativeRendering`: requires a runtime check on the receiving graphics setup.
+- `physicalMaterialExecution`, `rigidBodySimulation`, `fluidSimulation`,
+  `structuralSimulation`: unsupported through this scene adapter.
+- Unknown requested features block rather than silently falling back.
+
+`nativeViewerBundle`/`nativeViewerZip` accept `{requiredFeatures}` and refuse blocked
+or runtime-unverified requirements. These are source-profile checks, not discovery
+or negotiation with a running engine. The UI's Physical simulation purpose disables
+bundle export and reports unsupported requirements; Geometry viewer purpose retains
+the existing geometry-only export. A local rendering pass never promotes physics
+support or every receiving device's rendering capability automatically.

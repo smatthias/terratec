@@ -1888,3 +1888,10 @@ sidecars for the pinned native viewer. The real engine's C++ scene/OBJ parsers
 accepted the fixture with matching triangle counts, bounds and normals. Physical
 materials and live simulation remain unsupported by this loader. See
 [Native viewer adapter](docs/NATIVE_VIEWER_ADAPTER.md) for capabilities and reproduction.
+
+Native rendering can be checked with `npm run check:native-render -- --engine-repo
+/path/to/terraflux-engine --backend osmesa --report test-results/native-render.json`
+(or `--backend xvfb`). The pinned viewer rendered the fixture in direct/offscreen
+software modes with matching OBJ coverage. See the adapter documentation for build
+requirements and the test-only headless context bootstrapper. Adapter purpose checks
+block unsupported physical simulation instead of treating a viewer export as physics.
