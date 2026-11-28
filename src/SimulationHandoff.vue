@@ -1,6 +1,8 @@
 <script setup>
-import {ref,shallowRef,watch,onBeforeUnmount,computed} from 'vue';
+import {ref,shallowRef,watch,onBeforeUnmount,computed,defineAsyncComponent} from 'vue';
 import {prepareSimulationHandoff,exportSimulationHandoff,verifySimulationHandoff,MAX_SIMULATION_HANDOFF_BYTES} from '../shared/simulation-handoff.mjs';
+const NativeViewerAdapter=defineAsyncComponent(()=>import('./NativeViewerAdapter.vue'));
+const nativeOpen=ref(false);
 const props=defineProps({text:{type:String,required:true},allowOverlaps:Boolean});
 let disposed=false;onBeforeUnmount(()=>{disposed=true;});
 const contextKey=()=>JSON.stringify([props.text,props.allowOverlaps,mappingText.value]);
@@ -23,5 +25,6 @@ async function verifyFile(event){const file=event.target.files?.[0];event.target
     <p data-testid="handoff-message" role="status">{{ message }}</p><ul v-if="report" data-testid="handoff-issues"><li v-for="(issue,index) in report.validation.issues" :key="index">{{ issue.severity }} · {{ issue.code }} · {{ issue.message }}</li></ul><p v-if="report" data-testid="handoff-bindings">{{ report.bindings.length }} element bindings · {{ report.mapping.materials.length }} target materials</p><p class="hint">This validates a reference handoff only. The physics engine, solver-specific properties and engine acceptance remain unconnected.</p>
 <label><input v-model="requireChecksum" :disabled="busy" type="checkbox" @change="verification=null;verificationMessage=''">Require handoff checksum</label>
     <label>Verify simulation handoff file<input :disabled="busy" type="file" accept=".json,application/json" @change="verifyFile"></label><p data-testid="handoff-verification" role="status">{{ verificationMessage }}</p><p v-if="verification" data-testid="handoff-model-match">{{ matchesModel?'Matches the loaded model':'Different from the loaded model' }} · verification does not import or apply material settings.</p><p class="hint">Maximum 8 MiB. Verification rebuilds the source geometry, material bindings and validation report. Checksums detect changed data; they do not authenticate the author or approve the model for a solver.</p>
+    <button :aria-expanded="nativeOpen" @click="nativeOpen=!nativeOpen">Native viewer adapter</button><NativeViewerAdapter v-if="nativeOpen"/>
   </section>
 </template>

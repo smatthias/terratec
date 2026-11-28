@@ -1,0 +1,12 @@
+import {readFile,writeFile,mkdir,mkdtemp,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join,dirname} from 'node:path';import {fileURLToPath} from 'node:url';import {execFileSync} from 'node:child_process';
+import {nativeViewerBundle,NATIVE_VIEWER_PROFILE} from '../shared/native-viewer-adapter.mjs';import {exportSimulationHandoff} from '../shared/simulation-handoff.mjs';
+let temporary;
+try{
+ const args=process.argv.slice(2);if(args.length!==2||args[0]!=='--engine-repo')throw Error('Usage: npm run check:native-viewer -- --engine-repo /path/to/terraflux-engine');
+ const legacy=JSON.parse(await readFile(new URL('../fixtures/terraflux/handoff-legacy-v1.json',import.meta.url),'utf8')),bundle=await nativeViewerBundle(await exportSimulationHandoff(JSON.stringify(legacy.model),legacy.mapping));temporary=await mkdtemp(join(tmpdir(),'terratec-native-adapter-'));const source=join(temporary,'engine'),output=join(temporary,'bundle');await mkdir(source);await mkdir(output);
+ // Extract committed sources at the recorded baseline. Never use or modify its worktree.
+ const archive=execFileSync('git',['-C',args[1],'archive',NATIVE_VIEWER_PROFILE.commit,'native-compute/include','native-compute/src/math.cpp','native-compute/src/scene.cpp','native-compute/src/scene_io.cpp','native-compute/src/assets/obj.cpp'],{maxBuffer:16777216});execFileSync('tar',['-xf','-','-C',source],{input:archive});
+ for(const file of bundle.files){const path=join(output,file.name);await mkdir(dirname(path),{recursive:true});await writeFile(path,file.content);}
+ const core=join(source,'native-compute'),binary=join(temporary,'native-check');execFileSync('g++',['-std=c++20','-O1','-I'+join(core,'include'),fileURLToPath(new URL('../tools/native-viewer-contract-check.cpp',import.meta.url)),join(core,'src/math.cpp'),join(core,'src/scene.cpp'),join(core,'src/scene_io.cpp'),join(core,'src/assets/obj.cpp'),'-o',binary],{timeout:60000,stdio:['ignore','pipe','pipe']});
+ const b=bundle.manifest.summary.bounds;process.stdout.write(execFileSync(binary,[output,String(bundle.manifest.summary.triangles),...[b.min.x,b.min.y,b.min.z,b.max.x,b.max.y,b.max.z].map(String)],{encoding:'utf8'}));console.log('Pinned engine commit: '+NATIVE_VIEWER_PROFILE.commit);
+}catch(error){console.error(error.stderr?.toString()||error.message);process.exitCode=1;}finally{if(temporary)await rm(temporary,{recursive:true,force:true});}

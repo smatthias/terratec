@@ -1,6 +1,6 @@
 # TerraTec progress
 
-Overall: **approximately 75% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
+Overall: **approximately 76% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
 
 | Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
@@ -14,7 +14,7 @@ Overall: **approximately 75% across the full roadmap** (equal-weight mean of mil
 | Distributed production | 80% | Persistent daily sheet capacity, active due-date reservations and proposed assignment previews | Working calendars and duration estimates |
 | Customer and business tools | 78% | Accepted-quote billing JSON/CSV with exact amounts, provenance and deduplication keys | Receiving-system adapters and import receipts |
 | Assisted design | 15% | Bounded JSON furniture commands with preview, validation and atomic undo | Proposal adapters and additional operations |
-| TerraFlux integration | 50% | Checksummed handoff roundtrips, explicit legacy mode and strict verification policy | Receiving-engine capability checks and adapter wiring |
+| TerraFlux integration | 60% | Concrete native scene-v2/OBJ adapter, capability profile and pinned C++ parser interop | Native renderer smoke checks and solver capability negotiation |
 | Release readiness | 70% | Startup checks shared by development and packaged releases, recovery-safe warnings and configuration validation | Broader platform validation |
 
 This iteration adds a platform archive containing the production frontend, API and native executable. Node.js is required on the target; npm dependencies, Vite and a compiler are not. CI uploads a Linux x64 archive. Other operating systems and Linux distributions remain unverified.
@@ -51,3 +51,5 @@ Receiver-preview increment: 508 Node tests pass, including mesh topology/normals
 Material-handoff increment: 513 Node tests pass, including explicit physical-value validation, reference binding, missing mappings, geometry acknowledgements, scoped overrides and mixed-material designs. Export revalidates source geometry and mappings, includes the original model, and infers no mass. Production build and packaged recovery pass. The lazy panel raises the total budget to 1115 kB (1105 kB before); measured 1107.1 kB before final source-model inclusion. Entry/initial remain within unchanged limits. Browser blocked/valid handoff download checks are pending CI. Live simulation is disconnected; solver-specific material acceptance remains pending. Next increment: read-only round-trip handoff verification.
 
 Handoff-verification increment: 519 Node tests pass, including frozen legacy compatibility, whole-payload checksums, derived-data reconstruction, strict checksum policy, tamper rejection, placement/overlap and read-only CLI checks. UI verification never imports model or mapping data and distinguishes archived-model hashes. New v1 exports gain an optional-compatible checksum field; old v1 files remain derived-only unless strict policy is selected. Build and package recovery checks pass. Total 1110.7 kB is within the unchanged 1115 kB allowance; entry/initial limits remain unchanged. Browser new/legacy/strict/tampered file checks are pending CI. Engine acceptance and live simulation remain disconnected. Next increment: receiving-engine capability checks and adapter wiring.
+
+Native-adapter increment: inspected the receiving code and selected TerraFlux Engine's native scene-v2/OBJ loader at pinned commit 1ce82c3; weather/grid Physics scenarios are a separate interface. The exported fixture was accepted by the actual pinned C++ scene and OBJ parsers: 28 triangles, bounds and normals matched. Other repository worktrees were read-only; the harness builds archived committed sources in a temporary directory. 522 Node tests pass. Browser bundle ZIP/CRC checks are pending CI. Build and package recovery pass. Total budget is 1125 kB (1115 kB before), actual 1117.4 kB; initial/entry limits unchanged. Physical materials remain sidecar data and live simulation is disconnected. Full viewer rendering is not yet verified. Next increment: native rendering smoke checks and solver capability negotiation.

@@ -1877,3 +1877,12 @@ Use **Verify simulation handoff file** to check archived handoffs without applyi
 them. New exports include a whole-payload checksum; older v1 files receive explicit
 `derived-only` verification. **Require handoff checksum** rejects legacy or stripped
 checksums. A source-only CLI is available with `npm run check:handoff -- handoff.json`.
+
+### Concrete TerraFlux native viewer adapter
+
+Open **Native viewer adapter** inside material mapping and select a checksummed
+handoff. Download a ZIP with `terraflux.scene` v2, OBJ geometry and provenance
+sidecars for the pinned native viewer. The real engine's C++ scene/OBJ parsers
+accepted the fixture with matching triangle counts, bounds and normals. Physical
+materials and live simulation remain unsupported by this loader. See
+[Native viewer adapter](docs/NATIVE_VIEWER_ADAPTER.md) for capabilities and reproduction.
