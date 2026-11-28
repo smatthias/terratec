@@ -3,9 +3,11 @@ import {computed,ref,watch} from 'vue';
 import {constraintRows,removeConstraint} from '../shared/constraint-display.mjs';
 import {wallIds,wallCorners,wallSegment,cornerLabel,wallLabel} from '../shared/room-topology.mjs';
 import {togglePointConstraint,setLengthConstraint,setAngleConstraint} from '../shared/room-constraints.mjs';
-const props=defineProps({room:{type:Object,required:true},wall:String,disabled:Boolean});
-const emit=defineEmits(['change','select']);
+const props=defineProps({room:{type:Object,required:true},wall:String,disabled:Boolean,failure:Object});
+const emit=defineEmits(['change','select','diagnostic']);
 const rows=computed(()=>constraintRows(props.room)),error=ref('');
+const diagnosticRows=computed(()=>{if(!props.failure)return [];const labels=constraintRows({...props.room,constraints:props.failure.rows.map(row=>row.constraint)});return props.failure.rows.map((row,i)=>({...row,label:labels[i].label}));});
+watch(()=>props.room,()=>{error.value='';},{deep:true});
 const length=ref(1),reference=ref('');
 const corners=computed(()=>props.wall?Object.values(wallCorners(props.room,props.wall)):[]);
 const references=computed(()=>wallIds(props.room).filter(id=>id!==props.wall));
@@ -18,7 +20,7 @@ const fixed=corner=>(props.room.constraints??[]).some(c=>c.type==='point'&&c.cor
 function edit(change) {
   if(props.disabled||props.room.locked) return;
   try {emit('change',change());error.value='';}
-  catch(e) {error.value=e.message;}
+  catch(e) {error.value=e.message;emit('diagnostic',e.constraintDiagnostic??null);}
 }
 function remove(key) {edit(()=>removeConstraint(props.room,key));}
 </script>
@@ -40,7 +42,7 @@ function remove(key) {edit(()=>removeConstraint(props.room,key));}
       <button :aria-label="'Select '+row.id+': '+row.label" @click="emit('select',row.wall)"><strong>{{ row.id }}</strong> · {{ row.label }}</button>
       <button :disabled="disabled || room.locked" :aria-label="'Remove '+row.id+': '+row.label" @click="remove(row.key)">Remove</button>
     </li></ul>
-    <p v-if="error" role="alert">{{ error }}</p>
+    <section v-if="failure" aria-label="Constraint conflict diagnostics" data-testid="constraint-diagnostics"><h4>Failed attempt · room unchanged</h4><p>Rules involved in the failed attempt and saved point locks; this is not a minimal conflict proof. Residuals describe the attempted shape, not the saved room.</p><p>Solver iterations: {{ failure.iterations }} · tolerance {{ failure.tolerance }} (metres for lengths/points; normalized for angles)</p><p v-if="failure.pinnedCorners.length">Edited points: {{ failure.pinnedCorners.map(cornerLabel).join(', ') }}</p><ul><li v-for="row in diagnosticRows" :key="row.key"><button @click="emit('select',row.walls[0])">{{ row.label }} · {{ Number.isFinite(row.residual)?row.residual.toExponential(3):'unbounded' }} {{ row.unit }} · {{ row.satisfied?'satisfied / locked':'unsatisfied' }}</button></li></ul><div class="opening-actions"><button v-for="wallId in failure.affectedWalls" :key="wallId" @click="emit('select',wallId)">Inspect {{ wallLabel(wallId) }}</button><button @click="emit('diagnostic',null);error=''">Dismiss constraint diagnostics</button></div></section><p v-if="error" role="alert">{{ error }}</p>
   </section>
 </template>
 <style>

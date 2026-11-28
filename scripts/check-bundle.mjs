@@ -39,11 +39,11 @@ for(const [key,chunk] of Object.entries(manifest)) for(const imported of chunk.i
 for(let grew=true;grew;) {grew=false;for(const [key,list] of importers) if(!benchKeys.has(key)&&key!==designerKey&&key!==historyKey&&list.every(k=>benchKeys.has(k))) {benchKeys.add(key);grew=true;}}
 const benchFiles=new Set([...benchKeys].map(k=>manifest[k].file)),benchBytes=chunks.filter(c=>benchFiles.has(c.file)).reduce((n,c)=>n+c.bytes,0);
 assert.ok(benchBytes<=165000,'Workshop benches exceed 165 kB budget');
-// Initial JavaScript: 882 kB for the assisted-command entry point; entry stays 195 kB.
-// Total 1165 kB includes lazy verified measurement comparison (1155 kB before).
+// Initial JavaScript: 885 kB and entry 196 kB include structured constraint failures (882/195 before).
+// Total 1175 kB includes constraint diagnostics and Plan failure spans (1165 kB before).
 // Per-chunk and lazy workspace limits remain unchanged.
 const entryBytes=chunks.find(c=>c.file===entry.file).bytes,initialBytes=chunks.filter(c=>c.initial).reduce((n,c)=>n+c.bytes,0),totalBytes=chunks.reduce((n,c)=>n+c.bytes,0)-designerBytes-historyBytes-benchBytes;
-assert.ok(entryBytes<=195000,'Entry exceeds 195 kB budget');assert.ok(initialBytes<=882000,'Initial JavaScript exceeds 882 kB budget');assert.ok(totalBytes<=1165000,'Total JavaScript exceeds 1165 kB budget');
+assert.ok(entryBytes<=196000,'Entry exceeds 196 kB budget');assert.ok(initialBytes<=885000,'Initial JavaScript exceeds 885 kB budget');assert.ok(totalBytes<=1175000,'Total JavaScript exceeds 1175 kB budget');
 assert.ok(manifest['src/NativeMeasurementComparison.vue']?.isDynamicEntry&&!initial.has('src/NativeMeasurementComparison.vue'),'Native measurement comparison must stay lazy');
 assert.ok(manifest['src/NativeGeometryPreview.vue']?.isDynamicEntry&&!initial.has('src/NativeGeometryPreview.vue'),'Native source preview must stay lazy');
 for(const key of ['src/ManufacturingPanel.vue','src/WorkshopJobs.vue'])assert.ok(manifest[key]?.isDynamicEntry&&!initial.has(key),key+' must stay lazy');
