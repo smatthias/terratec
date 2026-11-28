@@ -150,3 +150,16 @@ The reader accepts only TerraTec's canonical, uncompressed ZIP profile: at most 
 Verification rebuilds the current pinned adapter output from the embedded checksummed handoff, then compares all four files exactly. This checks scene asset paths/transforms, OBJ geometry/normals, source/material ranges, engine profile and resource claims together. Browser verification additionally enforces the current receiving resource limits; the command uses the default limits. Successful verification enables source-range lookup without changing the workspace, material mapping or downloading a new bundle. Failures clear the previous range result.
 
 Checksums establish internal consistency, not author identity or authenticity. A fully regenerated archive containing a different valid model can pass. Verification does not run the native renderer or physics, and older adapter output without the current resource/source metadata must be re-exported.
+
+## Check a supplied ZIP with the pinned native engine
+
+Both native checks accept the verified ZIP directly. Without `--bundle` they keep using the generated compatibility fixture, which now passes through the same archive verification path.
+
+```sh
+npm run check:native-viewer -- --engine-repo /path/to/terraflux-engine --bundle /path/to/terratec-native-viewer.zip --report /tmp/native-parser.json
+npm run check:native-render -- --engine-repo /path/to/terraflux-engine --bundle /path/to/terratec-native-viewer.zip --backend osmesa --report /tmp/native-render.json
+```
+
+Verification and default receiving resource admission finish before engine access, compilation or native execution. Only the four verified files are written into a temporary directory. The source repository remains read-only; builds still use the recorded engine commit. Parser checks compare imported triangle counts, bounds, normals and logical memory against the verified manifest. Rendering checks require the supplied triangle count, positive visible pixels and matching direct/offscreen coverage. A model outside the smoke camera's view can fail rendering even when its archive and parser checks pass.
+
+Reports identify the exact input by SHA-256, byte count, fixture/supplied mode and receiving admission result. The parser report additionally records the expected summary and native output. Treat a report as new evidence only when its command exits successfully; a failed command does not replace a pre-existing report. Rendering still requires the documented graphics dependencies and backend setup. This remains an explicit native smoke check, not an interactive launcher or a physics connection.

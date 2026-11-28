@@ -1901,3 +1901,7 @@ Native viewer ZIPs can also be checked read-only in the adapter panel or with
 This checks archive integrity and rebuilds geometry/source mappings from the
 embedded handoff. See [the adapter contract](docs/NATIVE_VIEWER_ADAPTER.md#read-only-bundle-verification)
 for the accepted archive profile and verification limits.
+
+To test that exact ZIP against the pinned engine, add `--bundle FILE.zip` to
+`check:native-viewer` or `check:native-render`. Both commands verify the archive
+before native execution and support `--report FILE.json` with its SHA-256.
