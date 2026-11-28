@@ -1930,3 +1930,8 @@ includes hidden geometry and keeps approximation labels without inferred totals.
 Use **Verify native measurement report** to compare an exported JSON or canonical
 CSV report with its verified source ZIP. Edited measurements, provenance or scope
 are rejected; successful comparison establishes consistency, not authenticity.
+
+**Compare native measurements** checks a second ZIP and lists added/removed
+source IDs and measurement deltas relative to the current bundle. Export the
+comparison as JSON with both archive identities. Matching uses scoped IDs;
+unchanged measurements do not establish identical geometry or physics.
