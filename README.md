@@ -8,6 +8,8 @@ and C++17 geometry executable. No database or login is required for local develo
 ## Run locally
 
 Requires Node.js 22.12+, npm, CMake 3.16+ and a C++17 compiler (Ubuntu 22.04 target).
+Tests additionally require Python 3 for standard-library ZIP interoperability checks;
+the packaged application does not require Python.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
