@@ -1922,3 +1922,7 @@ picking; uncheck isolation and fit the full geometry to return to the overview.
 Selected source geometry now includes a measurement inspector for bounds,
 axis-aligned spans, centre, triangulated area and native triangle range.
 Furniture bounds remain explicitly approximate; volume and mass are not inferred.
+
+Export selected or all bundle measurements as CSV or JSON from the source
+preview. Reports retain ZIP/source identity and units; all-element export
+includes hidden geometry and keeps approximation labels without inferred totals.
