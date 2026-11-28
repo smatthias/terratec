@@ -1,4 +1,8 @@
 import {receiveTerraFluxModel} from './terraflux-receiver.mjs';
+export const MAX_SIMULATION_HANDOFF_BYTES=8388608;
+const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
+const canonicalJson=v=>JSON.stringify(canonical(v));
+async function digest(v){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonicalJson(v)));return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,'0')).join('');}
 const id=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,64}$/.test(v);
 const object=(v,allowed)=>{if(!v||typeof v!=='object'||Array.isArray(v)||Object.keys(v).some(k=>!allowed.includes(k)))throw Error('Unsupported handoff configuration fields');};
 export function validateHandoffMapping(input) {
@@ -22,6 +26,25 @@ export async function prepareSimulationHandoff(text,input,options={}) {
  for(const b of scene.bodies){const override=mapping.bodyOverrides.find(o=>o.roomId===b.roomId&&o.furnitureId===b.furnitureId);bind(b,override?.materialId??(b.materialId?mapping.sourceMaterials[b.materialId]:null));}
  for(const o of mapping.bodyOverrides)if(!scene.bodies.some(b=>b.roomId===o.roomId&&b.furnitureId===o.furnitureId))issue('UNKNOWN_BODY','Body override does not match this model: '+o.roomId+'/'+o.furnitureId);
  for(const [source,target] of Object.entries(mapping.sourceMaterials)){if(!targets.has(target))issue('UNKNOWN_TARGET','Unknown target material '+target);if(!scene.bodies.some(b=>b.materialId===source))issue('UNUSED_SOURCE','Source material '+source+' is not used by this model',null,'warning');}
- return {format:'terratec-simulation-handoff',version:1,source:scene.source,model:JSON.parse(text),scene,mapping,bindings,validation:{status:issues.some(i=>i.severity==='blocking')?'blocked':'validated-reference',issues},simulationConnected:false,note:'User-supplied reference material mapping. No solver-specific material validation, inferred mass, live simulation or engine acceptance is implied.'};
+ const payload={format:'terratec-simulation-handoff',version:1,source:scene.source,model:JSON.parse(text),scene,mapping,bindings,validation:{status:issues.some(i=>i.severity==='blocking')?'blocked':'validated-reference',issues},simulationConnected:false,note:'User-supplied reference material mapping. No solver-specific material validation, inferred mass, live simulation or engine acceptance is implied.'};
+ return {...payload,handoffSha256:await digest(payload)};
 }
-export async function exportSimulationHandoff(text,input,options){const handoff=await prepareSimulationHandoff(text,input,options);if(handoff.validation.status==='blocked')throw Error('Resolve blocking handoff issues before export');const output=JSON.stringify(handoff,null,2)+'\n';if(new TextEncoder().encode(output).length>8388608)throw Error('Simulation handoff exceeds 8 MiB');return output;}
+export async function exportSimulationHandoff(text,input,options){const handoff=await prepareSimulationHandoff(text,input,options);if(handoff.validation.status==='blocked')throw Error('Resolve blocking handoff issues before export');const output=JSON.stringify(handoff,null,2)+'\n';if(new TextEncoder().encode(output).length>MAX_SIMULATION_HANDOFF_BYTES)throw Error('Simulation handoff exceeds 8 MiB');return output;}
+
+export async function verifySimulationHandoff(text,options={}) {
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(k=>k!=='requireChecksum')||options.requireChecksum!==undefined&&typeof options.requireChecksum!=='boolean')throw Error('Unsupported handoff verification options');
+ if(typeof text!=='string'||new TextEncoder().encode(text).length>MAX_SIMULATION_HANDOFF_BYTES)throw Error('Simulation handoff exceeds 8 MiB');
+ let input;try{input=JSON.parse(text);}catch{throw Error('Invalid simulation handoff JSON');}
+ if(input?.format!=='terratec-simulation-handoff'||input.version!==1)throw Error('Unsupported simulation handoff format');
+ const allowed=['format','version','source','model','scene','mapping','bindings','validation','simulationConnected','note','handoffSha256'];
+ if(Object.keys(input).some(k=>!allowed.includes(k)))throw Error('Unsupported simulation handoff fields');
+ if(!input.model||!input.scene||typeof input.scene!=='object')throw Error('Simulation handoff needs an embedded model and receiver scene');
+ const expected=await prepareSimulationHandoff(JSON.stringify(input.model),input.mapping,{placement:input.scene.placement,allowOverlaps:!!input.model.overlaps?.length});
+ if(expected.validation.status!=='validated-reference')throw Error('Blocked simulation handoff cannot be verified as exportable');
+ const hasChecksum=Object.hasOwn(input,'handoffSha256');
+ if(options.requireChecksum&&!hasChecksum)throw Error('A handoff checksum is required; legacy file verification refused');
+ if(hasChecksum&&(typeof input.handoffSha256!=='string'||!/^[a-f0-9]{64}$/.test(input.handoffSha256)))throw Error('Invalid simulation handoff checksum');
+ const comparison={...expected};if(!hasChecksum)delete comparison.handoffSha256;
+ if(canonicalJson(input)!==canonicalJson(comparison))throw Error('Simulation handoff checksum or derived data check failed');
+ return {handoff:expected,integrity:hasChecksum?'checksum-and-derived':'derived-only'};
+}

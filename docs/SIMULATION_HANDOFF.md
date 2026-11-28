@@ -60,4 +60,44 @@ Changing mapping text, verified file or overlap policy invalidates the displayed
 validation. No solver is run, and no solver-specific acceptance, thermal/fire model,
 rigid-body mass, collision policy or physical boundary conditions are supplied.
 A receiving adapter must validate those requirements separately. Read-only round-trip
-verification of exported handoffs is the next increment.
+verification is available as described below.
+
+## Round-trip verification
+
+New v1 exports include `handoffSha256`, a SHA-256 digest of canonical compact UTF-8
+JSON for the whole payload excluding the checksum field. Object keys sort
+recursively; array order remains significant. This covers primary material values
+as well as geometry and derived bindings. It is not a signature or authentication.
+
+`verifySimulationHandoff(text, {requireChecksum: false})` checks the embedded model,
+rebuilds the receiver using the file's declared placement and overlap geometry,
+revalidates mappings and compares every derived field and validation issue. It
+rejects blocked payloads, unsupported versions/fields, invalid sizes and changed
+execution flags. Overlapping geometry retains the explicit warning from the
+reference scene; verification does not grant new production approval.
+
+The result is `{handoff, integrity}`. Integrity is `checksum-and-derived` for new
+files, or `derived-only` for pre-checksum v1. Legacy files cannot detect edits to
+otherwise valid primary material inputs; the UI reports this limitation. Set
+`requireChecksum: true` or select **Require handoff checksum** to reject legacy or
+stripped-checksum files instead. A checksum does not prevent deliberate edits
+followed by recomputation.
+
+Use **Verify simulation handoff file** to check an archived file without applying
+its materials, model or placement. The UI reports whether its source model hash
+matches the currently loaded model. A different model is a valid archive, not an
+import request. Failed verification clears the previous verification result while
+leaving the current mapping and workspace unchanged. Maximum file size is 8 MiB.
+
+From the source checkout:
+
+```sh
+npm run check:handoff -- handoff.json
+npm run check:handoff -- handoff.json --require-checksum
+```
+
+The CLI writes a JSON summary to stdout, creates no files and exits with code 1
+for invalid files or policy failures. It is not bundled with the packaged app.
+The frozen `fixtures/terraflux/handoff-legacy-v1.json` exercises compatibility with
+actual pre-checksum structure. Tests also cover checksummed roundtrips, altered
+material values/bindings/geometry, strict policy, placement and overlap handling.

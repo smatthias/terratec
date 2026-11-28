@@ -1872,3 +1872,8 @@ Validation reports missing/unknown mappings and requires explicit acknowledgemen
 of zero-thickness surfaces and bounding-box furniture. Export includes the original
 model, reference scene, mapping and validation; it never starts a solver or infers
 mass. See [Reference simulation handoff v1](docs/SIMULATION_HANDOFF.md).
+
+Use **Verify simulation handoff file** to check archived handoffs without applying
+them. New exports include a whole-payload checksum; older v1 files receive explicit
+`derived-only` verification. **Require handoff checksum** rejects legacy or stripped
+checksums. A source-only CLI is available with `npm run check:handoff -- handoff.json`.
