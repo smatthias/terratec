@@ -1950,13 +1950,17 @@ constraints; Plan highlights affected saved wall spans. Failures do not commit
 the attempted shape. Diagnostics identify involved rules, not a proven minimal
 conflict set, and distinguish metre residuals from normalized angle residuals.
 
-For failed fixed-length, wall-relationship or endpoint edits, choose saved rules to relax
+For failed fixed-length, wall-relationship, endpoint or wall-move edits, choose saved rules to relax
 and **Preview constraint repair**. The full room is validated and a schematic
 shows the proposed shape; saved geometry remains unchanged until **Apply
 constraint repair**. Apply is one undoable edit. Stale or altered previews are
-rejected; wall-construction failures currently remain diagnostic-only.
+rejected; wall replacement/removal failures currently remain diagnostic-only.
 
 Endpoint repair retries preserve the coordinates captured after the original
 grid/snap settings. Later draft or grid changes do not alter the pending request;
 click Apply endpoints again to capture a different request. Both endpoints remain
 pinned during retry, and only explicitly selected saved rules are relaxed.
+
+Wall-move repair captures the original wall and signed distance. Later selection
+or distance-draft changes do not alter that request. A candidate must still
+satisfy every retained rule and the normal room/opening/furniture validation.

@@ -769,18 +769,18 @@ function addReplacementSegment() {
   const depth=Math.min(.5,length*.15),tip=snapPoint({x:(a.x+b.x)/2+(b.z-a.z)/length*depth,z:(a.z+b.z)/2-(b.x-a.x)/length*depth},gridSpacing.value,snapEnabled.value);
   replacementDraft.value.splice(-1,1,{a:{...a},b:{...tip}},{a:{...tip},b:{...b}});
 }
-function runWallEdit(edit,describe) {
+function runWallEdit(edit,describe,request=null) {
   const before=project.value.room.openings.length;
   try {
     const room=edit(project.value.room);applyRoom(room);
     const dropped=before-project.value.room.openings.length;
     message.value=describe(room)+(dropped>0?' · '+dropped+' opening'+(dropped===1?'':'s')+' removed with it':'');
     return true;
-  } catch(error) {constraintFailure.value=error.constraintDiagnostic??null;message.value=error.message;return false;}
+  } catch(error) {constraintFailure.value=error.constraintDiagnostic?{...error.constraintDiagnostic,...(request?{request}:{})}:null;message.value=error.message;return false;}
 }
 function moveSelectedWall() {
   const wall=selectedWall.value,distance=wallMoveDistance.value;
-  runWallEdit(room=>moveWall(room,wall,distance),()=>wallLabel(wall)+' moved '+Math.abs(distance).toFixed(2)+' m '+(distance<0?'inward':'outward'));
+  runWallEdit(room=>moveWall(room,wall,distance),()=>wallLabel(wall)+' moved '+Math.abs(distance).toFixed(2)+' m '+(distance<0?'inward':'outward'),{type:'wall-move',wall,distance});
 }
 function removeSelectedWall() {
   const wall=selectedWall.value;

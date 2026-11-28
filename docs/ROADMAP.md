@@ -1,13 +1,13 @@
 # TerraTec progress
 
-Overall: **approximately 81% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
+Overall: **approximately 82% across the full roadmap** (equal-weight mean of milestone estimates, rounded). These percentages are planning estimates, not test coverage or production readiness. The wider roadmap includes future assisted design and TerraFlux work.
 
 | Milestone | Done | Current capability / improvement | Next step |
 | --- | ---: | --- | --- |
 | Project foundation | 97% | Shared startup configuration, native-core and storage diagnostics | Broader platform validation |
 | Design workspace | 97% | Room/constraint editing and verified source preview with selection, isolation and camera controls | Complete workflow and platform validation |
-| Parametric geometry | 86% | Locked points, fixed lengths and parallel/perpendicular wall relationships with bounded solving and schema-9 persistence | Wall-construction repair previews and more complex solver cases |
-| Building design | 75% | Shared floor plan, linked openings and whole-building quantities with overlap handling | Shared geometry and material take-offs |
+| Parametric geometry | 89% | Locked points, fixed lengths and parallel/perpendicular wall relationships with bounded solving and schema-9 persistence | Replacement repair previews and more complex solver cases |
+| Building design | 76% | Shared floor plan, linked openings and whole-building quantities with overlap handling | Shared geometry and material take-offs |
 | Interiors and furniture | 88% | Cabinet/furniture editing, placement and workshop benches | Verify complete editing workflows |
 | Drawings and exchange | 93% | Scaled/tiled building sheets and scoped source measurement JSON/CSV | Additional exchange adapters and comparison workflow validation |
 | Manufacturing | 90% | Persisted machine limits block incompatible panel and combined NC exports | Machine setup and fixture validation |
@@ -15,7 +15,7 @@ Overall: **approximately 81% across the full roadmap** (equal-weight mean of mil
 | Customer and business tools | 78% | Accepted-quote billing JSON/CSV with exact amounts and provenance | Receiving-system adapters and import receipts |
 | Assisted design | 15% | Bounded JSON furniture commands with preview, validation and atomic undo | Proposal adapters and additional operations |
 | TerraFlux integration | 90% | Verified ZIP/native parser/render checks, source picking, metrics and provenance-bound reports | Native physics capability remains disconnected |
-| Release readiness | 85% | Native/Node/browser CI, packaged recovery and measured headless rendering | Broader platform validation |
+| Release readiness | 86% | Native/Node/browser CI, packaged recovery and measured headless rendering | Broader platform validation |
 
 The dated entries below record historical increments; their pending checks and measurements describe those revisions, not the current head. Current native/browser validation is summarized in the latest increments.
 
@@ -89,3 +89,5 @@ Constraint-conflict diagnostics increment: solver failures carry bounded-iterati
 Constraint-repair preview increment: failed fixed-length and parallel/perpendicular edits retain their original request. Users explicitly choose saved rules to relax, retry into an isolated candidate room, and see changed corners plus a saved/proposed schematic before Apply. Preview validates the full project, including openings/furniture and linked room data; apply rechecks the source snapshot and recomputes the candidate, with one normal undoable room commit. Discard, rule-choice changes, project changes and different failure identities clear stale candidates. No repair rules are guessed automatically. Endpoint/construction failure repair is not yet offered. Five new tests cover non-mutating retries, stale/tampered plans, undo, blocked door clipping, locked/invalid inputs and angular repair. All 580 Node tests pass. Build and package recovery pass within unchanged 196/885/1175 kB allowances. Browser preview/discard/invalidation/apply/undo and failure-switch checks are pending CI.
 
 Endpoint-repair increment: endpoint edits capture validated wall/corner identities and coordinates after the original snap settings are resolved. Constraint failures carry that immutable request into the repair panel. Retry pins both captured endpoints without resnapping against later grid/draft settings, then uses full project validation and the existing stale-plan/apply/undo guards. Other retained point and length rules still block incompatible repairs. Five new tests cover draft/snap independence, exact pinned endpoints, undo, malformed corner pairs, unrelated relaxation, opening clipping and explicit fixed-length relaxation. All 585 Node tests, build and package recovery pass locally. Entry is 196.3 kB within a new 197 kB allowance (196 before); initial 883.3 kB and total 1174.2 kB remain within unchanged 885/1175 kB limits. Browser captured-coordinate persistence, preview/discard, explicit apply and undo checks are pending CI. Wall-construction failure repair remains diagnostic-only.
+
+Wall-move repair increment: construction error wrapping preserves structured constraint diagnostics, and failed Move wall actions retain their original wall ID and signed distance. Explicitly relaxed rules are removed only in the candidate; the original wall move is retried with its existing line/opening rehosting behavior and full project validation. Later wall selection/distance draft changes do not alter the pending request. Retained point locks and invalid opening rehosting still block repair. Four new tests cover preserved diagnostics, non-mutating captured retries/undo, retained rules and invalid requests, plus inward/outward geometry and blocked opening placement. All 589 Node tests, build and package recovery pass locally. Entry/initial/total JS are 196.5/883.5/1174.8 kB within unchanged 197/885/1175 kB limits. Browser blocked preview, captured-request ownership, discard, apply and undo checks are pending CI. Replacement/removal repair remains diagnostic-only.

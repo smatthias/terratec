@@ -68,7 +68,7 @@ function rebuild(room,lines,hosts,action) {
     validateConstraints(room.constraints,geometry);
     const furniture=validateFurniture(room.furniture??[],outline,room.height);
     return {...rest,width,depth,outline,...(stored?{walls:stored}:{}),openings,furniture};
-  } catch(error) { throw Error(`Cannot ${action}: ${error.message}`); }
+  } catch(error) {const wrapped=new Error(`Cannot ${action}: ${error.message}`);if(error.constraintDiagnostic)wrapped.constraintDiagnostic=error.constraintDiagnostic;throw wrapped;}
 }
 function lineIndex(lines,wall) {
   const index=lines.findIndex(line=>line.id===wall);
